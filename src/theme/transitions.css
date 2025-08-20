@@ -1,0 +1,379 @@
+/* Smooth theme transitions */
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition: 
+    background-color var(--animation-duration-normal) var(--animation-easing-ease-in-out),
+    border-color var(--animation-duration-normal) var(--animation-easing-ease-in-out),
+    color var(--animation-duration-normal) var(--animation-easing-ease-in-out),
+    box-shadow var(--animation-duration-normal) var(--animation-easing-ease-in-out),
+    backdrop-filter var(--animation-duration-normal) var(--animation-easing-ease-in-out) !important;
+}
+
+/* Prevent transitions on page load */
+.preload *,
+.preload *::before, 
+.preload *::after {
+  transition: none !important;
+}
+
+/* Custom properties for glass effects */
+:root {
+  --glass-base: rgba(255, 255, 255, var(--glass-opacity-medium));
+  --glass-border: var(--glass-border-medium);
+  --glass-blur: var(--glass-blur-xl);
+}
+
+/* Utility classes using CSS custom properties */
+.bg-primary {
+  background-color: rgb(var(--color-primary-500));
+}
+
+.text-primary {
+  color: rgb(var(--color-primary-500));
+}
+
+.border-primary {
+  border-color: rgb(var(--color-primary-500));
+}
+
+.glass-light {
+  backdrop-filter: blur(var(--glass-blur-lg));
+  background: rgba(255, 255, 255, var(--glass-opacity-light));
+  border: 1px solid var(--glass-border-light);
+}
+
+.glass-medium {
+  backdrop-filter: blur(var(--glass-blur-xl));
+  background: rgba(255, 255, 255, var(--glass-opacity-medium));
+  border: 1px solid var(--glass-border-medium);
+}
+
+.glass-heavy {
+  backdrop-filter: blur(var(--glass-blur-2xl));
+  background: rgba(255, 255, 255, var(--glass-opacity-heavy));
+  border: 1px solid var(--glass-border-heavy);
+}
+
+/* Financial color utilities */
+.text-financial-revenue {
+  color: rgb(var(--color-financial-revenue));
+}
+
+.text-financial-expense {
+  color: rgb(var(--color-financial-expense));
+}
+
+.text-financial-asset {
+  color: rgb(var(--color-financial-asset));
+}
+
+.text-financial-liability {
+  color: rgb(var(--color-financial-liability));
+}
+
+.text-financial-equity {
+  color: rgb(var(--color-financial-equity));
+}
+
+.text-financial-profit {
+  color: rgb(var(--color-financial-profit));
+}
+
+.text-financial-loss {
+  color: rgb(var(--color-financial-loss));
+}
+
+/* Background financial colors */
+.bg-financial-revenue {
+  background-color: rgb(var(--color-financial-revenue));
+}
+
+.bg-financial-expense {
+  background-color: rgb(var(--color-financial-expense));
+}
+
+.bg-financial-asset {
+  background-color: rgb(var(--color-financial-asset));
+}
+
+.bg-financial-liability {
+  background-color: rgb(var(--color-financial-liability));
+}
+
+.bg-financial-equity {
+  background-color: rgb(var(--color-financial-equity));
+}
+
+.bg-financial-profit {
+  background-color: rgb(var(--color-financial-profit));
+}
+
+.bg-financial-loss {
+  background-color: rgb(var(--color-financial-loss));
+}
+
+/* Animation utilities */
+.animate-fast {
+  transition-duration: var(--animation-duration-fast);
+}
+
+.animate-normal {
+  transition-duration: var(--animation-duration-normal);
+}
+
+.animate-slow {
+  transition-duration: var(--animation-duration-slow);
+}
+
+.ease-spring {
+  transition-timing-function: var(--animation-easing-spring);
+}
+
+/* ========================= */
+/* Modal overlay + glass skin */
+/* ========================= */
+
+/* Blue‑white liquid glass overlay tuned for readability */
+.modal-overlay {
+  /* stronger blur for premium feel */
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  /* theme-aware blue tint using tokens (no hardcoded hex) */
+  background: radial-gradient(
+    120% 140% at 50% 10%,
+    rgb(var(--color-primary-500) / 0.16) 0%,
+    rgb(var(--color-primary-500) / 0.10) 35%,
+    rgb(var(--color-neutral-1000) / 0.04) 50%,
+    rgb(var(--color-neutral-900) / 0.45) 100%
+  );
+}
+
+.dark .modal-overlay {
+  background: radial-gradient(
+    120% 140% at 50% 10%,
+    rgb(var(--color-primary-500) / 0.10) 0%,
+    rgb(var(--color-primary-500) / 0.06) 30%,
+    rgb(var(--color-neutral-100) / 0.10) 45%,
+    rgb(var(--color-neutral-200) / 0.85) 100%
+  );
+  /* ensure full coverage above any app shells */
+  position: fixed;
+  inset: 0;
+  /* extra base darkening for clearer separation */
+  background-color: rgb(var(--color-neutral-0) / 0.70);
+}
+
+/* Inner modal glass with blue‑white bias for text clarity */
+.glass-modal {
+  backdrop-filter: blur(var(--glass-blur-2xl));
+  -webkit-backdrop-filter: blur(var(--glass-blur-2xl));
+  background: linear-gradient(
+    135deg,
+    rgb(var(--color-neutral-0) / 0.88) 0%,
+    rgb(var(--color-secondary-50) / 0.80) 100%
+  ) !important;
+  border: 1px solid rgb(var(--color-neutral-100) / 0.65) !important;
+  box-shadow: var(--shadow-glow-md);
+  color: rgb(var(--color-neutral-900)) !important;
+  /* add internal padding edge so content never touches the border visually */
+  padding: 0.25rem;
+}
+
+.dark .glass-modal {
+  /* Switch to deep charcoal glass for high contrast in dark themes */
+  background:
+    radial-gradient(120% 120% at 50% 0%, rgb(var(--color-neutral-100) / 0.90) 0%, transparent 60%),
+    linear-gradient(135deg, rgb(var(--color-neutral-0) / 0.92) 0%, rgb(var(--color-neutral-100) / 0.88) 100%) !important;
+  border-color: rgb(var(--color-neutral-300) / 0.6) !important;
+  color: rgb(var(--color-text-primary)) !important;
+  /* Darken/simplify backdrop to prevent washout */
+  -webkit-backdrop-filter: blur(var(--glass-blur-2xl)) brightness(0.72) saturate(0.9) contrast(1.05);
+  backdrop-filter: blur(var(--glass-blur-2xl)) brightness(0.72) saturate(0.9) contrast(1.05);
+}
+
+/* Tone down bright reflections inside modals to improve text contrast */
+.glass-modal::before { opacity: 0.25 !important; }
+.glass-modal::after { opacity: 0.25 !important; }
+.dark .glass-modal::before { opacity: 0.08 !important; }
+.dark .glass-modal::after { opacity: 0.08 !important; }
+
+/* Optional subtle inner vignette for dark themes to separate content from busy backdrops */
+.dark .glass-modal {
+  box-shadow: inset 0 0 0 1px rgb(var(--color-neutral-700) / 0.6),
+              0 20px 50px rgb(var(--color-neutral-0) / 0.35);
+}
+
+/* ===================== */
+/* Liquid Glass Enhancer */
+/* ===================== */
+.liquid-glass {
+  position: relative;
+  overflow: hidden;
+  /* multi-layer subtle caustics using theme tokens only */
+  background-image:
+    radial-gradient(120% 120% at 10% -10%, rgb(var(--color-primary-500) / 0.08), transparent 60%),
+    radial-gradient(100% 140% at 90% 0%, rgb(var(--color-secondary-500) / 0.06), transparent 65%),
+    linear-gradient(135deg, transparent, transparent);
+  background-blend-mode: screen, overlay, normal;
+}
+
+.dark .liquid-glass {
+  background-image:
+    radial-gradient(120% 120% at 10% -10%, rgb(var(--color-primary-500) / 0.06), transparent 60%),
+    radial-gradient(100% 140% at 90% 0%, rgb(var(--color-secondary-500) / 0.05), transparent 65%),
+    linear-gradient(135deg, transparent, transparent);
+}
+
+/* inner thickness + rim light */
+.liquid-glass {
+  box-shadow:
+    inset 0 1px 0 rgb(var(--color-neutral-100) / 0.45),
+    inset 0 -18px 36px rgb(var(--color-neutral-0) / 0.12),
+    0 24px 60px rgb(var(--color-neutral-0) / 0.25);
+}
+.dark .liquid-glass {
+  box-shadow:
+    inset 0 1px 0 rgb(var(--color-neutral-300) / 0.35),
+    inset 0 -18px 36px rgb(var(--color-neutral-100) / 0.08),
+    0 30px 70px rgb(var(--color-neutral-0) / 0.55);
+}
+
+/* soft animated glint (GPU-friendly transform animate) */
+.liquid-glass::after {
+  content: "";
+  position: absolute;
+  inset: -20% -40% auto -40%;
+  height: 40%;
+  background: linear-gradient(90deg, transparent, rgb(var(--color-neutral-1000) / 0.06), transparent);
+  transform: translateX(-20%);
+  pointer-events: none;
+  mix-blend-mode: screen;
+  will-change: transform;
+  animation: glass-glint 8s ease-in-out infinite;
+}
+.dark .liquid-glass::after {
+  background: linear-gradient(90deg, transparent, rgb(var(--color-neutral-900) / 0.08), transparent);
+}
+
+@keyframes glass-glint {
+  0%, 100% { transform: translateX(-20%) skewX(-8deg); opacity: 0.5; }
+  50% { transform: translateX(120%) skewX(-8deg); opacity: 0.9; }
+}
+
+/* Chart tooltip variant: darker backdrop and higher blur for legibility */
+.chart-tooltip {
+  backdrop-filter: blur(20px) saturate(0.9) brightness(0.95);
+  -webkit-backdrop-filter: blur(20px) saturate(0.9) brightness(0.95);
+}
+.dark .chart-tooltip {
+  backdrop-filter: blur(24px) saturate(0.85) brightness(0.65);
+  -webkit-backdrop-filter: blur(24px) saturate(0.85) brightness(0.65);
+  background: linear-gradient(135deg, rgb(var(--color-neutral-0) / 0.88), rgb(var(--color-neutral-100) / 0.80)) !important;
+  color: rgb(var(--color-text-primary)) !important;
+}
+
+/* =============== */
+/* Reports headers */
+/* =============== */
+.reports-thead {
+  color: rgb(var(--color-neutral-900));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgb(var(--color-neutral-0) / 0.14);
+  border-bottom: 1px solid rgb(var(--color-neutral-100) / 0.18);
+}
+.dark .reports-thead {
+  color: rgb(var(--color-neutral-1000));
+  background: rgb(var(--color-neutral-900) / 0.64);
+  border-bottom-color: rgb(var(--color-neutral-700) / 0.58);
+}
+
+/* unify header cell feel with body rows */
+.reports-thead th {
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+  white-space: nowrap;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+.reports-thead th + th {
+  border-left: 1px solid rgb(var(--color-neutral-100) / 0.10);
+}
+.dark .reports-thead th + th {
+  border-left-color: rgb(var(--color-neutral-700) / 0.28);
+}
+
+/* Row harmonization: subtle top separator to tie header with first row */
+.reports-table tbody tr:first-child td {
+  border-top: 1px solid rgb(var(--color-neutral-100) / 0.08);
+}
+.dark .reports-table tbody tr:first-child td {
+  border-top-color: rgb(var(--color-neutral-700) / 0.22);
+}
+
+/* Table radius pairing with header */
+.reports-table {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Responsive utilities using custom properties */
+@media (min-width: var(--breakpoint-sm)) {
+  .sm\:glass-light {
+    backdrop-filter: blur(var(--glass-blur-lg));
+    background: rgba(255, 255, 255, var(--glass-opacity-light));
+    border: 1px solid var(--glass-border-light);
+  }
+}
+
+@media (min-width: var(--breakpoint-md)) {
+  .md\:glass-medium {
+    backdrop-filter: blur(var(--glass-blur-xl));
+    background: rgba(255, 255, 255, var(--glass-opacity-medium));
+    border: 1px solid var(--glass-border-medium);
+  }
+}
+
+@media (min-width: var(--breakpoint-lg)) {
+  .lg\:glass-heavy {
+    backdrop-filter: blur(var(--glass-blur-2xl));
+    background: rgba(255, 255, 255, var(--glass-opacity-heavy));
+    border: 1px solid var(--glass-border-heavy);
+  }
+}
+
+/* Hover states using theme variables */
+.hover\:bg-primary:hover {
+  background-color: rgb(var(--color-primary-600));
+}
+
+.hover\:text-primary:hover {
+  color: rgb(var(--color-primary-600));
+}
+
+.hover\:border-primary:hover {
+  border-color: rgb(var(--color-primary-600));
+}
+
+/* Focus states */
+.focus\:ring-primary:focus {
+  box-shadow: 0 0 0 3px rgb(var(--color-primary-500) / 0.3);
+}
+
+/* Glow effects */
+.glow-primary {
+  box-shadow: var(--shadow-glow-md);
+}
+
+.glow-success {
+  box-shadow: 0 0 20px rgb(var(--color-success-500) / 0.4);
+}
+
+.glow-error {
+  box-shadow: 0 0 20px rgb(var(--color-error-500) / 0.4);
+}
+
+.glow-warning {
+  box-shadow: 0 0 20px rgb(var(--color-warning-500) / 0.4);
+}

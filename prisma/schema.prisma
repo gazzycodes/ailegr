@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Account {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  name          String
+  type          AccountType
+  normalBalance NormalBalance
+  parentId      String?
+  parent        Account? @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children      Account[] @relation("AccountHierarchy")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  debitEntries  TransactionEntry[] @relation("DebitAccount")
+  creditEntries TransactionEntry[] @relation("CreditAccount")
+  categories    Category[]
+
+  @@map("accounts")
+}
+
+model Transaction {
+  id           String   @id @default(cuid())
+  date         DateTime
+  description  String
+  reference    String   @unique
+  amount       Decimal
+  customFields Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  entries  TransactionEntry[]
+  expense  Expense?
+  invoice  Invoice?
+
+  @@map("transactions")
+}
+
+model TransactionEntry {
+  id              String   @id @default(cuid())
+  transactionId   String
+  debitAccountId  String?
+  creditAccountId String?
+  amount          Decimal
+  description     String?
+
+  // Relations
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  debitAccount  Account?    @relation("DebitAccount", fields: [debitAccountId], references: [id])
+  creditAccount Account?    @relation("CreditAccount", fields: [creditAccountId], references: [id])
+
+  @@map("transaction_entries")
+}
+
+model Expense {
+  id            String   @id @default(cuid())
+  transactionId String   @unique
+  vendor        String
+  categoryId    String?
+  categoryKey   String?
+  date          DateTime
+  amount        Decimal
+  description   String?
+  receiptUrl    String?
+  customFields  Json?
+  isRecurring   Boolean  @default(false)
+  isPending     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  category    Category?   @relation(fields: [categoryId], references: [id])
+  pendingApproval PendingCategoryApproval?
+
+  @@map("expenses")
+}
+
+model Category {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  key            String   @unique
+  accountCode    String
+  description    String?
+  aiGenerated    Boolean  @default(false)
+  isApproved     Boolean  @default(false)
+  suggestionData Json?
+  usageCount     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  expenses Expense[]
+  account  Account @relation(fields: [accountCode], references: [code])
+
+  @@map("categories")
+}
+
+model PendingCategoryApproval {
+  id               String   @id @default(cuid())
+  expenseId        String   @unique
+  suggestedName    String
+  suggestedKey     String
+  suggestedAccount String
+  aiReasoning      String?
+  confidence       Float
+  expenseDetails   Json
+  status           String   @default("PENDING")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@map("pending_category_approvals")
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  company   String?
+  email     String   @unique
+  phone     String?
+  address   String?
+  city      String?
+  state     String?
+  zipCode   String?
+  country   String   @default("US")
+  isActive  Boolean  @default(true)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  invoices Invoice[]
+
+  @@map("customers")
+}
+
+model Invoice {
+  id            String   @id @default(cuid())
+  transactionId String   @unique
+  customerId    String?
+  customer      String
+  invoiceNumber String   @unique
+  date          DateTime
+  dueDate       DateTime?
+  amount        Decimal
+  description   String?
+  status        InvoiceStatus @default(DRAFT)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  customerRel Customer?   @relation(fields: [customerId], references: [id])
+
+  @@map("invoices")
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum NormalBalance {
+  DEBIT
+  CREDIT
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+
