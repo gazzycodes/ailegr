@@ -190,3 +190,47 @@ enum InvoiceStatus {
 }
 
 
+model CompanyProfile {
+  id                  String   @id @default(cuid())
+  workspaceId         String   @unique @default("default")
+  legalName           String
+  aliases             Json
+  ein                 String?
+  taxId               String?
+  addressLines        Json
+  city                String?
+  state               String?
+  zipCode             String?
+  country             String   @default("US")
+  normalizedLegalName String
+  normalizedAliases   Json
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("company_profiles")
+}
+
+model RecurringSchedule {
+  id             String   @id @default(cuid())
+  type           String   // 'expense' only for now
+  vendor         String?
+  customer       String?
+  amount         Decimal
+  categoryKey    String?
+  description    String?
+  startDate      DateTime
+  endDate        DateTime?
+  frequency      String   // daily|weekly|monthly|quarterly|yearly
+  dayOfMonth     Int?
+  dayOfWeek      Int?
+  nextRunDate    DateTime
+  isActive       Boolean  @default(true)
+  lastRunDate    DateTime?
+  customFields   Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("recurring_schedules")
+}
+
+

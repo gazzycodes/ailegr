@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import SetupService from '../../services/setupService'
 import AICategories from './ai/AICategories'
+import CompanyProfileModal from './CompanyProfileModal'
 
 export default function Settings() {
   const [busy, setBusy] = useState<string | null>(null)
   const [result, setResult] = useState<string | null>(null)
+  const [openCompany, setOpenCompany] = useState(false)
 
   const run = async (key: string, fn: () => Promise<any>) => {
     try {
@@ -34,6 +36,12 @@ export default function Settings() {
 
         <ThemedGlassSurface variant="light" className="p-4">
           <div className="space-y-3">
+            <button
+              className="px-3 py-2 rounded-lg bg-white/10 border border-white/10"
+              onClick={() => setOpenCompany(true)}
+            >
+              Company Profile
+            </button>
             <button
               disabled={busy === 'accounts'}
               className="px-3 py-2 rounded-lg bg-primary/20 text-primary border border-primary/30 disabled:opacity-60"
@@ -70,6 +78,7 @@ export default function Settings() {
           </div>
           <AICategories />
         </ThemedGlassSurface>
+        <CompanyProfileModal open={openCompany} onClose={() => setOpenCompany(false)} />
       </div>
     </div>
   )

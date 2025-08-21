@@ -3,29 +3,29 @@ import api from './api'
 export async function uploadOcr(file: File) {
   const form = new FormData()
   form.append('file', file)
-  const { data } = await api.post('/api/ocr', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  const { data } = await api.post('/api/ocr', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 })
   return data as { text?: string }
 }
 
 export async function previewExpense(payload: any) {
-  const { data } = await api.post('/api/posting/preview', payload)
+  const { data } = await api.post('/api/posting/preview', payload, { timeout: 45000 })
   return data
 }
 
 export async function postExpense(payload: any) {
-  const { data } = await api.post('/api/expenses', payload)
+  const { data } = await api.post('/api/expenses', payload, { timeout: 30000 })
   return data
 }
 
 export async function attachReceipt(expenseId: string, file: File) {
   const form = new FormData()
   form.append('file', file)
-  const { data } = await api.post(`/api/expenses/${encodeURIComponent(expenseId)}/receipt`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  const { data } = await api.post(`/api/expenses/${encodeURIComponent(expenseId)}/receipt`, form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 })
   return data
 }
 
 export async function listExpenses() {
-  const { data } = await api.get('/api/expenses')
+  const { data } = await api.get('/api/expenses', { timeout: 15000 })
   return Array.isArray(data) ? data : []
 }
 

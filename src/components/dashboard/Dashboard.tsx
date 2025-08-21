@@ -17,20 +17,12 @@ import { PredictiveInsights } from './PredictiveInsights'
 import { useTheme } from '../../theme/ThemeProvider'
 import { cn } from '../../lib/utils'
 import SegmentedControl from '../themed/SegmentedControl'
+import api from '../../services/api'
 
 interface DashboardProps {
   businessHealth: number
 }
 
-
-
-const recentTransactions = [
-  { id: 1, description: 'Adobe Creative Suite', amount: -59.99, type: 'expense', category: 'Software' },
-  { id: 2, description: 'Client Payment - ACME Corp', amount: 5000, type: 'revenue', category: 'Consulting' },
-  { id: 3, description: 'Office Supplies', amount: -247.83, type: 'expense', category: 'Office' },
-  { id: 4, description: 'Freelancer Payment', amount: -1200, type: 'expense', category: 'Contractors' },
-  { id: 5, description: 'Investment Dividend', amount: 450.75, type: 'revenue', category: 'Investments' }
-]
 
 export function Dashboard({ businessHealth }: DashboardProps) {
   const [timeRange, setTimeRange] = useState<'1M' | '3M' | '6M' | '1Y'>('1M')
@@ -70,10 +62,10 @@ export function Dashboard({ businessHealth }: DashboardProps) {
 
   // Real data state with safe fallback for development
   const [financialData, setFinancialData] = useState(() => ({
-    revenue: { current: 125840, previous: 98760, trend: 'up' as const, change: 27.4 },
-    expenses: { current: 89340, previous: 76890, trend: 'up' as const, change: 16.2 },
-    profit: { current: 36500, previous: 21870, trend: 'up' as const, change: 66.9 },
-    cashFlow: { current: 45200, previous: 32100, trend: 'up' as const, change: 40.8 },
+    revenue: { current: 0, previous: 0, trend: 'up' as const, change: 0 },
+    expenses: { current: 0, previous: 0, trend: 'up' as const, change: 0 },
+    profit: { current: 0, previous: 0, trend: 'up' as const, change: 0 },
+    cashFlow: { current: 0, previous: 0, trend: 'up' as const, change: 0 },
     series: undefined as undefined | { labels?: string[]; revenue?: number[]; expenses?: number[]; profit?: number[] }
   }))
 
@@ -106,6 +98,17 @@ export function Dashboard({ businessHealth }: DashboardProps) {
     },
     placeholderData: (prev) => prev,
     staleTime: 15000,
+    refetchInterval: 30000,
+  })
+
+  const recentQuery = useQuery({
+    queryKey: ['recent-transactions'],
+    queryFn: async () => {
+      const { data } = await api.get('/api/transactions/recent?limit=5')
+      return data
+    },
+    placeholderData: (prev) => prev,
+    staleTime: 10000,
     refetchInterval: 30000,
   })
 
@@ -316,7 +319,7 @@ export function Dashboard({ businessHealth }: DashboardProps) {
 
             <div className="space-y-3">
               <AnimatePresence>
-                {recentTransactions.map((transaction, index) => (
+                {(Array.isArray((recentQuery.data as any)?.items) ? (recentQuery.data as any).items : []).map((transaction: any, index: number) => (
                   <motion.div
                     key={transaction.id}
                     initial={{ opacity: 0, x: -20 }}

@@ -115,23 +115,137 @@ app.get('/api/ai/usage', (req, res) => {
   }
 })
 
+// Company Profile endpoints
+function normalizeName(name) {
+  if (!name) return ''
+  return name
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .replace(/\b(inc|llc|corp|co|ltd|the|company|companies)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+app.get('/api/company-profile', async (req, res) => {
+  try {
+    const profile = await prisma.companyProfile.findFirst({ where: { workspaceId: 'default' } })
+    if (!profile) {
+      const def = await prisma.companyProfile.create({ data: {
+        workspaceId: 'default',
+        legalName: 'AILegr Solutions Inc',
+        aliases: ['AILegr', 'AILegr Inc', 'AILegr Solutions'],
+        ein: null,
+        taxId: null,
+        addressLines: [],
+        city: null,
+        state: null,
+        zipCode: null,
+        country: 'US',
+        normalizedLegalName: normalizeName('AILegr Solutions Inc'),
+        normalizedAliases: ['AILegr', 'AILegr Inc', 'AILegr Solutions'].map(normalizeName)
+      } })
+      return res.json(def)
+    }
+    res.json(profile)
+  } catch (e) {
+    console.error('company-profile get error:', e)
+    res.status(500).json({ success: false, error: 'PROFILE_FETCH_FAILED', message: 'Failed to fetch company profile' })
+  }
+})
+
+app.put('/api/company-profile', async (req, res) => {
+  try {
+    const { legalName, aliases = [], ein, taxId, addressLines = [], city, state, zipCode, country = 'US' } = req.body || {}
+    if (!legalName || !legalName.trim()) return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Legal name is required' })
+    const normalized = {
+      legalName: legalName.trim(),
+      aliases: Array.isArray(aliases) ? aliases.filter(a => a && a.trim()) : [],
+      ein: ein?.trim() || null,
+      taxId: taxId?.trim() || null,
+      addressLines: Array.isArray(addressLines) ? addressLines.filter(a => a && a.trim()) : [],
+      city: city?.trim() || null,
+      state: state?.trim() || null,
+      zipCode: zipCode?.trim() || null,
+      country: country || 'US',
+      normalizedLegalName: normalizeName(legalName),
+      normalizedAliases: (Array.isArray(aliases) ? aliases.filter(a => a && a.trim()) : []).map(normalizeName)
+    }
+    const existing = await prisma.companyProfile.findFirst({ where: { workspaceId: 'default' } })
+    const profile = existing
+      ? await prisma.companyProfile.update({ where: { id: existing.id }, data: normalized })
+      : await prisma.companyProfile.create({ data: { workspaceId: 'default', ...normalized } })
+    res.json({ success: true, message: 'Company profile updated successfully', profile })
+  } catch (e) {
+    console.error('company-profile put error:', e)
+    res.status(500).json({ success: false, error: 'PROFILE_UPDATE_FAILED', message: 'Failed to update company profile' })
+  }
+})
+
 // Dashboard
 app.get('/api/dashboard', async (req, res) => {
   try {
     const dashboardData = await ReportingService.getDashboard()
+    let aiInsights = []
+    try {
+      if (process.env.GEMINI_API_KEY) {
+        const m = dashboardData.metrics
+        const prompt = `Provide 3 concise financial insights for a small business dashboard based on:
+Total Revenue: $${m.totalRevenue.toFixed(2)}
+Total Expenses: $${m.totalExpenses.toFixed(2)}
+Net Profit: $${m.netProfit.toFixed(2)}
+Assets: $${m.totalAssets.toFixed(2)}
+Liabilities: $${m.totalLiabilities.toFixed(2)}
+Equity: $${m.totalEquity.toFixed(2)}
+
+Return JSON array of objects: [{"id":"string","category":"Revenue|Expense|Profit","message":"short actionable tip","urgency":"low|medium|high","icon":"TrendingUp|AlertTriangle|Check"}]`
+        const text = await AICategoryService.callGeminiAPI(prompt)
+        const parsed = JSON.parse(text)
+        if (Array.isArray(parsed)) aiInsights = parsed.slice(0, 3)
+      }
+    } catch {}
+    // If AI not configured or fails, return no insights (no mock data)
     res.json({
       metrics: dashboardData.metrics,
-      sparklineData: dashboardData.sparklineData,
-      aiInsights: [
-        { id: 'rev-trend', category: 'Revenue', message: `Revenue $${dashboardData.metrics.totalRevenue.toLocaleString()} — steady upward trend. Consider upselling top clients.`, urgency: 'medium', icon: 'TrendingUp' },
-        { id: 'expense-watch', category: 'Expense', message: `Expenses $${dashboardData.metrics.totalExpenses.toLocaleString()} — software subscriptions up 8% MoM. Review unused seats.`, urgency: 'low', icon: 'AlertTriangle' },
-        { id: 'profit-health', category: 'Profit', message: `Net profit $${dashboardData.metrics.netProfit.toLocaleString()} — healthy margin this period.`, urgency: 'low', icon: 'Check' }
-      ],
+      series: dashboardData.series,
+      aiInsights,
       healthChecks: dashboardData.healthChecks
     })
   } catch (error) {
     console.error('Dashboard error:', error)
     res.status(500).json({ error: 'Failed to fetch dashboard data', details: error.message })
+  }
+})
+
+// Recent transactions (latest 5)
+app.get('/api/transactions/recent', async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(20, parseInt(req.query.limit) || 5))
+    const txs = await prisma.transaction.findMany({
+      include: {
+        entries: {
+          include: { debitAccount: true, creditAccount: true },
+        }
+      },
+      orderBy: { date: 'desc' },
+      take: limit
+    })
+    const items = txs.map(t => {
+      const total = parseFloat(t.amount)
+      // Infer type for display
+      let type = 'other'
+      const hasRevenueCredit = t.entries.some(e => e.creditAccount?.type === 'REVENUE')
+      const hasExpenseDebit = t.entries.some(e => e.debitAccount?.type === 'EXPENSE')
+      if (hasRevenueCredit) type = 'revenue'
+      else if (hasExpenseDebit) type = 'expense'
+      const description = t.description || (type === 'revenue' ? 'Revenue' : type === 'expense' ? 'Expense' : 'Transaction')
+      const category = type === 'revenue' ? 'Revenue' : type === 'expense' ? 'Expense' : 'General'
+      const amount = type === 'revenue' ? Math.abs(total) : type === 'expense' ? -Math.abs(total) : total
+      return { id: t.id, date: t.date, description, category, type, amount }
+    })
+    res.json({ items })
+  } catch (e) {
+    console.error('recent transactions error:', e)
+    res.status(500).json({ error: 'Failed to fetch recent transactions' })
   }
 })
 
@@ -365,7 +479,7 @@ app.get('/api/accounts/:accountCode/transactions', async (req, res) => {
   }
 })
 
-// OCR endpoint (PDF only here; images optional later)
+// OCR endpoint (extended formats)
 app.post('/api/ocr', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' })
@@ -381,12 +495,26 @@ app.post('/api/ocr', upload.single('file'), async (req, res) => {
     const isTxt = mimetype === 'text/plain' || lowerName.endsWith('.txt')
     const isDocx = mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || lowerName.endsWith('.docx')
     const isDoc = mimetype === 'application/msword' || lowerName.endsWith('.doc')
+    const isXlsx = mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || mimetype === 'application/vnd.ms-excel' || lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')
+    const isXml = mimetype === 'application/xml' || mimetype === 'text/xml' || lowerName.endsWith('.xml')
+    const isQif = lowerName.endsWith('.qif')
+    const isOfx = lowerName.endsWith('.ofx') || lowerName.endsWith('.ofc')
 
     if (isPdf) {
       const mod = await import('pdf-parse/lib/pdf-parse.js')
       const pdfParse = (mod && (mod.default || mod))
       const data = await pdfParse(fs.readFileSync(filePath))
       extractedText = data.text || ''
+    } else if (isXlsx) {
+      const xlsxMod = await import('xlsx')
+      const xlsx = (xlsxMod && (xlsxMod.default || xlsxMod))
+      const wb = xlsx.readFile(filePath)
+      const sheets = Object.keys(wb.Sheets)
+      extractedText = sheets.map((name) => {
+        const ws = wb.Sheets[name]
+        const csv = xlsx.utils.sheet_to_csv(ws)
+        return `=== SHEET: ${name} ===\n${csv}`
+      }).join('\n\n')
     } else if (isPng || isJpg) {
       const TesseractMod = await import('tesseract.js')
       const Tesseract = (TesseractMod && (TesseractMod.default || TesseractMod))
@@ -397,10 +525,34 @@ app.post('/api/ocr', upload.single('file'), async (req, res) => {
       const out = await mammoth.extractRawText({ path: filePath })
       extractedText = (out && out.value) ? out.value : ''
     } else if (isCsv || isTxt) {
+      // Try encoding detection for TXT/CSV
+      try {
+        const chardetMod = await import('chardet')
+        const iconvMod = await import('iconv-lite')
+        const chardet = (chardetMod && (chardetMod.default || chardetMod))
+        const iconv = (iconvMod && (iconvMod.default || iconvMod))
+        const buffer = fs.readFileSync(filePath)
+        const enc = chardet.detect(buffer) || 'utf8'
+        extractedText = iconv.decode(buffer, enc)
+      } catch {
       extractedText = fs.readFileSync(filePath, 'utf8')
+      }
     } else if (isDoc) {
       // Legacy .doc not supported reliably without native deps; advise conversion
       return res.status(415).json({ error: 'Unsupported file type .doc. Please upload PDF, DOCX, PNG, JPG, or CSV.' })
+    } else if (isXml) {
+      try {
+        const xml2jsMod = await import('xml2js')
+        const xml2js = (xml2jsMod && (xml2jsMod.default || xml2jsMod))
+        const parser = new xml2js.Parser()
+        const xmlContent = fs.readFileSync(filePath, 'utf8')
+        const result = await parser.parseStringPromise(xmlContent)
+        extractedText = `XML FILE: ${originalname}\n${JSON.stringify(result, null, 2)}`
+      } catch {
+        extractedText = fs.readFileSync(filePath, 'utf8')
+      }
+    } else if (isQif || isOfx) {
+      extractedText = fs.readFileSync(filePath, 'utf8')
     } else {
       // Fallback: attempt to read as UTF-8 text
       try {
@@ -421,6 +573,131 @@ app.post('/api/ocr', upload.single('file'), async (req, res) => {
   } catch (e) {
     console.error('OCR error:', e)
     res.status(500).json({ error: 'OCR failed', details: String(e) })
+  }
+})
+
+// Normalization-only endpoint for client-provided OCR text
+app.post('/api/ocr/normalize', async (req, res) => {
+  try {
+    const raw = (req.body && req.body.text) || ''
+    if (!raw || typeof raw !== 'string') {
+      return res.status(400).json({ success: false, error: 'MISSING_TEXT', message: 'Provide text in body.text' })
+    }
+
+    const cleanedText = raw.trim()
+    const lines = cleanedText.split(/\r?\n/)
+
+    const number = '([0-9]+(?:[, .\']*[0-9]{3})*(?:[.,][0-9]{1,2})?)'
+    const parseNum = (s) => {
+      if (!s) return null
+      let n = s
+      if (n.includes(',') && n.includes('.')) n = n.replace(/,/g, '')
+      else if (n.includes(' ')) n = n.replace(/\s/g, '').replace(',', '.')
+      else if (n.includes(',') && !n.includes('.')) {
+        const parts = n.split(',')
+        n = parts[parts.length - 1].length <= 2 ? n.replace(',', '.') : n.replace(/,/g, '')
+      }
+      const v = parseFloat(n)
+      return Number.isFinite(v) ? parseFloat(v.toFixed(2)) : null
+    }
+    const matchOne = (rx) => {
+      const m = cleanedText.match(rx)
+      return m ? parseNum(m[1]) : null
+    }
+
+    const subtotal = matchOne(new RegExp(`subtotal[:\s]*\\$?\s*${number}`, 'i'))
+    const taxAmount = matchOne(new RegExp(`tax(?:\s*\([^)]+\))?[:\s]*\\$?\s*${number}`, 'i'))
+    const total = matchOne(new RegExp(`total[:\s]*\\$?\s*${number}`, 'i'))
+    const amountPaid = matchOne(new RegExp(`amount\s*paid[:\s]*\\$?\s*${number}`, 'i'))
+    const balMatch = cleanedText.match(new RegExp(`balance\s*due[:\s]*\\$?\s*${number}`, 'i'))
+    const balanceDue = balMatch ? parseNum(balMatch[1]) * (balMatch[0].includes('-') ? -1 : 1) : null
+
+    const labelAfter = (labelRx) => {
+      const idx = lines.findIndex(l => labelRx.test(l))
+      if (idx >= 0) {
+        for (let i = idx + 1; i < Math.min(lines.length, idx + 4); i++) {
+          const c = (lines[i] || '').trim()
+          if (c) return c
+        }
+      }
+      return ''
+    }
+
+    const invoiceNum = (cleanedText.match(/invoice\s*#?[:\s]*([A-Z0-9\-]+)/i) || [])[1] || null
+    const invoiceDate = (cleanedText.match(/invoice\s*date[:\s]+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i) || [])[1] || null
+    const dueDate = (cleanedText.match(/due\s*date[:\s]+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i) || [])[1] || null
+
+    // Identity via company profile
+    let ourRole = 'unknown', docType = 'unknown', confidence = 0
+    try {
+      const profile = await prisma.companyProfile.findFirst({ where: { workspaceId: 'default' } })
+      if (profile && profile.legalName) {
+        const normalize = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
+        const ourNorms = [profile.legalName, ...(Array.isArray(profile.normalizedAliases) ? profile.normalizedAliases : [])].map(normalize).filter(Boolean)
+        const textNorm = normalize(cleanedText)
+        const fromRaw = labelAfter(/^(from|vendor|sold\s*by|remit\s*to)\b/i)
+        const billToRaw = labelAfter(/bill\s*to/i)
+        const billToNorm = normalize(billToRaw)
+        const fromNorm = normalize(fromRaw)
+        const nameInHeader = ourNorms.some(n => n && textNorm.includes(n))
+        const billToIsUs = ourNorms.some(n => n && n === billToNorm)
+        const fromIsUs = ourNorms.some(n => n && n === fromNorm)
+
+        if ((fromIsUs || nameInHeader) && billToNorm && !billToIsUs) { ourRole = 'sender'; docType = 'invoice'; confidence = 0.85 }
+        else if (billToIsUs && (!fromIsUs || fromNorm)) { ourRole = 'recipient'; docType = 'expense'; confidence = 0.85 }
+        else {
+          if (textNorm.includes('invoice') || textNorm.includes('bill to')) { docType = billToIsUs ? 'expense' : 'invoice'; ourRole = billToIsUs ? 'recipient' : 'sender'; confidence = 0.5 }
+          else { docType = 'unknown'; ourRole = 'unknown'; confidence = 0.2 }
+        }
+      }
+    } catch {}
+
+    const structured = {
+      source: 'normalizer-v1',
+      labels: { invoiceNumber: invoiceNum, invoiceDate, dueDate },
+      amounts: { subtotal, taxAmount, total, amountPaid, balanceDue },
+      ourRole, docType, confidence
+    }
+    return res.json({ success: true, structured })
+  } catch (err) {
+    console.error('Normalization error:', err)
+    return res.status(500).json({ success: false, error: 'NORMALIZATION_FAILED', message: err.message })
+  }
+})
+
+// Document classification endpoint
+app.post('/api/documents/classify', async (req, res) => {
+  try {
+    const body = req.body || {}
+    const structured = body.structured || null
+    const text = (body.ocrText || body.description || body.notes || '').toString()
+    if (!text && !structured) {
+      return res.status(400).json({ success: false, error: 'NO_TEXT', message: 'Provide ocrText or structured' })
+    }
+
+    let docType = 'unknown', ourRole = 'unknown', reasons = []
+    if (structured?.docType) { docType = structured.docType; ourRole = structured.ourRole || 'unknown'; reasons.push('from_structured') }
+    else if (/invoice|bill\s*to/i.test(text)) { docType = 'invoice'; reasons.push('keyword_invoice') }
+    else { docType = 'expense'; reasons.push('fallback_expense') }
+
+    // Policy based on amounts
+    let policy = 'ACCRUAL'
+    try {
+      const amt = structured?.amounts || {}
+      const total = Number.isFinite(amt.total) ? amt.total : null
+      const paid = Number.isFinite(amt.amountPaid) ? amt.amountPaid : null
+      const balance = Number.isFinite(amt.balanceDue) ? amt.balanceDue : null
+      const nearZero = (v) => v !== null && Math.abs(v) <= 0.01
+      if ((paid !== null && paid > 0) && (balance === null || nearZero(balance))) policy = 'CASH_ONLY'
+      else if ((paid !== null && paid > 0) && (balance !== null && balance > 0.01)) policy = 'ACCRUAL+PAYMENT'
+      else policy = 'ACCRUAL'
+    } catch {}
+
+    const confidence = structured?.confidence || (docType === 'unknown' ? 0.2 : 0.6)
+    return res.json({ success: true, docType, ourRole, policy, confidence, reasons })
+  } catch (err) {
+    console.error('documents/classify error:', err)
+    return res.status(500).json({ success: false, error: 'CLASSIFY_FAILED', message: err.message })
   }
 })
 
@@ -599,6 +876,91 @@ app.post('/api/expenses/:id/receipt', upload.single('file'), async (req, res) =>
     res.status(500).json({ error: 'Failed to attach receipt' })
   }
 })
+// Create recurring expense schedule
+app.post('/api/expenses/recurring', async (req, res) => {
+  try {
+    const b = req.body || {}
+    const amount = parseFloat(b.amount || 0)
+    if (!(b.vendor && amount > 0 && b.startDate && b.frequency)) {
+      return res.status(400).json({ success: false, error: 'vendor, amount, startDate, frequency required' })
+    }
+    const schedule = await prisma.recurringSchedule.create({
+      data: {
+        type: 'expense',
+        vendor: b.vendor.trim(),
+        amount,
+        categoryKey: b.categoryKey || null,
+        description: b.description || null,
+        startDate: new Date(b.startDate),
+        endDate: b.endDate ? new Date(b.endDate) : null,
+        frequency: String(b.frequency).toLowerCase(),
+        dayOfMonth: b.dayOfMonth || null,
+        dayOfWeek: b.dayOfWeek || null,
+        nextRunDate: new Date(b.startDate),
+        isActive: true,
+        customFields: b.customFields || null
+      }
+    })
+    res.status(201).json({ success: true, schedule })
+  } catch (e) {
+    console.error('create recurring schedule error:', e)
+    res.status(500).json({ success: false, error: 'Failed to create recurring schedule' })
+  }
+})
+
+function addPeriod(date, frequency) {
+  const d = new Date(date)
+  switch (String(frequency).toLowerCase()) {
+    case 'daily': d.setDate(d.getDate() + 1); break
+    case 'weekly': d.setDate(d.getDate() + 7); break
+    case 'monthly': d.setMonth(d.getMonth() + 1); break
+    case 'quarterly': d.setMonth(d.getMonth() + 3); break
+    case 'yearly': d.setFullYear(d.getFullYear() + 1); break
+    default: d.setMonth(d.getMonth() + 1)
+  }
+  return d
+}
+
+// Process due recurring schedules (expense only for now)
+app.post('/api/admin/process-recurring', async (req, res) => {
+  try {
+    const now = req.body?.asOf ? new Date(req.body.asOf) : new Date()
+    const due = await prisma.recurringSchedule.findMany({
+      where: {
+        isActive: true,
+        type: 'expense',
+        nextRunDate: { lte: now },
+        OR: [ { endDate: null }, { endDate: { gte: now } } ]
+      }
+    })
+    const results = []
+    for (const s of due) {
+      const payload = {
+        vendorName: s.vendor || 'Recurring Vendor',
+        amount: s.amount.toString(),
+        date: s.nextRunDate.toISOString().slice(0,10),
+        categoryKey: s.categoryKey || null,
+        paymentStatus: 'unpaid',
+        description: s.description || 'Recurring expense',
+        reference: `RECUR-${s.id}-${s.nextRunDate.getTime()}`
+      }
+      try {
+        const validation = PostingService.validateExpensePayload(payload)
+        if (!validation.isValid) throw new Error('Validation failed: ' + validation.errors.join(', '))
+        const post = await PostingService.postTransaction(validation.normalizedData)
+        const next = addPeriod(s.nextRunDate, s.frequency)
+        await prisma.recurringSchedule.update({ where: { id: s.id }, data: { lastRunDate: s.nextRunDate, nextRunDate: next } })
+        results.push({ id: s.id, status: 'POSTED', transactionId: post.transactionId })
+      } catch (err) {
+        results.push({ id: s.id, status: 'FAILED', error: String(err.message || err) })
+      }
+    }
+    res.json({ success: true, processed: results.length, results })
+  } catch (e) {
+    console.error('process recurring error:', e)
+    res.status(500).json({ success: false, error: 'Failed to process recurring schedules' })
+  }
+})
 // Time-series metrics (monthly revenue/expenses/profit)
 app.get('/api/metrics/time-series', async (req, res) => {
   try {
@@ -665,25 +1027,149 @@ app.post('/api/posting/preview', async (req, res) => {
 
     if (looksLikeInvoice) {
       const totalInvoice = parseFloat(req.body.amount || 0)
-      const amountPaid = parseFloat(req.body.amountPaid || req.body.amount || 0)
-      const overpaidAmount = amountPaid > totalInvoice ? amountPaid - totalInvoice : 0
-      const revenueAccountCode = PostingService.mapCategoryToRevenueAccount(req.body.categoryKey || 'OFFICE_SUPPLIES')
-      const cashAccount = await prisma.account.findUnique({ where: { code: '1010' } })
-      const revenueAccount = await prisma.account.findUnique({ where: { code: revenueAccountCode } })
-      const creditsAccount = overpaidAmount > 0 ? await prisma.account.findUnique({ where: { code: '2050' } }) : null
-      if (!cashAccount || !revenueAccount) return res.status(422).json({ error: 'Required accounts not found' })
+      let amountPaid = (req.body.amountPaid === undefined || req.body.amountPaid === null) ? 0 : parseFloat(req.body.amountPaid)
+      const paymentStatus = (req.body.paymentStatus || 'unpaid').toLowerCase()
+      let balanceDue = isFinite(parseFloat(req.body.balanceDue)) ? parseFloat(req.body.balanceDue) : (totalInvoice - amountPaid)
+      let overpaidAmount = amountPaid > totalInvoice ? amountPaid - totalInvoice : 0
+
+      const cash = await prisma.account.findUnique({ where: { code: '1010' } })
+      const ar = await prisma.account.findUnique({ where: { code: '1200' } })
+      const taxPayable = await prisma.account.findUnique({ where: { code: '2150' } })
+      const salesDiscounts = await prisma.account.findUnique({ where: { code: '4910' } })
+      const unearned = await prisma.account.findUnique({ where: { code: '2400' } })
+      const creditsLiab = overpaidAmount > 0 ? await prisma.account.findUnique({ where: { code: '2050' } }) : null
+      if (!cash || !ar || !taxPayable || !salesDiscounts) return res.status(422).json({ error: 'Required accounts not found (1010,1200,2150,4910)' })
+
+      // Calculate discount and tax similar to PostingService
+      let discountAmount = 0
+      if (req.body.discount && req.body.discount.enabled) {
+        discountAmount = parseFloat(req.body.discount.amount || req.body.discount.value || 0)
+      }
+      let taxAmount = 0
+      const providedSubtotal = parseFloat(req.body.subtotal || '0')
+      if (req.body.taxSettings && req.body.taxSettings.enabled) {
+        if (req.body.taxSettings.type === 'percentage' && req.body.taxSettings.rate) {
+          const base = providedSubtotal > 0
+            ? (providedSubtotal - discountAmount)
+            : ((totalInvoice + discountAmount) / (1 + (parseFloat(req.body.taxSettings.rate) / 100)))
+          taxAmount = base * (parseFloat(req.body.taxSettings.rate) / 100)
+        } else {
+          taxAmount = parseFloat(req.body.taxSettings.amount || 0)
+        }
+      }
+      let subtotalAmount
+      if (providedSubtotal > 0) {
+        subtotalAmount = providedSubtotal
+        if (req.body.taxSettings && req.body.taxSettings.enabled && req.body.taxSettings.type === 'percentage' && req.body.taxSettings.rate) {
+          taxAmount = (subtotalAmount - discountAmount) * (parseFloat(req.body.taxSettings.rate) / 100)
+        }
+      } else {
+        if (req.body.taxSettings && req.body.taxSettings.enabled && req.body.taxSettings.type === 'percentage' && req.body.taxSettings.rate) {
+          const rate = parseFloat(req.body.taxSettings.rate) / 100
+          subtotalAmount = (totalInvoice + discountAmount) / (1 + rate)
+          taxAmount = subtotalAmount * rate
+        } else {
+          subtotalAmount = totalInvoice - taxAmount - discountAmount
+        }
+      }
+      const computedTotal = subtotalAmount + taxAmount - discountAmount
+      if (Math.abs(computedTotal - totalInvoice) > 0.01) {
+        taxAmount = Math.max(0, totalInvoice - subtotalAmount + discountAmount)
+      }
+
+      // Fallback parsing from OCR text if tax/paid not provided
+      try {
+        const ocrText = (req.body.ocrText || '').toString()
+        const findNumber = (rx) => {
+          const m = ocrText.match(rx)
+          if (!m) return null
+          const raw = (m[1] || m[0]).match(/-?[0-9][0-9,\.]+/)
+          if (!raw) return null
+          let n = raw[0]
+          if (n.includes(',') && n.includes('.')) n = n.replace(/,/g, '')
+          else if (n.includes(' ') ) n = n.replace(/\s/g, '').replace(',', '.')
+          else if (n.includes(',') && !n.includes('.')) { const parts = n.split(','); n = parts[parts.length-1].length <= 2 ? n.replace(',', '.') : n.replace(/,/g, '') }
+          const v = parseFloat(n)
+          return Number.isFinite(v) ? v : null
+        }
+        if (taxAmount === 0) {
+          const t = findNumber(/tax[^\n]*\$?\s*([-0-9,\.]+)/i)
+          if (t !== null && t > 0) {
+            taxAmount = t
+            subtotalAmount = Math.max(0, totalInvoice - taxAmount - discountAmount)
+          }
+        }
+        const paidParsed = findNumber(/amount\s*paid\s*\$?\s*([-0-9,\.]+)/i)
+        if (paidParsed !== null && Math.abs(paidParsed - amountPaid) > 0.005) {
+          amountPaid = paidParsed
+        }
+        const balParsed = findNumber(/balance\s*due\s*\$?\s*([-0-9,\.]+)/i)
+        if (balParsed !== null) {
+          balanceDue = balParsed
+        }
+        overpaidAmount = amountPaid > totalInvoice ? amountPaid - totalInvoice : 0
+      } catch {}
+
+      const entries = []
+      const customerName = req.body.customerName || 'Customer'
+
+      // Revenue credits (line items or single line; handle prepaid into 2400)
+      if (Array.isArray(req.body.lineItems) && req.body.lineItems.length > 0) {
+        for (const li of req.body.lineItems) {
+          const lineAmt = parseFloat(li.amount || 0)
+          const revCode = PostingService.mapLineItemToRevenueAccount(li)
+          const revAcc = await prisma.account.findUnique({ where: { code: revCode } })
+          if (revAcc && lineAmt > 0) entries.push({ type: 'credit', accountCode: revAcc.code, accountName: revAcc.name, amount: lineAmt, description: `${li.description || 'Line'} - ${customerName}` })
+        }
+      } else {
+        const revCode = paymentStatus === 'prepaid' ? '2400' : PostingService.mapCategoryToRevenueAccount(req.body.categoryKey || 'OFFICE_SUPPLIES')
+        const revAcc = await prisma.account.findUnique({ where: { code: revCode } })
+        if (!revAcc) return res.status(422).json({ error: `Revenue account ${revCode} not found` })
+        entries.push({ type: 'credit', accountCode: revAcc.code, accountName: revAcc.name, amount: subtotalAmount, description: paymentStatus === 'prepaid' ? `Unearned revenue - ${customerName} (prepaid)` : `Revenue from ${customerName}` })
+      }
+
+      if (taxAmount > 0 && taxPayable) entries.push({ type: 'credit', accountCode: '2150', accountName: taxPayable.name, amount: taxAmount, description: `Sales Tax - ${customerName}` })
+      if (discountAmount > 0 && salesDiscounts) entries.push({ type: 'debit', accountCode: '4910', accountName: salesDiscounts.name, amount: discountAmount, description: `Sales Discount - ${customerName}` })
+
+      if (paymentStatus === 'paid' || paymentStatus === 'overpaid' || paymentStatus === 'prepaid') {
+        if (amountPaid > 0) entries.push({ type: 'debit', accountCode: '1010', accountName: cash.name, amount: amountPaid, description: paymentStatus === 'prepaid' ? `Advance payment from ${customerName}` : `Cash received from ${customerName}` })
+      } else if (paymentStatus === 'partial') {
+        if (amountPaid > 0) entries.push({ type: 'debit', accountCode: '1010', accountName: cash.name, amount: amountPaid, description: `Partial payment from ${customerName}` })
+        const balance = Math.max(0, totalInvoice - amountPaid)
+        if (balance > 0) entries.push({ type: 'debit', accountCode: '1200', accountName: ar.name, amount: balance, description: `Outstanding balance - ${customerName}` })
+      } else if (paymentStatus === 'invoice' || paymentStatus === 'unpaid' || paymentStatus === 'overdue') {
+        entries.push({ type: 'debit', accountCode: '1200', accountName: ar.name, amount: totalInvoice, description: `Accounts Receivable - ${customerName}` })
+      } else if (paymentStatus === 'voided') {
+        // Reverse revenue and cash/A/R
+        const revCode = (entries.find(e => e.type === 'credit' && (e.accountCode.startsWith('4') || e.accountCode === '2400'))?.accountCode) || '4020'
+        entries.push({ type: 'debit', accountCode: revCode, accountName: 'Revenue', amount: subtotalAmount, description: `Voided invoice - ${customerName}` })
+        entries.push({ type: 'credit', accountCode: amountPaid > 0 ? '1010' : '1200', accountName: amountPaid > 0 ? cash.name : ar.name, amount: amountPaid > 0 ? amountPaid : totalInvoice, description: `Voided ${amountPaid > 0 ? 'cash' : 'A/R'} - ${customerName}` })
+      } else if (paymentStatus === 'refunded') {
+        const revCode = (entries.find(e => e.type === 'credit' && (e.accountCode.startsWith('4') || e.accountCode === '2400'))?.accountCode) || '4020'
+        entries.push({ type: 'debit', accountCode: revCode, accountName: 'Revenue', amount: subtotalAmount, description: `Customer refund - reversing revenue - ${customerName}` })
+        entries.push({ type: 'credit', accountCode: '1010', accountName: cash.name, amount: totalInvoice, description: `Customer refund payment - ${customerName}` })
+      } else if (paymentStatus === 'write_off') {
+        const badDebt = await prisma.account.findUnique({ where: { code: '6170' } })
+        if (!badDebt) return res.status(422).json({ error: 'Bad Debt account (6170) not found' })
+        entries.push({ type: 'debit', accountCode: '6170', accountName: badDebt.name, amount: totalInvoice, description: `Bad debt write-off - ${customerName}` })
+        entries.push({ type: 'credit', accountCode: '1200', accountName: ar.name, amount: totalInvoice, description: `A/R write-off - ${customerName}` })
+      } else if (paymentStatus === 'draft') {
+        // no entries
+      }
+
+      if (overpaidAmount > 0 && creditsLiab) entries.push({ type: 'credit', accountCode: '2050', accountName: creditsLiab.name, amount: overpaidAmount, description: `Customer credit balance - ${customerName} overpaid` })
+
       return res.json({
         documentType: 'invoice',
         dateUsed: req.body.date || new Date().toISOString().slice(0, 10),
-        policy: 'REVENUE_RECOGNITION',
+        policy: paymentStatus === 'paid' || paymentStatus === 'overpaid' || paymentStatus === 'prepaid' ? 'CASH' : (paymentStatus === 'partial' ? 'ACCRUAL+PAYMENT' : 'ACCRUAL'),
         totalInvoice,
         amountPaid,
         overpaidAmount,
-        entries: [
-          { type: 'debit', accountCode: '1010', accountName: cashAccount.name, amount: amountPaid, description: `Cash received from ${req.body.customerName || 'Customer'}` },
-          { type: 'credit', accountCode: revenueAccountCode, accountName: revenueAccount.name, amount: totalInvoice, description: `Revenue from ${req.body.customerName || 'Customer'}` },
-          ...(overpaidAmount > 0 && creditsAccount ? [{ type: 'credit', accountCode: '2050', accountName: creditsAccount.name, amount: overpaidAmount, description: `Customer credit - overpaid` }] : [])
-        ]
+        subtotal: subtotalAmount,
+        taxAmount,
+        discountAmount,
+        entries
       })
     }
 
@@ -701,13 +1187,33 @@ app.post('/api/posting/preview', async (req, res) => {
     const amountPaid = parseFloat(req.body.amountPaid || req.body.amount || 0)
     const overpaid = Math.max(0, amountPaid - amount)
 
+    // Refund preview: negative amount reverses original (Dr Cash 1010, Cr Expense)
+    if (amount < 0) {
+      const abs = Math.abs(amount)
+      const cash = await prisma.account.findUnique({ where: { code: '1010' } })
+      const expAcc = await prisma.account.findUnique({ where: { code: resolution.debit.accountCode } })
+      if (!cash || !expAcc) return res.status(422).json({ error: 'Required accounts not found for refund preview' })
+      return res.json({
+        documentType: 'expense_refund',
+        dateUsed: resolution.dateUsed,
+        policy: 'REFUND',
+        totalExpense: amount,
+        amountPaid: 0,
+        overpaidAmount: 0,
+        entries: [
+          { type: 'debit', accountCode: '1010', accountName: cash.name, amount: abs },
+          { type: 'credit', accountCode: resolution.debit.accountCode, accountName: expAcc.name, amount: abs }
+        ]
+      })
+    }
+
     const entries = [
       { type: 'debit', accountCode: resolution.debit.accountCode, accountName: resolution.debit.accountName, amount },
       { type: 'credit', accountCode: resolution.credit.accountCode, accountName: resolution.credit.accountName, amount: Math.min(amountPaid || amount, amount) }
     ]
     if (overpaid > 0.01) {
-      const creditsAccount = await prisma.account.findFirst({ where: { code: '2050' } })
-      if (creditsAccount) entries.push({ type: 'debit', accountCode: '2050', accountName: creditsAccount.name, amount: overpaid })
+      const prepaidAccount = await prisma.account.findFirst({ where: { code: '1400' } })
+      if (prepaidAccount) entries.push({ type: 'debit', accountCode: '1400', accountName: prepaidAccount.name, amount: overpaid })
     }
 
     res.json({
@@ -835,7 +1341,33 @@ app.post('/api/invoices', async (req, res) => {
 // List invoices
 app.get('/api/invoices', async (req, res) => {
   try {
-    const invoices = await prisma.invoice.findMany({ include: { transaction: true }, orderBy: { date: 'desc' } })
+    const q = (req.query.q || '').toString().trim()
+    const status = (req.query.status || '').toString().toUpperCase()
+    const minAmount = isFinite(parseFloat(req.query.minAmount)) ? parseFloat(req.query.minAmount) : undefined
+    const maxAmount = isFinite(parseFloat(req.query.maxAmount)) ? parseFloat(req.query.maxAmount) : undefined
+    const startDate = req.query.startDate ? new Date(req.query.startDate) : undefined
+    const endDate = req.query.endDate ? new Date(req.query.endDate) : undefined
+
+    const where = {
+      AND: [
+        q
+          ? {
+              OR: [
+                { invoiceNumber: { contains: q, mode: 'insensitive' } },
+                { customer: { contains: q, mode: 'insensitive' } },
+                { description: { contains: q, mode: 'insensitive' } }
+              ]
+            }
+          : {},
+        status && ['DRAFT','SENT','PAID','OVERDUE','CANCELLED'].includes(status) ? { status } : {},
+        minAmount !== undefined ? { amount: { gte: minAmount } } : {},
+        maxAmount !== undefined ? { amount: { lte: maxAmount } } : {},
+        startDate ? { date: { gte: startDate } } : {},
+        endDate ? { date: { lte: endDate } } : {}
+      ]
+    }
+
+    const invoices = await prisma.invoice.findMany({ where, include: { transaction: true }, orderBy: { date: 'desc' } })
     res.json(invoices)
   } catch (e) {
     console.error('get invoices error:', e)
@@ -1037,6 +1569,7 @@ app.post('/api/setup/ensure-core-accounts', async (req, res) => {
       { code: '1010', name: 'Cash and Cash Equivalents', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '1200', name: 'Accounts Receivable', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '1350', name: 'Deposits & Advances', type: 'ASSET', normalBalance: 'DEBIT' },
+      { code: '1400', name: 'Prepaid Expenses', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '3000', name: 'Owner Equity', type: 'EQUITY', normalBalance: 'CREDIT' },
       { code: '3200', name: 'Retained Earnings', type: 'EQUITY', normalBalance: 'CREDIT' },
       { code: '4020', name: 'Services Revenue', type: 'REVENUE', normalBalance: 'CREDIT' },
@@ -1044,7 +1577,9 @@ app.post('/api/setup/ensure-core-accounts', async (req, res) => {
       { code: '4910', name: 'Sales Discounts', type: 'REVENUE', normalBalance: 'DEBIT' },
       { code: '2050', name: 'Customer Credits Payable', type: 'LIABILITY', normalBalance: 'CREDIT' },
       { code: '2150', name: 'Sales Tax Payable', type: 'LIABILITY', normalBalance: 'CREDIT' },
+      { code: '2400', name: 'Unearned Revenue', type: 'LIABILITY', normalBalance: 'CREDIT' },
       { code: '2010', name: 'Accounts Payable', type: 'LIABILITY', normalBalance: 'CREDIT' },
+      { code: '6170', name: 'Bad Debt Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '5010', name: 'Cost of Goods Sold', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '6020', name: 'Office Supplies Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '6030', name: 'Software Subscriptions', type: 'EXPENSE', normalBalance: 'DEBIT' },
@@ -1120,6 +1655,100 @@ app.post('/api/setup/sample-revenue', async (req, res) => {
   }
 })
 
+// Closing entries: close all revenue/expense to Retained Earnings (3200)
+app.post('/api/accounting/closing-entries', async (req, res) => {
+  try {
+    const asOfStr = (req.body?.asOf || '').toString()
+    const asOf = asOfStr ? new Date(asOfStr) : new Date()
+    if (isNaN(asOf.getTime())) return res.status(400).json({ error: 'Invalid asOf date' })
+
+    const equity = await prisma.account.findUnique({ where: { code: '3200' } })
+    if (!equity) return res.status(422).json({ error: 'Retained Earnings (3200) not found' })
+
+    // Idempotent reference per date
+    const ref = `CLOSE-${asOf.toISOString().slice(0,10)}`
+    const exists = await prisma.transaction.findUnique({ where: { reference: ref } })
+    if (exists) {
+      return res.json({ success: true, isExisting: true, transactionId: exists.id, message: 'Closing entries already posted for this date' })
+    }
+
+    // Fetch balances up to asOf for revenue and expense accounts
+    const revAndExp = await prisma.account.findMany({ where: { type: { in: ['REVENUE','EXPENSE'] } }, select: { id: true, code: true, name: true, type: true, normalBalance: true } })
+    const accountIdToBal = new Map()
+    for (const acc of revAndExp) {
+      const entries = await prisma.transactionEntry.findMany({
+        where: {
+          OR: [{ debitAccountId: acc.id }, { creditAccountId: acc.id }],
+          transaction: { date: { lte: asOf } }
+        },
+        include: { transaction: { select: { date: true } } }
+      })
+      let running = 0
+      for (const e of entries) {
+        if (e.debitAccountId === acc.id) running += parseFloat(e.amount)
+        if (e.creditAccountId === acc.id) running -= parseFloat(e.amount)
+      }
+      // Normalize to account's normal balance (positive means a credit balance for REVENUE, debit for EXPENSE)
+      const balance = acc.normalBalance === 'CREDIT' ? -running : running
+      if (Math.abs(balance) > 0.009) accountIdToBal.set(acc.id, { account: acc, balance })
+    }
+
+    if (accountIdToBal.size === 0) {
+      return res.json({ success: true, message: 'No revenue/expense balances to close as of date' })
+    }
+
+    const txId = await prisma.$transaction(async (tx) => {
+      const header = await tx.transaction.create({
+        data: {
+          date: asOf,
+          description: `Closing Entries as of ${asOf.toISOString().slice(0,10)}`,
+          reference: ref,
+          amount: 0,
+          customFields: { type: 'closing_entries' }
+        }
+      })
+
+      let totalDebits = 0, totalCredits = 0
+      for (const { account, balance } of accountIdToBal.values()) {
+        if (account.type === 'REVENUE') {
+          // Revenue has credit normal balance; to close, debit revenue for its credit balance
+          const amt = Math.abs(balance)
+          await tx.transactionEntry.create({ data: { transactionId: header.id, debitAccountId: account.id, creditAccountId: null, amount: amt, description: `Close ${account.code} - ${account.name}` } })
+          totalDebits += amt
+        } else if (account.type === 'EXPENSE') {
+          // Expense has debit normal balance; to close, credit expense for its debit balance
+          const amt = Math.abs(balance)
+          await tx.transactionEntry.create({ data: { transactionId: header.id, debitAccountId: null, creditAccountId: account.id, amount: amt, description: `Close ${account.code} - ${account.name}` } })
+          totalCredits += amt
+        }
+      }
+
+      // Offset to Retained Earnings
+      const net = totalDebits - totalCredits // positive means net income
+      if (net > 0) {
+        // Cr Retained Earnings
+        await tx.transactionEntry.create({ data: { transactionId: header.id, debitAccountId: null, creditAccountId: equity.id, amount: net, description: 'Close to Retained Earnings (Net Income)' } })
+        totalCredits += net
+      } else if (net < 0) {
+        // Dr Retained Earnings
+        const amt = Math.abs(net)
+        await tx.transactionEntry.create({ data: { transactionId: header.id, debitAccountId: equity.id, creditAccountId: null, amount: amt, description: 'Close to Retained Earnings (Net Loss)' } })
+        totalDebits += amt
+      }
+
+      // Basic balance check
+      if (Math.abs(totalDebits - totalCredits) > 0.01) throw new Error('Closing entries not balanced')
+
+      return header.id
+    })
+
+    res.json({ success: true, transactionId: txId })
+  } catch (e) {
+    console.error('closing-entries error:', e)
+    res.status(500).json({ error: 'Failed to create closing entries', details: String(e) })
+  }
+})
+
 // Global error handler
 app.use((err, req, res, next) => {
   const status = 500
@@ -1135,6 +1764,7 @@ async function ensureCoreAccountsIfMissing() {
       { code: '1010', name: 'Cash and Cash Equivalents', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '1200', name: 'Accounts Receivable', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '1350', name: 'Deposits & Advances', type: 'ASSET', normalBalance: 'DEBIT' },
+      { code: '1400', name: 'Prepaid Expenses', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '3000', name: 'Owner Equity', type: 'EQUITY', normalBalance: 'CREDIT' },
       { code: '3200', name: 'Retained Earnings', type: 'EQUITY', normalBalance: 'CREDIT' },
       { code: '4020', name: 'Services Revenue', type: 'REVENUE', normalBalance: 'CREDIT' },
@@ -1142,6 +1772,7 @@ async function ensureCoreAccountsIfMissing() {
       { code: '4910', name: 'Sales Discounts', type: 'REVENUE', normalBalance: 'DEBIT' },
       { code: '2050', name: 'Customer Credits Payable', type: 'LIABILITY', normalBalance: 'CREDIT' },
       { code: '2150', name: 'Sales Tax Payable', type: 'LIABILITY', normalBalance: 'CREDIT' },
+      { code: '2400', name: 'Unearned Revenue', type: 'LIABILITY', normalBalance: 'CREDIT' },
       { code: '2010', name: 'Accounts Payable', type: 'LIABILITY', normalBalance: 'CREDIT' },
       { code: '5010', name: 'Cost of Goods Sold', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '6020', name: 'Office Supplies Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
@@ -1185,9 +1816,20 @@ app.post('/api/ai/generate', async (req, res) => {
     if (!quota.allowed) {
       return res.status(429).json({ code: 'AI_RATE_LIMIT_EXCEEDED', message: 'AI usage limit exceeded. Please try again later.', retryAfterSeconds: quota.retryAfterSeconds })
     }
+    // Inject company context
+    let company = null
+    try {
+      company = await prisma.companyProfile.findFirst({ where: { workspaceId: 'default' } })
+    } catch {}
+    let contextPrefix = ''
+    if (company) {
+      const aliases = Array.isArray(company.aliases) ? company.aliases : []
+      const addr = Array.isArray(company.addressLines) ? company.addressLines.join(', ') : ''
+      contextPrefix = `Company: ${company.legalName}\nAliases: ${aliases.join(', ')}\nLocation: ${[company.city, company.state, company.country].filter(Boolean).join(', ')}\nAddress: ${addr}\n---\n`
+    }
     const base = process.env.GEMINI_ENDPOINT || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
     const url = `${base}?key=${process.env.GEMINI_API_KEY}`
-    const { data } = await axios.post(url, { contents: [{ parts: [{ text: prompt }] }] }, { headers: { 'Content-Type': 'application/json' } })
+    const { data } = await axios.post(url, { contents: [{ parts: [{ text: contextPrefix + prompt }] }] }, { headers: { 'Content-Type': 'application/json' } })
     const content = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
     res.json({ content, usage: data?.usageMetadata })
   } catch (e) {

@@ -4,6 +4,51 @@ import { Decimal } from '@prisma/client/runtime/library'
 const prisma = new PrismaClient()
 
 export class ReportingService {
+  static async getTimeSeries(months = 12) {
+    try {
+      const safeMonths = Math.max(1, Math.min(36, parseInt(months) || 12))
+      const now = new Date()
+      const start = new Date(now.getFullYear(), now.getMonth() - (safeMonths - 1), 1)
+
+      const entries = await prisma.transactionEntry.findMany({
+        where: { transaction: { date: { gte: start } } },
+        include: {
+          transaction: { select: { date: true } },
+          debitAccount: { select: { type: true } },
+          creditAccount: { select: { type: true } }
+        }
+      })
+
+      const labels = []
+      const revenue = new Array(safeMonths).fill(0)
+      const expenses = new Array(safeMonths).fill(0)
+
+      for (let i = 0; i < safeMonths; i++) {
+        const d = new Date(start.getFullYear(), start.getMonth() + i, 1)
+        labels.push(d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }))
+      }
+
+      for (const e of entries) {
+        const d = new Date(e.transaction.date)
+        const idx = (d.getFullYear() - start.getFullYear()) * 12 + (d.getMonth() - start.getMonth())
+        if (idx < 0 || idx >= safeMonths) continue
+        const amt = parseFloat(e.amount)
+        if (e.creditAccount?.type === 'REVENUE') revenue[idx] += amt
+        if (e.debitAccount?.type === 'REVENUE') revenue[idx] -= amt
+        if (e.debitAccount?.type === 'EXPENSE') expenses[idx] += amt
+        if (e.creditAccount?.type === 'EXPENSE') expenses[idx] -= amt
+      }
+
+      const revSeries = revenue.map(v => Math.max(0, Math.round(v)))
+      const expSeries = expenses.map(v => Math.max(0, Math.round(v)))
+      const profit = revSeries.map((r, i) => Math.max(0, Math.round(r - (expSeries[i] || 0))))
+
+      return { labels, revenue: revSeries, expenses: expSeries, profit }
+    } catch (error) {
+      // On failure, return empty series rather than throwing to avoid breaking dashboard
+      return { labels: [], revenue: [], expenses: [], profit: [] }
+    }
+  }
   static async getTrialBalance(asOfDate = null) {
     const accounts = await prisma.account.findMany({
       include: {
@@ -213,10 +258,7 @@ export class ReportingService {
     const pnl = await ReportingService.getProfitAndLoss()
     const bs = await ReportingService.getBalanceSheet()
     const tb = await ReportingService.getTrialBalance()
-    const sparklineData = Array.from({ length: 30 }).map((_, i) => {
-      const d = new Date(); d.setDate(d.getDate() - (29 - i));
-      return { date: d.toISOString().slice(0, 10), amount: 0 }
-    })
+    const series = await ReportingService.getTimeSeries(12)
     return {
       metrics: {
         totalRevenue: pnl.totals.revenue,
@@ -228,7 +270,7 @@ export class ReportingService {
         totalEquity: bs.totals.totalEquity,
         transactionCount: tb.summary.totalTransactions
       },
-      sparklineData,
+      series,
       healthChecks: {
         trialBalanceOK: tb.totals.isBalanced,
         balanceSheetOK: bs.totals.equationOK,

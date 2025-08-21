@@ -10,14 +10,13 @@ type Thread = { id: string; title: string; messages: Message[]; createdAt: numbe
 interface ChatDrawerProps {
   open: boolean
   onClose: () => void
-  onOpenAiInvoice: () => void
-  onOpenAiRevenue: () => void
+  onOpenAiDocument: () => void
 }
 
 const STORAGE_KEY = 'eze.ai.chat.threads'
 const ACTIVE_KEY = 'eze.ai.chat.active'
 
-export function ChatDrawer({ open, onClose, onOpenAiInvoice, onOpenAiRevenue }: ChatDrawerProps) {
+export function ChatDrawer({ open, onClose, onOpenAiDocument }: ChatDrawerProps) {
   const [threads, setThreads] = useState<Thread[]>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
   })
@@ -74,8 +73,7 @@ export function ChatDrawer({ open, onClose, onOpenAiInvoice, onOpenAiRevenue }: 
               <button className="px-2 py-1 rounded bg-surface/60 hover:bg-surface" onClick={onClose}>Close</button>
             </div>
             <div className="p-3 flex gap-2 border-b border-white/10">
-              <button className="px-3 py-1.5 text-sm rounded-lg bg-primary/15 text-primary border border-primary/30" onClick={onOpenAiRevenue}>Try AI Revenue</button>
-              <button className="px-3 py-1.5 text-sm rounded-lg bg-primary/15 text-primary border border-primary/30" onClick={onOpenAiInvoice}>Try AI Invoice</button>
+              <button className="px-3 py-1.5 text-sm rounded-lg bg-primary/15 text-primary border border-primary/30" onClick={onOpenAiDocument}>Try AI Document</button>
             </div>
 
             <div className="flex h-[calc(100%-112px)]">

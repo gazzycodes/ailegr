@@ -17,44 +17,7 @@ type BalanceRow = { section: 'assets' | 'liabilities' | 'equity'; name: string; 
 type TrialRow = { code: string; name: string; debit: number; credit: number }
 type AccountRow = { code: string; name: string; type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE'; balance: number }
 
-// Lightweight mock data (UI-only)
-const mockPnl: PnlRow[] = [
-  { name: 'Product Sales', amount: 68950, type: 'revenue' },
-  { name: 'Services', amount: 25000, type: 'revenue' },
-  { name: 'Hosting & Subscriptions', amount: -5400, type: 'expense' },
-  { name: 'Payroll', amount: -41200, type: 'expense' },
-  { name: 'COGS - Hardware', amount: -800, type: 'cogs' },
-]
-
-const mockBalance: BalanceRow[] = [
-  { section: 'assets', name: 'Cash and Cash Equivalents', amount: 58250 },
-  { section: 'assets', name: 'Accounts Receivable', amount: 18600 },
-  { section: 'liabilities', name: 'Accounts Payable', amount: 15400 },
-  { section: 'liabilities', name: 'Credit Card Payable', amount: 31500 },
-  { section: 'equity', name: 'Owner Equity', amount: 30000 },
-]
-
-const mockTrial: TrialRow[] = [
-  { code: '1010', name: 'Cash and Cash Equivalents', debit: 58250, credit: 0 },
-  { code: '1100', name: 'Accounts Receivable', debit: 18600, credit: 0 },
-  { code: '2000', name: 'Accounts Payable', debit: 0, credit: 15400 },
-  { code: '2100', name: 'Credit Card Payable', debit: 0, credit: 31500 },
-  { code: '4000', name: 'Product Sales', debit: 0, credit: 68950 },
-  { code: '4100', name: 'Services Revenue', debit: 0, credit: 25000 },
-  { code: '6100', name: 'Payroll Expense', debit: 41200, credit: 0 },
-  { code: '6040', name: 'Software & Technology', debit: 5400, credit: 0 },
-]
-
-const mockAccounts: AccountRow[] = [
-  { code: '1010', name: 'Cash and Cash Equivalents', type: 'ASSET', balance: 58250 },
-  { code: '1100', name: 'Accounts Receivable', type: 'ASSET', balance: 18600 },
-  { code: '2000', name: 'Accounts Payable', type: 'LIABILITY', balance: -15400 },
-  { code: '2100', name: 'Credit Card Payable', type: 'LIABILITY', balance: -31500 },
-  { code: '4000', name: 'Product Sales', type: 'REVENUE', balance: 68950 },
-  { code: '4100', name: 'Services Revenue', type: 'REVENUE', balance: 25000 },
-  { code: '6100', name: 'Payroll Expense', type: 'EXPENSE', balance: -41200 },
-  { code: '6040', name: 'Software & Technology', type: 'EXPENSE', balance: -5400 },
-]
+// Removed UI mock data; always use backend responses
 
 function SectionHeader({ icon: Icon, title, subtitle }: { icon: any; title: string; subtitle: string }) {
   return (
@@ -409,13 +372,13 @@ export function Reports() {
   })
 
   const [pnlApi, setPnlApi] = useState<PnlRow[] | null>(null)
-  const pnlData = useMemo(() => sorted(filtered(pnlApi ?? mockPnl, ['name']), sortKey), [search, sortKey, sortDir, pnlApi])
+  const pnlData = useMemo(() => sorted(filtered(pnlApi ?? [], ['name']), sortKey), [search, sortKey, sortDir, pnlApi])
   const [pnlPrevMap, setPnlPrevMap] = useState<Record<string, number> | null>(null)
   const [pnlPrevTotals, setPnlPrevTotals] = useState<any | null>(null)
-  const balanceData = useMemo(() => sorted(filtered(balanceApi ?? mockBalance, ['name', 'section']), sortKey), [search, sortKey, sortDir, balanceApi])
-  const trialData = useMemo(() => sorted(filtered(trialApi ?? mockTrial, ['code', 'name']), sortKey), [search, sortKey, sortDir, trialApi])
+  const balanceData = useMemo(() => sorted(filtered(balanceApi ?? [], ['name', 'section']), sortKey), [search, sortKey, sortDir, balanceApi])
+  const trialData = useMemo(() => sorted(filtered(trialApi ?? [], ['code', 'name']), sortKey), [search, sortKey, sortDir, trialApi])
   const [coaApi, setCoaApi] = useState<AccountRow[] | null>(null)
-  const coaData = useMemo(() => sorted(filtered(coaApi ?? mockAccounts, ['code', 'name', 'type']), sortKey), [search, sortKey, sortDir, coaApi])
+  const coaData = useMemo(() => sorted(filtered(coaApi ?? [], ['code', 'name', 'type']), sortKey), [search, sortKey, sortDir, coaApi])
   const [recentExpense, setRecentExpense] = useState<any | null>(null)
   // Derived totals available if needed later
   // const coaTotals = useMemo(() => {
@@ -441,7 +404,7 @@ export function Reports() {
 
   // Quick P&L summaries
   const pnlTotals = useMemo(() => {
-    const src = pnlApi ?? mockPnl
+    const src = pnlApi ?? []
     const revenue = src.filter(r => r.type === 'revenue').reduce((s, r) => s + r.amount, 0)
     const cogs = Math.abs(src.filter(r => r.type === 'cogs').reduce((s, r) => s + r.amount, 0))
     const expenses = Math.abs(src.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0))

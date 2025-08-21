@@ -44,7 +44,8 @@ class ExpenseAccountResolver {
     paid: '1010',
     unpaid: '2010',
     overpaid: '1010',
-    partial: '2010'
+    partial: '2010',
+    refunded: '1010'
   };
 
   static async resolveExpenseAccounts(expenseData) {
