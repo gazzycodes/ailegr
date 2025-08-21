@@ -16,6 +16,7 @@ import { BusinessHealthOrb } from './BusinessHealthOrb'
 import { PredictiveInsights } from './PredictiveInsights'
 import { useTheme } from '../../theme/ThemeProvider'
 import { cn } from '../../lib/utils'
+import SegmentedControl from '../themed/SegmentedControl'
 
 interface DashboardProps {
   businessHealth: number
@@ -133,7 +134,7 @@ export function Dashboard({ businessHealth }: DashboardProps) {
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <ThemedGlassSurface variant="medium" className="p-8 text-center">
+        <ThemedGlassSurface variant="medium" elevation={2} className="p-8 text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
           <div className="text-lg font-semibold text-gradient-primary mb-2">
             Initializing Financial Universe
@@ -178,65 +179,31 @@ export function Dashboard({ businessHealth }: DashboardProps) {
 
           {/* Extra Large Screen (≥1536px/~1580px) - Timeframe Selector Next to Title */}
           <div className="hidden 2xl:flex flex-shrink-0">
-            <div className={cn(
-              "flex items-center gap-2 p-1 rounded-xl backdrop-blur-lg border transition-all duration-300",
-              "bg-surface/30 border-border/30",
-              // Enhanced shadows for light theme 3D depth
-              currentTheme === 'light' && "shadow-lg border-gray-300/60",
-              currentTheme !== 'light' && "shadow-md"
-            )}>
-              <span className="text-xs font-semibold text-muted-contrast px-2">
-                Period:
-              </span>
-              {(['1M', '3M', '6M', '1Y'] as const).map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setTimeRange(range)}
-                  className={cn(
-                    "relative px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200",
-                    "min-w-[2.5rem] flex items-center justify-center",
-                    "hover:scale-105 active:scale-95",
-                    timeRange === range
-                      ? "bg-primary/20 text-primary border border-primary/30 shadow-md"
-                      : "text-muted-contrast hover:text-primary-contrast hover:bg-surface/40"
-                  )}
-                >
-                  {range}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              options={[
+                { value: '1M', label: '1M' },
+                { value: '3M', label: '3M' },
+                { value: '6M', label: '6M' },
+                { value: '1Y', label: '1Y' },
+              ] as any}
+              value={timeRange}
+              onChange={(v: any) => setTimeRange(v)}
+            />
           </div>
         </div>
 
         {/* Subtle positioning for <1580px - Test the visual flow */}
         <div className="2xl:hidden flex justify-end mt-3">
-          <div className={cn(
-            "flex items-center gap-2 p-1 rounded-xl backdrop-blur-lg border transition-all duration-300",
-            "bg-surface/30 border-border/30",
-            // Enhanced shadows for light theme 3D depth
-            currentTheme === 'light' && "shadow-lg border-gray-300/60",
-            currentTheme !== 'light' && "shadow-md"
-          )}>
-            <span className="text-xs font-semibold text-muted-contrast px-2 hidden sm:block">
-              Period:
-            </span>
-            {(['1M', '3M', '6M', '1Y'] as const).map((range) => (
-              <button
-                key={range}
-                onClick={() => setTimeRange(range)}
-                className={cn(
-                  "relative px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200",
-                  "min-w-[2.5rem] flex items-center justify-center",
-                  "hover:scale-105 active:scale-95",
-                  timeRange === range
-                    ? "bg-primary/20 text-primary border border-primary/30 shadow-md"
-                    : "text-muted-contrast hover:text-primary-contrast hover:bg-surface/40"
-                )}
-              >
-                {range}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            options={[
+              { value: '1M', label: '1M' },
+              { value: '3M', label: '3M' },
+              { value: '6M', label: '6M' },
+              { value: '1Y', label: '1Y' },
+            ] as any}
+            value={timeRange}
+            onChange={(v: any) => setTimeRange(v)}
+          />
         </div>
       </motion.div>
 

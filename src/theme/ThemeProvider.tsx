@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { themes, type ThemeName, type ThemeConfig } from './themes';
 
 // Theme Context Type
@@ -45,11 +45,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   const availableThemes = useMemo(() => Object.keys(themes) as ThemeName[], []);
 
   // Apply CSS custom properties to document root
+  const firstApplyDoneRef = useRef(false);
+
   const applyTheme = useCallback((theme: ThemeConfig) => {
     const root = document.documentElement;
     
-    // Add transition class for smooth theme switching
-    if (enableTransitions) {
+    // Add transition class for smooth theme switching (skip on first mount to avoid flicker)
+    if (enableTransitions && firstApplyDoneRef.current) {
       root.classList.add('theme-transitioning');
     }
 
@@ -58,8 +60,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
       root.style.setProperty(property, value);
     });
 
-    // Remove transition class after animation completes
-    if (enableTransitions) {
+    // Mark that initial apply happened and remove transition class after animation completes
+    if (!firstApplyDoneRef.current) {
+      firstApplyDoneRef.current = true;
+    }
+    if (enableTransitions && root.classList.contains('theme-transitioning')) {
       setTimeout(() => {
         root.classList.remove('theme-transitioning');
       }, 300);
@@ -81,6 +86,12 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   // Apply theme on mount and when theme changes
   useEffect(() => {
     applyTheme(themeConfig);
+    // Remove preload class once theme variables applied to avoid initial flash
+    const html = document.documentElement;
+    const body = document.body;
+    html.classList.remove('preload');
+    // Mark that theme is ready so background can fade in without flashing over content
+    document.documentElement.classList.add('theme-ready');
   }, [themeConfig, applyTheme]);
 
   // Keep html classes and color-scheme in sync with theme

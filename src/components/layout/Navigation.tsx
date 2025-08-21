@@ -117,6 +117,7 @@ export function Navigation({
       {/* Main Navigation Panel */}
       <ThemedGlassSurface
         variant="medium"
+        elevation={2}
         className="h-auto w-full flex flex-col z-40 transition-all duration-500 ease-out breathe"
       >
         {/* Navigation Header */}

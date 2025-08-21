@@ -8,6 +8,9 @@ import { Invoices } from './components/transactions/Invoices'
 import Customers from './components/customers/Customers'
 import SettingsView from './components/settings/Settings'
 import Reports from './components/reports/Reports'
+import Landing from './components/landing/Landing'
+import LoginView from './components/auth/LoginView'
+import RegisterView from './components/auth/RegisterView'
 import { VoiceCommandInterface } from './components/voice/VoiceCommandInterface'
 import { PredictiveAssistant } from './components/ai/PredictiveAssistant'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
@@ -26,11 +29,11 @@ import ToastContainer from './components/themed/Toast'
 import useToast from './components/themed/useToast'
 
 // Main application view states
-type AppView = 'dashboard' | 'universe' | 'transactions' | 'reports' | 'customers' | 'settings'
+type AppView = 'landing' | 'login' | 'register' | 'dashboard' | 'universe' | 'transactions' | 'reports' | 'customers' | 'settings'
 
 // Revolutionary App Component
 function App() {
-  const [currentView, setCurrentView] = useState<AppView>('dashboard')
+  const [currentView, setCurrentView] = useState<AppView>('landing')
   const [isVoiceActive, setIsVoiceActive] = useState(false)
   const [showPredictiveAssistant, setShowPredictiveAssistant] = useState(false)
   const [openAiInvoice, setOpenAiInvoice] = useState(false)
@@ -107,9 +110,72 @@ function App() {
 
   // Removed emotional interface system to prevent background color issues
 
+  // Shallow URL routing → view state mapping
+  const viewFromPathname = (path: string): AppView => {
+    const p = path.replace(/\/$/, '') || '/'
+    switch (p) {
+      case '/': return 'landing'
+      case '/login': return 'login'
+      case '/register': return 'register'
+      case '/dashboard': return 'dashboard'
+      case '/universe': return 'universe'
+      case '/transactions': return 'transactions'
+      case '/reports': return 'reports'
+      case '/customers': return 'customers'
+      case '/settings': return 'settings'
+      default: return 'landing'
+    }
+  }
+
+  const pathForView = (view: AppView): string => {
+    switch (view) {
+      case 'landing': return '/'
+      case 'login': return '/login'
+      case 'register': return '/register'
+      case 'dashboard': return '/dashboard'
+      case 'universe': return '/universe'
+      case 'transactions': return '/transactions'
+      case 'reports': return '/reports'
+      case 'customers': return '/customers'
+      case 'settings': return '/settings'
+      default: return '/'
+    }
+  }
+
+  // init from URL
+  useEffect(() => {
+    try {
+      const initial = viewFromPathname(window.location.pathname)
+      if (initial !== currentView) setCurrentView(initial)
+      // keep history state in sync without adding a new entry
+      window.history.replaceState({ view: initial }, '', pathForView(initial))
+      const onPop = () => setCurrentView(viewFromPathname(window.location.pathname))
+      window.addEventListener('popstate', onPop)
+      return () => window.removeEventListener('popstate', onPop)
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // push URL on view change
+  useEffect(() => {
+    try {
+      const path = pathForView(currentView)
+      if (window.location.pathname !== path) {
+        window.history.pushState({ view: currentView }, '', path)
+      }
+      document.title = `AILedgr — ${currentView.charAt(0).toUpperCase()}${currentView.slice(1)}`
+    } catch {}
+  }, [currentView])
+
   // Render the current view
   const renderCurrentView = () => {
     switch (currentView) {
+      case 'landing':
+        return <Landing onGetStarted={() => setCurrentView('register')} onSignIn={() => setCurrentView('login')} />
+      case 'login':
+        return <LoginView onRegister={() => setCurrentView('register')} />
+      case 'register':
+        return <RegisterView onLogin={() => setCurrentView('login')} />
       case 'dashboard':
         return <Dashboard businessHealth={businessHealth} />
       case 'universe':
@@ -123,7 +189,7 @@ function App() {
       case 'settings':
         return <SettingsView />
       default:
-        return <Dashboard businessHealth={businessHealth} />
+        return <Landing onGetStarted={() => setCurrentView('register')} onSignIn={() => setCurrentView('login')} />
     }
   }
 
@@ -137,18 +203,21 @@ function App() {
         isDark && "dark-theme-animated-bg"
       )}
     >
+      {/* Aurora background temporarily removed to diagnose load flash */}
       {/* Subtle ambient effects (much more subtle) */}
       <div className="fixed inset-0 pointer-events-none">        
         {/* Very subtle breathing glow */}
         <div className="absolute inset-0 opacity-5 animate-pulse bg-gradient-conic from-primary/5 via-transparent to-primary/5" />
       </div>
 
-      {/* Revolutionary Navigation - Now Fixed Position */}
-      <Navigation
-        currentView={currentView}
-        onViewChange={setCurrentView}
-        businessHealth={businessHealth}
-      />
+      {/* App Navigation (hidden on public landing/auth views) */}
+      {!(currentView === 'landing' || currentView === 'login' || currentView === 'register') && (
+        <Navigation
+          currentView={currentView}
+          onViewChange={setCurrentView}
+          businessHealth={businessHealth}
+        />
+      )}
 
       {/* Main Application Layout */}
       <div className="relative z-10 min-h-screen">
@@ -156,8 +225,7 @@ function App() {
         <main className="relative overflow-hidden transition-all duration-500 ease-out">
           <AdaptiveLayout
             floatingElements={
-              <>
-                {/* Theme Switcher & Voice Command - Top Right */}
+              !(currentView === 'landing' || currentView === 'login' || currentView === 'register') ? (
                 <div className="fixed top-4 right-4 z-50 flex items-center gap-3">
                   <ThemedGlassSurface variant="light" className="p-2">
                     <VoiceCommandInterface
@@ -169,7 +237,7 @@ function App() {
                     <ThemeSwitcher />
                   </ThemedGlassSurface>
                 </div>
-              </>
+              ) : null
             }
           >
             {/* Main Content with Page Transitions */}
@@ -235,18 +303,19 @@ function App() {
         enabled={currentView === 'dashboard'}
       />
 
-      {/* Collapsible Floating Action Button */}
-      <CollapsibleFloatingActionButton
-        actions={[
-          { icon: "📄", label: "AI Invoice", action: () => setOpenAiInvoice(true) },
-          { icon: "💵", label: "AI Revenue", action: () => setOpenAiRevenue(true) },
-          
-        ]}
-        onExpandedChange={setFabExpanded}
-      />
+      {/* Collapsible Floating Action Button (hidden on landing/auth) */}
+      {!(currentView === 'landing' || currentView === 'login' || currentView === 'register') && (
+        <CollapsibleFloatingActionButton
+          actions={[
+            { icon: "📄", label: "AI Invoice", action: () => setOpenAiInvoice(true) },
+            { icon: "💵", label: "AI Revenue", action: () => setOpenAiRevenue(true) },
+          ]}
+          onExpandedChange={setFabExpanded}
+        />
+      )}
 
       {/* Scroll-aware Chat FAB */}
-      {!fabExpanded && (
+      {!fabExpanded && currentView !== 'landing' && (
         <ChatFab onClick={() => setOpenChat(true)} bottomOffset={96} />
       )}
 

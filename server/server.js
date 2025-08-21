@@ -1050,7 +1050,8 @@ app.post('/api/setup/ensure-core-accounts', async (req, res) => {
       { code: '6030', name: 'Software Subscriptions', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '6040', name: 'Marketing Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '6060', name: 'Travel Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
-      { code: '6110', name: 'Insurance', type: 'EXPENSE', normalBalance: 'DEBIT' }
+      { code: '6110', name: 'Insurance', type: 'EXPENSE', normalBalance: 'DEBIT' },
+      { code: '6999', name: 'Other Business Expense', type: 'EXPENSE', normalBalance: 'DEBIT' }
     ]
     const created = []
     for (const a of coreAccounts) {
@@ -1147,7 +1148,8 @@ async function ensureCoreAccountsIfMissing() {
       { code: '6030', name: 'Software Subscriptions', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '6040', name: 'Marketing Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '6060', name: 'Travel Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
-      { code: '6110', name: 'Insurance', type: 'EXPENSE', normalBalance: 'DEBIT' }
+      { code: '6110', name: 'Insurance', type: 'EXPENSE', normalBalance: 'DEBIT' },
+      { code: '6999', name: 'Other Business Expense', type: 'EXPENSE', normalBalance: 'DEBIT' }
     ]
     const created = []
     for (const a of coreAccounts) {

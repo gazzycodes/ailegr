@@ -528,7 +528,7 @@ export function Reports() {
         <div className="absolute -bottom-24 -right-24 w-[30rem] h-[30rem] rounded-full bg-blue-400/5 blur-3xl" />
       </div>
       {/* Header */}
-      <ThemedGlassSurface variant="heavy" glow className="p-4">
+      <ThemedGlassSurface variant="heavy" elevation={3} glow className="p-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
@@ -573,7 +573,7 @@ export function Reports() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-2 space-y-4">
           {activeTab === 'pnl' && (
-            <ThemedGlassSurface variant="medium" glow className="p-4">
+            <ThemedGlassSurface variant="medium" elevation={2} glow className="p-4">
               <SectionHeader icon={BarChart3} title="Profit & Loss" subtitle="Revenue, COGS, Expenses" />
               {recentExpense?.receiptUrl && (
                 <div className="mb-2">
@@ -661,7 +661,7 @@ export function Reports() {
           )}
 
           {activeTab === 'balance' && (
-            <ThemedGlassSurface variant="medium" glow className="p-4">
+            <ThemedGlassSurface variant="medium" elevation={2} glow className="p-4">
               <SectionHeader icon={Scale} title="Balance Sheet" subtitle="Assets = Liabilities + Equity" />
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
@@ -704,7 +704,7 @@ export function Reports() {
           )}
 
           {activeTab === 'trial' && (
-            <ThemedGlassSurface variant="medium" glow className="p-4">
+            <ThemedGlassSurface variant="medium" elevation={2} glow className="p-4">
               <SectionHeader icon={TableIcon} title="Trial Balance" subtitle="Debits and Credits" />
               <div className="overflow-x-auto hidden sm:block">
                 <table className={cn('reports-table w-full text-sm min-w-[640px] table-fixed', compactDensity ? '[&_*]:py-1' : '')}>
@@ -851,7 +851,7 @@ export function Reports() {
         {/* AI panel */}
         <div className="space-y-4">
           <AIInsightPanel tab={activeTab} />
-          <ThemedGlassSurface variant="light" glow className={cn('p-4', printFriendly ? 'bg-white text-black !shadow-none !backdrop-blur-0' : '')}>
+          <ThemedGlassSurface variant="light" elevation={1} glow className={cn('p-4', printFriendly ? 'bg-white text-black !shadow-none !backdrop-blur-0' : '')}>
             <div className="text-sm text-foreground/80 mb-2">Period</div>
             <div className="flex flex-wrap gap-2">
               {(['Monthly','Quarterly','YTD','Annual'] as PeriodType[]).map((t) => (
@@ -982,7 +982,7 @@ export function Reports() {
         <ModalPortal>
         <div className="fixed inset-0 z-[9999] modal-overlay flex items-center justify-center p-3 sm:p-4" onClick={() => setAccountModal(null)}>
           <div onClick={(e: any) => e.stopPropagation()}>
-            <ThemedGlassSurface variant="light" className="p-0 max-w-4xl w-[96%] glass-modal liquid-glass" hover={false}>
+            <ThemedGlassSurface variant="light" elevation={1} className="p-0 max-w-4xl w-[96%] glass-modal liquid-glass" hover={false}>
             {/* Header */}
             <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
               <div>
@@ -998,7 +998,7 @@ export function Reports() {
             {/* Top summary blocks */}
             <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-3">
               {/* Classification */}
-              <ThemedGlassSurface variant="light" className="p-3" hover={false}>
+              <ThemedGlassSurface variant="light" elevation={1} className="p-3" hover={false}>
                 <div className="text-xs text-secondary-contrast font-semibold mb-2">ACCOUNT CLASSIFICATION</div>
                 <div className="text-sm space-y-1">
                   <div className="flex items-center justify-between"><span>Account Type</span><span className="font-medium">{accountModal.type === 'ASSET' ? 'Asset Account' : accountModal.type.charAt(0) + accountModal.type.slice(1).toLowerCase()}</span></div>
@@ -1008,7 +1008,7 @@ export function Reports() {
               </ThemedGlassSurface>
 
               {/* Current Status */}
-              <ThemedGlassSurface variant="light" className="p-3" hover={false}>
+              <ThemedGlassSurface variant="light" elevation={1} className="p-3" hover={false}>
                 <div className="text-xs text-secondary-contrast font-semibold mb-2">CURRENT STATUS</div>
                 <div className="text-sm space-y-1">
                   <div className="flex items-center justify-between"><span>Current Balance</span><span className={cn('font-semibold', accountModal.balance >= 0 ? 'text-financial-revenue' : 'text-financial-expense')}>{accountModal.balance >= 0 ? '$' : '-$'}{Math.abs(accountModal.balance).toLocaleString()}</span></div>
@@ -1018,7 +1018,7 @@ export function Reports() {
               </ThemedGlassSurface>
 
               {/* Activity */}
-              <ThemedGlassSurface variant="light" className="p-3" hover={false}>
+              <ThemedGlassSurface variant="light" elevation={1} className="p-3" hover={false}>
                 <div className="text-xs text-secondary-contrast font-semibold mb-2">ACCOUNT ACTIVITY</div>
                 <div className="text-sm space-y-1">
                   <div className="flex items-center justify-between"><span>Transactions</span><span className="font-medium">1 entries</span></div>
@@ -1030,7 +1030,7 @@ export function Reports() {
 
             {/* AI Analysis */}
             <div className="px-5">
-              <ThemedGlassSurface variant="light" className="p-4" hover={false}>
+              <ThemedGlassSurface variant="light" elevation={1} className="p-4" hover={false}>
                 <div className="text-sm font-semibold mb-2">🤖 AI Analysis</div>
                 <div className="text-sm mb-2">{accountModal.name} has current balance of {accountModal.balance >= 0 ? '$' : '-$'}{Math.abs(accountModal.balance).toLocaleString()}.</div>
                 <div className="text-xs text-secondary-contrast mb-1 font-semibold">AI Suggestions:</div>
@@ -1045,7 +1045,7 @@ export function Reports() {
             {/* Ledger */}
             <div className="p-5">
               <div className="text-sm font-semibold mb-2">Account Ledger</div>
-              <ThemedGlassSurface variant="light" className="p-0 overflow-hidden" hover={false}>
+              <ThemedGlassSurface variant="light" elevation={1} className="p-0 overflow-hidden" hover={false}>
                 <table className="w-full text-sm">
                   <thead className="reports-thead">
                     <tr>
