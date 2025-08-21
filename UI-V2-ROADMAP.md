@@ -1,3 +1,6 @@
+## Added (2025-08-21)
+- Logout control in navigation: theme-aware button (expanded) and icon (collapsed); uses toast feedback and shallow redirect to `/login`.
+- Reset Password UX: public `/reset-password` screen + Settings → Account Security (change password).
 ## UI V2 Roadmap
 
 Purpose: elevate visual polish while staying 100% theme-token driven. No hardcoded values; all styles use tokens in `src/theme/tokens.ts` and theme variables from `src/theme/themes.ts`.
@@ -83,5 +86,7 @@ Notes for implementation
 - Use `glass.blur`, `glass.opacity`, `glass.border`, `shadow.glow`
 - Use `animation.duration.*` and `animation.easing.*` for motion
 - No inline color strings; prefer utility classes or CSS variables from themes
+
+- Supabase Auth (initial): client/provider wired; register uses email verification with redirect back to /login; login navigates to /dashboard. Auth UIs upgraded with motion, token-driven focus rings, and success overlays. Dev HUD and chat hidden on public views.
 
 

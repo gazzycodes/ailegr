@@ -11,6 +11,7 @@ import Reports from './components/reports/Reports'
 import Landing from './components/landing/Landing'
 import LoginView from './components/auth/LoginView'
 import RegisterView from './components/auth/RegisterView'
+import ResetPasswordView from './components/auth/ResetPasswordView'
 import { VoiceCommandInterface } from './components/voice/VoiceCommandInterface'
 import { PredictiveAssistant } from './components/ai/PredictiveAssistant'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
@@ -29,7 +30,7 @@ import ToastContainer from './components/themed/Toast'
 import useToast from './components/themed/useToast'
 
 // Main application view states
-type AppView = 'landing' | 'login' | 'register' | 'dashboard' | 'universe' | 'transactions' | 'reports' | 'customers' | 'settings'
+type AppView = 'landing' | 'login' | 'register' | 'reset-password' | 'dashboard' | 'universe' | 'transactions' | 'reports' | 'customers' | 'settings'
 
 // Revolutionary App Component
 function App() {
@@ -117,6 +118,7 @@ function App() {
       case '/': return 'landing'
       case '/login': return 'login'
       case '/register': return 'register'
+      case '/reset-password': return 'reset-password'
       case '/dashboard': return 'dashboard'
       case '/universe': return 'universe'
       case '/transactions': return 'transactions'
@@ -132,6 +134,7 @@ function App() {
       case 'landing': return '/'
       case 'login': return '/login'
       case 'register': return '/register'
+      case 'reset-password': return '/reset-password'
       case 'dashboard': return '/dashboard'
       case 'universe': return '/universe'
       case 'transactions': return '/transactions'
@@ -176,6 +179,8 @@ function App() {
         return <LoginView onRegister={() => setCurrentView('register')} />
       case 'register':
         return <RegisterView onLogin={() => setCurrentView('login')} />
+      case 'reset-password':
+        return <ResetPasswordView onDone={() => setCurrentView('login')} />
       case 'dashboard':
         return <Dashboard businessHealth={businessHealth} />
       case 'universe':
@@ -210,8 +215,8 @@ function App() {
         <div className="absolute inset-0 opacity-5 animate-pulse bg-gradient-conic from-primary/5 via-transparent to-primary/5" />
       </div>
 
-      {/* App Navigation (hidden on public landing/auth views) */}
-      {!(currentView === 'landing' || currentView === 'login' || currentView === 'register') && (
+      {/* App Navigation (hidden on public landing/auth views, including reset-password) */}
+      {!(currentView === 'landing' || currentView === 'login' || currentView === 'register' || currentView === 'reset-password') && (
         <Navigation
           currentView={currentView}
           onViewChange={setCurrentView}
@@ -225,7 +230,7 @@ function App() {
         <main className="relative overflow-hidden transition-all duration-500 ease-out">
           <AdaptiveLayout
             floatingElements={
-              !(currentView === 'landing' || currentView === 'login' || currentView === 'register') ? (
+              !(currentView === 'landing' || currentView === 'login' || currentView === 'register' || currentView === 'reset-password') ? (
                 <div className="fixed top-4 right-4 z-50 flex items-center gap-3">
                   <ThemedGlassSurface variant="light" className="p-2">
                     <VoiceCommandInterface
@@ -304,7 +309,7 @@ function App() {
       />
 
       {/* Collapsible Floating Action Button (hidden on landing/auth) */}
-      {!(currentView === 'landing' || currentView === 'login' || currentView === 'register') && (
+      {!(currentView === 'landing' || currentView === 'login' || currentView === 'register' || currentView === 'reset-password') && (
         <CollapsibleFloatingActionButton
           actions={[
             { icon: "📄", label: "AI Invoice", action: () => setOpenAiInvoice(true) },
@@ -314,8 +319,8 @@ function App() {
         />
       )}
 
-      {/* Scroll-aware Chat FAB */}
-      {!fabExpanded && currentView !== 'landing' && (
+      {/* Scroll-aware Chat FAB (hidden on landing/auth) */}
+      {!fabExpanded && !(currentView === 'landing' || currentView === 'login' || currentView === 'register' || currentView === 'reset-password') && (
         <ChatFab onClick={() => setOpenChat(true)} bottomOffset={96} />
       )}
 
@@ -323,10 +328,12 @@ function App() {
       <AiInvoiceModal open={openAiInvoice} onClose={() => { setOpenAiInvoice(false) }} />
       <AiRevenueModal open={openAiRevenue} onClose={() => { setOpenAiRevenue(false) }} />
       <ToastContainer toasts={toasts} onClose={remove} />
-      <ChatDrawer open={openChat} onClose={() => setOpenChat(false)} onOpenAiInvoice={() => { setOpenChat(false); setOpenAiInvoice(true) }} onOpenAiRevenue={() => { setOpenChat(false); setOpenAiRevenue(true) }} />
+      {!(currentView === 'landing' || currentView === 'login' || currentView === 'register' || currentView === 'reset-password') && (
+        <ChatDrawer open={openChat} onClose={() => setOpenChat(false)} onOpenAiInvoice={() => { setOpenChat(false); setOpenAiInvoice(true) }} onOpenAiRevenue={() => { setOpenChat(false); setOpenAiRevenue(true) }} />
+      )}
 
-      {/* Performance monitoring in development - Responsive positioning */}
-      {process.env.NODE_ENV === 'development' && (
+      {/* Performance monitoring in development - hide on public views */}
+      {process.env.NODE_ENV === 'development' && !(currentView === 'landing' || currentView === 'login' || currentView === 'register' || currentView === 'reset-password') && (
         <div className="fixed bottom-4 left-4 md:left-6 z-40 max-w-[200px] md:max-w-none">
           <ThemedGlassSurface variant="heavy" className="px-4 py-2 shadow-lg">
             <div className="text-xs font-medium text-primary-contrast whitespace-nowrap">
