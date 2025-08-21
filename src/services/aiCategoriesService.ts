@@ -37,4 +37,9 @@ export async function deleteCategory(id: string) {
   return data
 }
 
+export async function suggestCategory(description?: string, vendorName?: string) {
+  const { data } = await api.post('/api/categories/ai/suggest', { description, vendorName })
+  return data?.result
+}
+
 

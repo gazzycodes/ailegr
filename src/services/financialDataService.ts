@@ -19,6 +19,11 @@ export class FinancialDataService {
 		return data
 	}
 
+	static async getAiUsage(): Promise<any> {
+		const { data } = await api.get('/api/ai/usage')
+		return data
+	}
+
 	static async getHealthCheck(): Promise<any> {
 		const { data } = await api.get('/api/health')
 		return data

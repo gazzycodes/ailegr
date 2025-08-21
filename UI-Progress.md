@@ -1222,3 +1222,125 @@ We have successfully transformed the financial dashboard from "good" to "absolut
   - Backend enforces 15/min and 200/day for AI requests; vendor-neutral error messages with codes.
   - Response headers expose `X-AI-RateLimit-*` for future UI hints.
 - **Impact**: UI flows unaffected; when limits hit, users get a clear, professional message.
+
+---
+
+## 🗺 UI V2 — Roadmap Logged (2025-08-20)
+
+- Created `UI-V2-ROADMAP.md` to drive the next visual evolution while staying 100% theme-token driven.
+- Execution order confirmed: Light theme → Dark theme → Dashboard refresh → Landing page → Auth UI → Reports/Customers polish → A11y/Perf QA.
+- No hardcoded values; extend tokens for surfaces, rings, and gradients; elevate `ThemedGlassSurface` with elevation variants.
+
+### ✅ UI V2 — Phase 1 Kickoff (Light theme groundwork)
+- Added ring tokens `--ring-primary/--ring-danger/--ring-focus` and surface tiers (surface-1/2/3) to `src/theme/themes.ts`.
+- Implemented elevation prop in `ThemedGlassSurface` using surface tier vars; remains fully theme-driven.
+- Updated focus ring utilities in `src/theme/transitions.css` to use ring tokens; no hardcoded colors.
+- Applied elevation + ring styles across key screens:
+  - `Dashboard` (timeframe control focus rings; loading card elevation)
+  - `FinancialMetricCard` (elevation=2)
+  - `Navigation` panel (elevation=2)
+  - `Reports` (header elevation=3, content elevation=2, modals/cards elevation=1)
+  - `ThemeSwitcher` popover (elevation=3)
+- Outcome: Light theme surfaces now use consistent tiered depth and focus rings, all token-driven.
+
+### ✅ Landing + Auth Shell (UI-only) (2025-08-20)
+- New landing page (`src/components/landing/Landing.tsx`) with aurora background using `--gradient-aurora-*` tokens, glass tiles, token rings; fully mobile-first.
+- Auth scaffolds: `AuthCard`, `LoginView`, `RegisterView` (UI only; no logic yet). All use elevation tiers and token rings.
+- Routing (single-file app): `App.tsx` now defaults to `landing`; added `login` and `register` views. Existing dashboard and views remain and can be selected from nav. Chat FAB hidden on landing.
+
+### ✅ Landing Visual Polish (2025-08-20)
+- Added reusable `.aurora-bg` and `.glow-cta` utilities (token-driven) in `src/theme/transitions.css`.
+- Landing hero now uses aurora background; Get Started button has subtle glow; copy updated with AILedgr branding.
+- Added sticky top navigation (`LandingTopNav`) with glass surface and tokenized buttons.
+- Feature tiles now include icons (BarChart3, Sparkles, Globe) and improved spacing.
+
+### ✅ SegmentedControl Component (2025-08-20)
+- Added `src/components/themed/SegmentedControl.tsx` (token rings, mobile-friendly). Replaced Dashboard timeframe buttons with SegmentedControl.
+
+### ✅ Shallow Routing (Landing ↔ Dashboard etc.) (2025-08-20)
+- Branding update: App name set to AILedgr in `index.html` title and dynamic document titles.
+- Implemented pathname-based view mapping in `App.tsx` (no router dependency):
+  - `/` → landing, `/login`, `/register`, `/dashboard`, `/reports`, `/customers`, `/settings`, `/universe`, `/transactions`.
+  - Updates history on view change; listens to back/forward via `popstate`.
+- Sets document title per view; preserves theme/UI state.
+
+---
+
+### Session 2025-08-20 — Architecture Review Snapshot & Next Steps (UI)
+- High-level: Vite + React 18 + TypeScript + Tailwind with a token-driven theme system (`src/theme/*`). Runtime theme switching via `ThemeProvider` applies CSS variables; no hardcoded colors.
+- App shell: `src/App.tsx` provides shallow routing (landing/login/register/dashboard/universe/transactions/reports/customers/settings) with animated page transitions and floating action surfaces.
+- Data layer: Axios client in `src/services/api.ts` + modular services. React Query client at `src/queryClient.ts`; UI broadcasts `data:refresh` events after create actions to invalidate caches.
+- Major UI modules: 3D universe (`components/3d/TransactionUniverse.tsx`), Dashboard suite, Reports, Customers, AI modals (Invoice/Revenue), and Chat drawer (local demo, WS-ready).
+- Landing/Auth: Presentational `Landing.tsx`, `LoginView.tsx`, `RegisterView.tsx` exist; auth is not yet wired to backend.
+
+Immediate UI priorities (no performance compromise, token-only styling):
+- Implement auth flows and route-guarding with theme-aware forms; add loading/empty/error states audit across views.
+- Wire `ChatDrawer` to server WebSocket; keep `/api/ai/generate` as fallback; show usage headers if present.
+- Landing polish: CTA wiring to `register`, lightweight feature metrics, mobile-first hero refinements, hero globe focus (Ask AI modal removed), and independent FAQ with animated chevrons.
+- Continue reports/invoices polish (virtualization, CSV/print, modals) while preserving 60fps and token compliance.
+
+### ✅ Landing — Hero Focus & FAQ Independence (100%)
+- Status: ✅ DEPLOYED (2025-08-20)
+- What Changed:
+  - Removed the "Ask AI anything" modal and secondary 3D Universe collage from landing to keep the hero clean and focused.
+  - Kept the animated globe as hero center; ensured no overlap with collage.
+  - Rebuilt FAQ with independent accordions using local state; smooth height/opacity animations; rotating chevrons; two-column masonry via CSS columns with `break-inside-avoid`.
+- Result: Cleaner hero, premium feel, and bug-free FAQ that doesn't force sibling expansion.
+
+### 🔜 Landing — Next High-Impact Additions
+- Trust row (logos/awards) using theme-aware glass chips (no images required initially)
+- "Why AI‑First" proof row with 4 micro-demos: OCR extract, category suggestion, anomaly flag, NL posting
+- Animated prompt strip (typewriter + cycling suggestions; reduced-motion aware)
+- Security & compliance band (encryption, SOC2-in‑progress, data residency)
+- Structured data: FAQPage JSON‑LD and product metadata; Open Graph/Twitter cards
+- Lightweight testimonial quotes and final CTA band upgrade
+
+### ✅ Landing — Wired Micro‑Demos + Security/Testimonials (100%)
+- Status: ✅ DEPLOYED (2025-08-20)
+- What Changed:
+  - OCR mini: optional file picker calls POST `/api/ocr` and shows first 300 chars of extracted text.
+  - AI Category mini: calls POST `/api/categories/ai/suggest` for a typed description; displays name/account/confidence.
+  - Anomaly mini: pulls one insight from GET `/api/dashboard` `aiInsights` with a Refresh action.
+  - NL Posting mini: dry‑run preview via POST `/api/posting/preview` parsing a simple NL command; renders balanced entries.
+  - Security band: token‑driven list (encryption, double‑entry invariants, SOC2‑in‑progress).
+  - Testimonials strip: lightweight quotes in glass chips.
+  - Metadata: Added OG/Twitter meta + FAQ JSON‑LD to `index.html`.
+- Performance/UX: All components theme‑token driven; minimal DOM; 60fps preserved; graceful fallbacks when server is offline.
+- Files: `src/components/landing/Landing.tsx`, `index.html`
+
+### ♻️ Landing — Visual polish (2025-08-20)
+- Replaced bullets with glass info cards in `SecurityBand`.
+- Renamed "OCR Extract" → "AI Extract" with richer result chips and better empty/error states.
+- Natural‑Language Preview now shows a graceful sample when backend is unavailable, plus CTA buttons.
+- `Anomaly Alert` expanded with Trend/Delta/Driver chips for fuller content.
+- Removed Trust row and Prompt strip sections per feedback.
+
+---
+
+## 🧭 Architecture Baseline Snapshot (2025-08-21)
+
+- Frontend shell: Vite + React 18 + TypeScript + Tailwind; global theme via `src/theme/ThemeProvider.tsx` and tokenized variables in `src/theme/themes.ts` (no hardcoded values).
+- Routing: single-file shallow routing in `src/App.tsx` using view-state mapped to pathnames (no router).
+- Data layer: Axios client `src/services/api.ts` (base `VITE_API_URL`) and React Query client `src/queryClient.ts` with `data:refresh` invalidation events after mutations.
+- Major views: `dashboard/Dashboard.tsx`, `reports/Reports.tsx`, `transactions/Invoices.tsx`, `customers/Customers.tsx`, `settings/Settings.tsx`, 3D `3d/TransactionUniverse.tsx`, AI modals `ai/AiInvoiceModal.tsx` and `ai/AiRevenueModal.tsx`, Chat drawer `ai/ChatDrawer.tsx`, Voice UI `voice/VoiceCommandInterface.tsx`.
+- Services mapped to backend: `reportsService.ts`, `transactionsService.ts`, `expensesService.ts`, `customersService.ts`, `aiCategoriesService.ts`, `setupService.ts`, plus `realData.ts` combining `/api/dashboard` and `/api/metrics/time-series`.
+- AI flows: OCR via `/api/ocr` then AI extraction via `/api/ai/generate` (Gemini proxy) → post invoice/revenue; preview revenue via `/api/posting/preview`.
+- Performance: theme tokens + CSS variables, lightweight charts and virtualization; animations via Framer Motion; 60fps target preserved.
+
+Next UI hooks (high impact, token-only):
+- Wire `ChatDrawer` to server WebSocket for real chat and ACTION parsing; keep `/api/ai/generate` fallback.
+- Add auth shell and guard shallow routes (token-aware header, theme-friendly forms).
+- A11y pass (ARIA roles for modals/tables, focus traps, keyboard nav).
+
+---
+
+### 🌐 Landing Top Nav — Artifact Removal & Polish (2025-08-21)
+- Removed all potential hairlines: disabled progress bar and prism shimmer to eliminate horizontal line on mobile/desktop/tablet.
+- Kept liquid glass, collapse-on-scroll, cursor halo, and magnetic hover; performance preserved (GPU-friendly transforms only).
+- Increased landing hero top padding (`pt-28 sm:pt-32`) for perfect spacing under fixed nav.
+- Mobile overlay menu retains all tabs + CTAs; desktop tabs remain centered, actions right-aligned.
+
+### ✨ Landing — Progress Bar Restored, Tagline Update, CTA Polish (2025-08-21)
+- Re‑enabled top nav scroll progress bar; prism shimmer remains disabled to avoid hairline.
+- Updated hero subtitle to AI‑first value prop: "Automated bookkeeping, instant posting, and live insights — so you don't have to."
+- CTA band restyled to asymmetric premium glass (diagonal sweep, glow orb, pill CTAs); token‑driven and performant.

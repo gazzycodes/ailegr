@@ -102,6 +102,7 @@ export function FinancialMetricCard({
   return (
     <ThemedGlassSurface
       variant="medium"
+      elevation={2}
       glow={false}
       hover={false}
       className={cn(

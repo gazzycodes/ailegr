@@ -95,6 +95,19 @@ Policy: All future backend/server functionality that the frontend needs will be 
   - Invoices wired: GET `/api/invoices` and POST `/api/invoices` integrated into Invoices view; emits `data:refresh` post‑create.
 - Universal AI rate limiter added (15/min, 200/day). Applied to `/api/ai/generate`, WebSocket chat handler, and AI Category service calls. Neutral errors + X-AI-RateLimit-* headers.
 
+### Landing support notes
+- No backend work required for recent landing updates (hero simplification, FAQ independence).
+- Upcoming landing “AI micro‑demos” can reuse existing endpoints:
+  - OCR: `POST /api/ocr` to show extracted fields preview
+  - Category: `POST /api/categories/ai/suggest` for live suggestion chip
+  - Anomaly/insight: `GET /api/dashboard` (use `aiInsights`) for rotating insight bullets
+  - NL posting demo: `POST /api/transactions/revenue` with `dryRun=true` (add optional query for preview if desired)
+
+
+## Frontend-driven UI V2 prep (no backend changes required)
+- Introduced theme surface tiers and ring tokens on the frontend to enable richer UI without backend impact.
+- No server/schema changes in this step.
+
 ## What’s left from baseline-app (to mirror/port)
 - AI Chat end-to-end in UI: connect WebSocket from `ChatDrawer`, persist threads in DB (thread/messages tables), and handle ACTION dispatching
 - Reports: historical time-series endpoint (if baseline has one), richer filters/grouping, CSV/print polish
@@ -122,6 +135,56 @@ Policy: All future backend/server functionality that the frontend needs will be 
 - Add DB scripts to README for one-command bootstrap: `npm run db:generate && npm run db:push && npm run server`.
 - Optional: persist AI chat threads (add tables) and expose `/api/ai/chat/history` in this server when UX is ready.
 
+### Session 2025-08-20 — Architecture Review Snapshot (Backend)
+- Server: Express + Prisma (SQLite); single file `server/server.js` exposes health, dashboard, reports, accounts (CRUD and ledger), posting, invoices, OCR, AI proxy, metrics, customers, and setup helpers.
+- Posting engine: `server/src/services/posting.service.js` with idempotency, double-entry validation, expense resolver, invoice overpay logic, and account lookups. Preview endpoint auto-detects invoice vs expense.
+- AI: Rate-limited via `ai-rate-limiter`; optional Gemini-backed `/api/ai/generate`; WS scaffold parses ACTION lines for future automations.
+- Prisma models: Accounts/Transactions/Entries/Expense/Invoice/Customer/Category/PendingCategoryApproval; boot ensures core COA exists.
+
+Immediate backend priorities:
+- Auth/session: introduce minimal JWT session + per-tenant bootstrapping for COA (shift ensure-core-accounts to tenant creation).
+- Chat: expose `/api/ai/chat` REST fallback and WS streaming; add simple thread persistence (threads/messages tables) with pagination.
+- Reports: verify YTD/Quarterly/Annual period logic against desired definitions; keep endpoints fast on SQLite; add indices as needed.
+
 ## Notes
 - We will only implement and maintain backend logic under `frontend-rebuild` going forward; `baseline-app` remains reference-only.
 - Keep performance tight: DB-driven reports, idempotency on posting, and balanced journal invariants are already enforced.
+
+### Landing micro‑demos — endpoints in use (2025-08-20)
+- OCR mini: POST `/api/ocr` — returns `{ text }` used for preview.
+- Category mini: POST `/api/categories/ai/suggest` — returns `{ result }` (existing service/rate‑limited).
+- Anomaly mini: GET `/api/dashboard` — `aiInsights[0]` message shown.
+- NL posting mini: POST `/api/posting/preview` — invoice/expense detection + entries; UI only, no commit.
+- Security/Testimonials: UI only, no server changes.
+- Meta (FAQ JSON‑LD/OG): client only.
+
+### Landing polish — no server changes (2025-08-20)
+- Renamed OCR mini to "AI Extract"; UI-only result chips. No API change.
+- Natural‑Language Preview now shows a graceful client-side sample when `/api/posting/preview` is unavailable; encourages sign‑up. No API change.
+- `Anomaly Alert` enriched purely on client using existing `/api/dashboard` shape; no additional fields required.
+
+---
+
+### Landing Nav Polish — Backend Impact (2025-08-21)
+- No backend changes required for UI hairline removal, spacing, or animations.
+- Posting preview resilience remains: boot-time Ensure Core Accounts includes critical expense/revenue codes; demo fallbacks unchanged.
+
+---
+
+## 🧭 Architecture Baseline Snapshot (2025-08-21)
+
+- Server: `server/server.js` (Express, ESM), Prisma SQLite (`prisma/schema.prisma`), CORS + JSON, static `/uploads`, WebSocket scaffold.
+- Core services:
+  - Reporting: `server/reportingService.js` exposes `getDashboard`, `getTrialBalance`, `getProfitAndLoss`, `getBalanceSheet`, `getChartOfAccounts` (Decimal math, balanced checks).
+  - Posting: `server/src/services/posting.service.js` handles expenses and invoices (idempotency by reference, overpay logic, balanced invariant validation).
+  - Expense resolver: `server/src/services/expense-account-resolver.service.js` with category/keyword/paymentStatus mapping and account existence validation.
+  - AI category: `server/src/services/ai-category.service.js` (keyword mappings, Gemini-backed suggest/match, pending approvals CRUD).
+  - AI rate limits: `server/src/services/ai-rate-limiter.js` (15/min, 200/day) with `X-AI-RateLimit-*` headers.
+- Endpoints mapped to frontend services (all implemented): health, dashboard, reports (PnL/BS/TB/COA), accounts CRUD + ledger, OCR, posting preview, expenses, invoices (+mark-paid, +record-payment), revenue, capital, customers CRUD, setup helpers, AI proxy, AI category flows, metrics time-series.
+- Bootstrapping: ensures core COA codes exist at server start; seed helpers for initial capital and sample revenue.
+
+Next backend hooks (incremental):
+- WS AI chat: expose `/api/ai/chat` REST fallback and wire WebSocket to `ChatDrawer`; parse ACTION lines and dispatch to posting endpoints.
+- Minimal auth/session: JWT-based session and per-tenant COA bootstrap (move ensure-core-accounts to tenant creation).
+- Reports polish: verify Quarterly/YTD period boundaries, add indices as usage grows.
+- 2025-08-21: Landing UI (progress bar restored, CTA restyle, tagline) — no backend changes required.

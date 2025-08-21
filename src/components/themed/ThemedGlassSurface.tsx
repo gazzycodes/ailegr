@@ -7,6 +7,7 @@ interface ThemedGlassSurfaceProps {
   children: ReactNode;
   className?: string;
   variant?: 'light' | 'medium' | 'heavy';
+  elevation?: 1 | 2 | 3; // surface tiers backed by theme vars
   glow?: boolean;
   hover?: boolean;
   depth?: number;
@@ -17,6 +18,7 @@ export const ThemedGlassSurface = forwardRef<HTMLDivElement, ThemedGlassSurfaceP
   children,
   className,
   variant = 'medium',
+  elevation = 2,
   glow = false,  // Turn off glow by default!
   hover = true,
   depth = 3,
@@ -43,6 +45,27 @@ export const ThemedGlassSurface = forwardRef<HTMLDivElement, ThemedGlassSurfaceP
       heavy: 'shadow-[var(--shadow-glow-lg)]'
     };
     return glows[variant];
+  };
+
+  const elevationStyles: Record<1|2|3, React.CSSProperties> = {
+    1: {
+      backdropFilter: `blur(var(--surface-1-blur))`,
+      WebkitBackdropFilter: `blur(var(--surface-1-blur))`,
+      background: `var(--surface-1-bg)`,
+      borderColor: `var(--surface-1-border)`
+    },
+    2: {
+      backdropFilter: `blur(var(--surface-2-blur))`,
+      WebkitBackdropFilter: `blur(var(--surface-2-blur))`,
+      background: `var(--surface-2-bg)`,
+      borderColor: `var(--surface-2-border)`
+    },
+    3: {
+      backdropFilter: `blur(var(--surface-3-blur))`,
+      WebkitBackdropFilter: `blur(var(--surface-3-blur))`,
+      background: `var(--surface-3-bg)`,
+      borderColor: `var(--surface-3-border)`
+    }
   };
 
   // Enhanced shadow system for better 3D depth, especially in light theme
@@ -99,7 +122,7 @@ export const ThemedGlassSurface = forwardRef<HTMLDivElement, ThemedGlassSurfaceP
         getThemeAwareBorders(variant),
 
         // Enhanced glass reflections that work on all screen sizes
-        'before:absolute before:inset-0 before:rounded-2xl',
+        'before:absolute before:inset-0 before:rounded-2xl before:will-change-transform',
         'before:bg-gradient-to-br before:from-white/25 before:via-white/8 before:to-transparent',
         'before:opacity-70 before:pointer-events-none',
 
@@ -116,13 +139,16 @@ export const ThemedGlassSurface = forwardRef<HTMLDivElement, ThemedGlassSurfaceP
 
         className
       )}
-      style={style}
+      style={{ ...(elevationStyles[elevation]), ...style }}
       whileHover={hover ? {
         scale: 1.02,
         y: -4,
         boxShadow: currentTheme === 'light' 
           ? "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 10px 20px rgba(0, 0, 0, 0.1)"
           : undefined,
+        // IMPORTANT: never increase backdrop blur on hover to avoid content blur behind
+        filter: undefined,
+        backdropFilter: undefined,
         transition: {
           type: "spring",
           stiffness: 400,

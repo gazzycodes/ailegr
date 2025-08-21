@@ -156,6 +156,7 @@ export const ThemeSwitcher = () => {
               <ThemedGlassSurface 
                 className="p-2 min-w-[200px] backdrop-blur-3xl shadow-2xl" 
                 variant="heavy"
+                elevation={3}
                 glow={true}
               >
                 <div className="space-y-1">

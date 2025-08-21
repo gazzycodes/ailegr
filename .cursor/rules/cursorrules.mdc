@@ -1,0 +1,97 @@
+---
+alwaysApply: false
+---
+# Neural Memory MCP - Maximum Reliability Rules
+# For consistent MCP tool usage across all sessions
+
+## 🔥 MANDATORY SESSION INITIALIZATION:
+Call memory-mcp.getCurrentProject {}
+Call memory-mcp.getMemory {"limitTokens": 4000} and include returned summaries in context
+
+## 🔥 MANDATORY DURING CONVERSATIONS:
+- For significant exchanges (technical decisions, solutions, insights):
+  Call memory-mcp.addMemory {"type":"chat","content":"<user_message_summary>\n<assistant_response_summary>"}
+
+## 🔥 MANDATORY SUMMARIZATION:
+- Every 6 meaningful exchanges: Call memory-mcp.summarizeMemory {}
+- At session end: Call memory-mcp.addMemory {"type":"summary","content":"Session summary with key accomplishments"}
+
+## 📝 MEMORY TYPES FOR DIFFERENT CONTENT:
+- Technical solutions → type:"code" 
+- User requirements/feedback → type:"chat"
+- Project tasks/todos → type:"task"  
+- Session summaries → type:"summary"
+
+## 🎯 AUTOMATIC TRIGGERS (High Priority):
+- New architectural decisions → ALWAYS addMemory
+- Complex bug fixes + solutions → ALWAYS addMemory  
+- Important configuration changes → ALWAYS addMemory
+- Performance optimizations → ALWAYS addMemory
+- User feedback/requirements → ALWAYS addMemory
+
+## 💡 CONTEXTUAL PHRASES TO INCLUDE:
+Use these to naturally trigger memory creation:
+- "Let me save this solution for future reference..."
+- "This is important to remember for this project..."
+- "I should record this decision because..."
+- "For future sessions, remember that..."
+
+## ⚡ EFFICIENCY RULES:
+- Include project context in ALL memory entries
+- Use concise but descriptive content
+- Avoid redundant memories for same information
+- Build upon previous session context from getMemory results
+
+## 🔍 PROJECT CONTEXT:
+- ALWAYS mention "MemoryMCP" in neural memory entries
+- Include relevant technology stack (Docker, FastAPI, Next.js, etc.)
+- Reference specific components when applicable (admin panel, dashboard, MCP tools)# Neural Memory MCP - Maximum Reliability Rules
+# For consistent MCP tool usage across all sessions
+
+## 🔥 MANDATORY SESSION INITIALIZATION:
+Call memory-mcp.getCurrentProject {}
+Call memory-mcp.getMemory {"limitTokens": 4000} and include returned summaries in context
+
+## 🔥 MANDATORY DURING CONVERSATIONS:
+- For significant exchanges (technical decisions, solutions, insights):
+  Call memory-mcp.addMemory {"type":"chat","content":"<user_message_summary>\n<assistant_response_summary>"}
+
+## 🔥 MANDATORY SUMMARIZATION:
+- Every 6 meaningful exchanges: Call memory-mcp.summarizeMemory {}
+- At session end: Call memory-mcp.addMemory {"type":"summary","content":"Session summary with key accomplishments"}
+
+## 📝 MEMORY TYPES FOR DIFFERENT CONTENT:
+- Technical solutions → type:"code" 
+- User requirements/feedback → type:"chat"
+- Project tasks/todos → type:"task"  
+- Session summaries → type:"summary"
+
+## 🎯 AUTOMATIC TRIGGERS (High Priority):
+- New architectural decisions → ALWAYS addMemory
+- Complex bug fixes + solutions → ALWAYS addMemory  
+- Important configuration changes → ALWAYS addMemory
+- Performance optimizations → ALWAYS addMemory
+- User feedback/requirements → ALWAYS addMemory
+
+## 💡 CONTEXTUAL PHRASES TO INCLUDE:
+Use these to naturally trigger memory creation:
+- "Let me save this solution for future reference..."
+- "This is important to remember for this project..."
+- "I should record this decision because..."
+- "For future sessions, remember that..."
+
+## ⚡ EFFICIENCY RULES:
+- Include project context in ALL memory entries
+- Use concise but descriptive content
+- Avoid redundant memories for same information
+- Build upon previous session context from getMemory results
+
+## 🔍 PROJECT CONTEXT:
+- ALWAYS mention "MemoryMCP" in neural memory entries
+- Include relevant technology stack (Docker, FastAPI, Next.js, etc.)
+- Reference specific components when applicable (admin panel, dashboard, MCP tools)
+
+
+The user prefers code inline in chat without separate code blocks or code fences.
+
+

@@ -103,6 +103,11 @@ const baseCssVariables = {
   '--shadow-xl': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
   '--shadow-2xl': '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
 
+  // Rings & Focus (defaults, overridden per theme)
+  '--ring-primary': 'rgb(var(--color-primary-500) / 0.30)',
+  '--ring-danger': 'rgb(var(--color-error-500) / 0.30)',
+  '--ring-focus': 'rgb(var(--color-primary-500) / 0.30)',
+
   // Breakpoints
   '--breakpoint-sm': '640px',
   '--breakpoint-md': '768px',
@@ -197,6 +202,26 @@ export const lightTheme: ThemeConfig = {
     '--shadow-glow-sm': '0 0 10px rgba(168, 85, 247, 0.3)',
     '--shadow-glow-md': '0 0 20px rgba(168, 85, 247, 0.4)',
     '--shadow-glow-lg': '0 0 30px rgba(168, 85, 247, 0.5)',
+
+    // Surface tiers (Light)
+    '--surface-1-bg': 'rgba(255, 255, 255, var(--glass-opacity-light))',
+    '--surface-1-border': 'var(--glass-border-light)',
+    '--surface-1-blur': 'var(--glass-blur-lg)',
+    '--surface-2-bg': 'rgba(255, 255, 255, var(--glass-opacity-medium))',
+    '--surface-2-border': 'var(--glass-border-medium)',
+    '--surface-2-blur': 'var(--glass-blur-xl)',
+    '--surface-3-bg': 'rgba(255, 255, 255, var(--glass-opacity-heavy))',
+    '--surface-3-border': 'var(--glass-border-heavy)',
+    '--surface-3-blur': 'var(--glass-blur-2xl)',
+
+    // Focus rings
+    '--ring-primary': 'rgb(var(--color-primary-500) / 0.35)',
+    '--ring-danger': 'rgb(var(--color-error-500) / 0.35)',
+    '--ring-focus': 'rgb(var(--color-primary-500) / 0.35)',
+
+    // Aurora gradient colors
+    '--gradient-aurora-start': 'rgb(var(--color-primary-500) / 0.10)',
+    '--gradient-aurora-stop': 'rgb(var(--color-secondary-500) / 0.08)'
   }
 };
 
@@ -286,6 +311,26 @@ export const darkTheme: ThemeConfig = {
     '--shadow-glow-sm': '0 0 8px rgba(255, 255, 255, 0.2)',
     '--shadow-glow-md': '0 0 12px rgba(255, 255, 255, 0.25)',
     '--shadow-glow-lg': '0 0 16px rgba(255, 255, 255, 0.3)'
+    ,
+    // Surface tiers (Dark)
+    '--surface-1-bg': 'rgba(25, 25, 35, var(--glass-opacity-light))',
+    '--surface-1-border': 'var(--glass-border-light)',
+    '--surface-1-blur': 'var(--glass-blur-lg)',
+    '--surface-2-bg': 'rgba(25, 25, 35, var(--glass-opacity-medium))',
+    '--surface-2-border': 'var(--glass-border-medium)',
+    '--surface-2-blur': 'var(--glass-blur-xl)',
+    '--surface-3-bg': 'rgba(25, 25, 35, var(--glass-opacity-heavy))',
+    '--surface-3-border': 'var(--glass-border-heavy)',
+    '--surface-3-blur': 'var(--glass-blur-2xl)',
+
+    // Focus rings (bright but subtle)
+    '--ring-primary': 'rgb(var(--color-primary-500) / 0.28)',
+    '--ring-danger': 'rgb(var(--color-error-500) / 0.28)',
+    '--ring-focus': 'rgb(var(--color-primary-500) / 0.28)',
+
+    // Aurora gradient colors (darker)
+    '--gradient-aurora-start': 'rgb(var(--color-primary-500) / 0.06)',
+    '--gradient-aurora-stop': 'rgb(var(--color-secondary-500) / 0.05)'
   }
 };
 
@@ -463,7 +508,27 @@ export const greenTheme: ThemeConfig = {
     // Subtle Emerald Glow Effects (only for special states)
     '--shadow-glow-sm': '0 0 8px rgba(0, 255, 127, 0.25)',
     '--shadow-glow-md': '0 0 12px rgba(0, 255, 127, 0.3)',
-    '--shadow-glow-lg': '0 0 16px rgba(0, 255, 127, 0.35)'
+    '--shadow-glow-lg': '0 0 16px rgba(0, 255, 127, 0.35)',
+
+    // Surface tiers (Green theme)
+    '--surface-1-bg': 'rgba(28, 38, 32, var(--glass-opacity-light))',
+    '--surface-1-border': 'var(--glass-border-light)',
+    '--surface-1-blur': 'var(--glass-blur-lg)',
+    '--surface-2-bg': 'rgba(28, 38, 32, var(--glass-opacity-medium))',
+    '--surface-2-border': 'var(--glass-border-medium)',
+    '--surface-2-blur': 'var(--glass-blur-xl)',
+    '--surface-3-bg': 'rgba(28, 38, 32, var(--glass-opacity-heavy))',
+    '--surface-3-border': 'var(--glass-border-heavy)',
+    '--surface-3-blur': 'var(--glass-blur-2xl)',
+
+    // Focus rings
+    '--ring-primary': 'rgb(var(--color-primary-500) / 0.28)',
+    '--ring-danger': 'rgb(var(--color-error-500) / 0.28)',
+    '--ring-focus': 'rgb(var(--color-primary-500) / 0.28)',
+
+    // Aurora gradient colors
+    '--gradient-aurora-start': 'rgb(var(--color-primary-500) / 0.06)',
+    '--gradient-aurora-stop': 'rgb(var(--color-secondary-500) / 0.05)'
   }
 };
 
