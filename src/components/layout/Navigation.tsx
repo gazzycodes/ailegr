@@ -8,11 +8,13 @@ import {
   Settings,
   TrendingUp,
   Activity,
-  Zap
+  Zap,
+  LogOut
 } from 'lucide-react'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import { cn } from '../../lib/utils'
 import { useTheme } from '../../theme/ThemeProvider'
+import supabase from '../../services/supabaseClient'
 
 interface NavigationProps {
   currentView: string
@@ -76,7 +78,9 @@ export function Navigation({
   businessHealth
 }: NavigationProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
+  const [hoveredLogout, setHoveredLogout] = useState(false)
   const { currentTheme, isDark } = useTheme()
 
   // Get health status indicator
@@ -88,6 +92,24 @@ export function Navigation({
   }
 
   const healthStatus = getHealthStatus()
+
+  const handleLogout = async () => {
+    try {
+      setSigningOut(true)
+      await supabase.auth.signOut()
+      window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Signed out', type: 'success' } }))
+      onViewChange('login')
+      try {
+        window.history.pushState({ view: 'login' }, '', '/login')
+        window.dispatchEvent(new PopStateEvent('popstate'))
+      } catch {}
+    } catch (e: any) {
+      const msg = e?.message || 'Sign out failed'
+      window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } }))
+    } finally {
+      setSigningOut(false)
+    }
+  }
 
   // Navigation item animation variants
   const itemVariants = {
@@ -140,15 +162,11 @@ export function Navigation({
                   exit={{ opacity: 0, width: 0 }}
                   className="overflow-hidden"
                 >
-                  <div className={cn(
-                    "text-sm font-bold text-gradient-primary",
-                    currentTheme === 'blue' && "theme-blue",
-                    currentTheme === 'green' && "theme-green"
-                  )}>
-                    EZE Ledger
+                  <div className="text-sm font-bold tracking-tight whitespace-nowrap">
+                    <span className="text-primary">AI</span>Ledger
                   </div>
                   <div className="text-xs text-secondary-contrast">
-                    Revolutionary AI
+                    Automated Bookkeeping
                   </div>
                 </motion.div>
               )}
@@ -327,15 +345,55 @@ export function Navigation({
                   <TrendingUp className="w-3 h-3" />
                   <span>Performance: 60 FPS</span>
                 </div>
+
+                {/* Logout action (expanded) */}
+                <button
+                  onClick={handleLogout}
+                  className={cn(
+                    'mt-2 w-full flex items-center gap-3 p-3 rounded-lg transition-all duration-200',
+                    'bg-transparent hover:bg-primary/10 text-foreground/90 hover:text-primary'
+                  )}
+                  disabled={signingOut}
+                >
+                  <LogOut className="w-5 h-5" />
+                  <span className="text-sm font-medium">{signingOut ? 'Signing out…' : 'Log out'}</span>
+                </button>
               </motion.div>
             ) : (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex justify-center"
+                className="flex flex-col items-center gap-3 py-1"
               >
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                {/* Logout icon-only (collapsed) with centered symmetry and tooltip */}
+                <div className="relative">
+                  <button
+                    onClick={handleLogout}
+                    onMouseEnter={() => setHoveredLogout(true)}
+                    onMouseLeave={() => setHoveredLogout(false)}
+                    className={cn('w-10 h-10 flex items-center justify-center rounded-xl hover:bg-primary/10 transition-all', signingOut && 'opacity-60 cursor-not-allowed')}
+                    aria-label="Log out"
+                    disabled={signingOut}
+                  >
+                    <LogOut className="w-5 h-5" />
+                  </button>
+                  <AnimatePresence>
+                    {!isExpanded && hoveredLogout && (
+                      <motion.div
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -8 }}
+                        className="absolute left-12 top-1/2 -translate-y-1/2 z-50"
+                      >
+                        <ThemedGlassSurface variant="heavy" className="px-3 py-2 text-sm whitespace-nowrap" hover={false}>
+                          <div className="font-medium text-primary-contrast">Log out</div>
+                        </ThemedGlassSurface>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

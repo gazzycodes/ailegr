@@ -68,7 +68,6 @@ export function formatPercentage(value: number, decimals: number = 1): string {
     maximumFractionDigits: decimals,
   }).format(value / 100);
 }
-
 // Utility for debouncing functions
 export function debounce<T extends (...args: any[]) => any>(
   func: T,

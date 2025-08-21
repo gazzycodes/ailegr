@@ -169,6 +169,13 @@ Immediate backend priorities:
 - No backend changes required for UI hairline removal, spacing, or animations.
 - Posting preview resilience remains: boot-time Ensure Core Accounts includes critical expense/revenue codes; demo fallbacks unchanged.
 
+### Logout UI (2025-08-21)
+- No backend change required; logout uses Supabase client `signOut()` on the frontend and shallow redirects to `/login`.
+
+### Password Reset UX (2025-08-21)
+- No backend server changes; handled entirely via Supabase auth flows on the client.
+- Reset email redirect goes to `/reset-password`; screen exchanges tokens with Supabase and updates the password.
+
 ---
 
 ## 🧭 Architecture Baseline Snapshot (2025-08-21)
@@ -188,3 +195,12 @@ Next backend hooks (incremental):
 - Minimal auth/session: JWT-based session and per-tenant COA bootstrap (move ensure-core-accounts to tenant creation).
 - Reports polish: verify Quarterly/YTD period boundaries, add indices as usage grows.
 - 2025-08-21: Landing UI (progress bar restored, CTA restyle, tagline) — no backend changes required.
+- Next (auth): verify Supabase JWT via JWKS on server; upsert local user record on first request (id,email), then protect write endpoints.
+- Supabase Auth (frontend-only): no backend changes yet. Email confirm returns to /login; JWT verification middleware planned next for protecting write endpoints. Public views now hide dev HUD and chat UI; no server impact.
+
+### 🔎 Discovery Pass — Backend Overview (2025-08-21)
+- Server: `server/server.js` (Express ESM) with WebSocket chat scaffold, CORS/JSON middlewares, static `/uploads`, Prisma SQLite.
+- Endpoints: Health, Dashboard, Reports (PnL/BS/TB/COA), Accounts CRUD + ledger, OCR, Posting preview, Expenses, Invoices (+mark‑paid/+record‑payment), Revenue, Capital, Customers CRUD, Setup helpers, AI proxy, AI Categories, Metrics time‑series.
+- Services: `reportingService.js`, `src/services/posting.service.js`, `src/services/expense-account-resolver.service.js`, `src/services/ai-category.service.js`, `src/services/ai-rate-limiter.js`.
+- Boot: ensures core COA exists; local dev scripts `npm run db:generate && npm run db:push && npm run server`.
+- Auth: Not enforced server‑side yet; plan to verify Supabase JWT via JWKS and gate write endpoints.

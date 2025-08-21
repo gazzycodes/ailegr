@@ -17,6 +17,7 @@ import { PredictiveInsights } from './PredictiveInsights'
 import { useTheme } from '../../theme/ThemeProvider'
 import { cn } from '../../lib/utils'
 import SegmentedControl from '../themed/SegmentedControl'
+import PremiumLoader from '../themed/PremiumLoader'
 
 interface DashboardProps {
   businessHealth: number
@@ -132,19 +133,7 @@ export function Dashboard({ businessHealth }: DashboardProps) {
   }, [timeRange])
 
   if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <ThemedGlassSurface variant="medium" elevation={2} className="p-8 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
-          <div className="text-lg font-semibold text-gradient-primary mb-2">
-            Initializing Financial Universe
-          </div>
-          <div className="text-muted-contrast">
-            Loading your financial command center...
-          </div>
-        </ThemedGlassSurface>
-      </div>
-    )
+    return <PremiumLoader title="Initializing Financial Universe" subtitle="Loading your financial command center..." />
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Activity } from 'lucide-react'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
@@ -59,6 +59,9 @@ export function LiquidCashFlowVisualization({
   const { isDark } = useTheme()
   const [hoveredPoint, setHoveredPoint] = useState<string | null>(null)
   const [, setAnimationProgress] = useState(0)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
+  const [tooltipLeft, setTooltipLeft] = useState<number | null>(null)
 
   // Build chart data from real series when available
   const [chartData] = useState(() => {
@@ -119,6 +122,36 @@ export function LiquidCashFlowVisualization({
     if (globalRange === 0) return 0
     return (value - globalMinValue) / globalRange
   }
+  // Compute tooltip left to keep it fully visible within container
+  const computeTooltipLeft = (index: number) => {
+    if (!containerRef.current || !tooltipRef.current) return
+    const containerWidth = containerRef.current.clientWidth || width
+    const svgX = padding + (index * (width - 2 * padding)) / (revenueData.length - 1)
+    const anchorX = (svgX / width) * containerWidth
+    const tooltipWidth = tooltipRef.current.clientWidth || 220
+    const margin = 8
+    const left = Math.min(Math.max(anchorX - tooltipWidth / 2, margin), containerWidth - tooltipWidth - margin)
+    setTooltipLeft(left)
+  }
+
+  useEffect(() => {
+    if (!hoveredPoint) { setTooltipLeft(null); return }
+    const [, indexStr] = hoveredPoint.split('-')
+    const i = parseInt(indexStr)
+    const raf = requestAnimationFrame(() => computeTooltipLeft(i))
+    return () => cancelAnimationFrame(raf)
+  }, [hoveredPoint])
+
+  useEffect(() => {
+    if (!hoveredPoint) return
+    const onResize = () => {
+      const [, indexStr] = hoveredPoint.split('-')
+      computeTooltipLeft(parseInt(indexStr))
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [hoveredPoint])
+
 
   // Create SVG path for liquid flow with unified scale
   const createFlowPath = (dataPoints: any[], _color: string, offset: number = 0) => {
@@ -222,7 +255,7 @@ export function LiquidCashFlowVisualization({
       </div>
 
       {/* Liquid Flow Visualization */}
-      <div className="relative w-full h-[250px] sm:h-[300px] lg:h-[350px] rounded-lg overflow-hidden bg-gradient-to-br from-surface/30 to-transparent">
+      <div ref={containerRef} className="relative w-full h-[250px] sm:h-[300px] lg:h-[350px] rounded-lg overflow-hidden bg-gradient-to-br from-surface/30 to-transparent">
         <svg
           width="100%"
           height="100%"
@@ -378,6 +411,8 @@ export function LiquidCashFlowVisualization({
                 whileHover={{ scale: 1.3 }}
                 onMouseEnter={() => setHoveredPoint(`revenue-${index}`)}
                 onMouseLeave={() => setHoveredPoint(null)}
+                onTouchStart={() => setHoveredPoint(`revenue-${index}`)}
+                onTouchEnd={() => setHoveredPoint(null)}
               />
             )
           })}
@@ -400,6 +435,8 @@ export function LiquidCashFlowVisualization({
                 whileHover={{ scale: 1.3 }}
                 onMouseEnter={() => setHoveredPoint(`expense-${index}`)}
                 onMouseLeave={() => setHoveredPoint(null)}
+                onTouchStart={() => setHoveredPoint(`expense-${index}`)}
+                onTouchEnd={() => setHoveredPoint(null)}
               />
             )
           })}
@@ -422,6 +459,8 @@ export function LiquidCashFlowVisualization({
                 whileHover={{ scale: 1.3 }}
                 onMouseEnter={() => setHoveredPoint(`profit-${index}`)}
                 onMouseLeave={() => setHoveredPoint(null)}
+                onTouchStart={() => setHoveredPoint(`profit-${index}`)}
+                onTouchEnd={() => setHoveredPoint(null)}
               />
             )
           })}
@@ -438,8 +477,8 @@ export function LiquidCashFlowVisualization({
             const currentPoint = getDataPoint(type, index)
             if (!currentPoint) return null
 
-            // Get the coordinates for tooltip positioning
-            let tooltipX = padding + (index * (width - 2 * padding)) / (revenueData.length - 1)
+            // Ensure tooltip stays inside container using measured width
+            // Left is computed in an effect and stored in state
 
             return (
               <motion.div
@@ -448,10 +487,12 @@ export function LiquidCashFlowVisualization({
                 exit={{ opacity: 0, scale: 0.8, y: 10 }}
                 className="absolute z-10 pointer-events-none"
                 style={{
-                  left: `${tooltipX}px`,
-                  top: '20px',
-                  transform: 'translateX(-50%)'
+                  left: `${tooltipLeft ?? 0}px`,
+                  top: '16px',
+                  transform: 'none',
+                  maxWidth: 'min(280px, calc(100% - 16px))'
                 }}
+                ref={tooltipRef as any}
               >
                 <ThemedGlassSurface variant="heavy" className="px-4 py-3 text-sm shadow-xl chart-tooltip liquid-glass" hover={false}>
                   <div className="font-semibold text-foreground mb-2">Month {index + 1}</div>
