@@ -90,3 +90,7 @@ Notes for implementation
 - Supabase Auth (initial): client/provider wired; register uses email verification with redirect back to /login; login navigates to /dashboard. Auth UIs upgraded with motion, token-driven focus rings, and success overlays. Dev HUD and chat hidden on public views.
 
 
+
+## Dev parity checkpoint — 2025-08-22
+- Backend switched dev to Postgres; tenancy bootstrap added.
+- Next: auth-derived tenant, protect writes, chat persistence.

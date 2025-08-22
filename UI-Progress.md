@@ -5290,4 +5290,16 @@ We have successfully transformed the financial dashboard from "good" to "absolut
 ### âœ… Liquid Glass Modals â€” Caustics + Glint Enhancer (100%)
 - **Status**: âœ… DEPLOYED (2025-08-19)
 - **What Changed**:
-  - Added `.liquid-glass` utility with themeâ€‘aware
+  - Added `.liquid-glass` utility with themeâ€‘aware## Sync — pulled origin/main (override local)
+- Reset workspace to origin/main per request; local changes overwritten.
+## Postgres dev parity — 2025-08-22
+- Dev now uses Postgres; no UI changes required yet. Dashboard zeros as expected on fresh DB.
+- Next: wire auth-derived tenant into requests; retain theme tokens.
+
+## Postgres dev parity — 2025-08-22
+- Dev now uses Postgres; no UI changes required yet.
+- Next: pass tenantId from auth in requests.
+
+## Postgres credentials — 2025-08-22
+- Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
+- Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public

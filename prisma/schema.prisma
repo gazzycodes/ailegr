@@ -3,13 +3,39 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  members   Membership[]
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  tenantId  String
+  role      Role     @default(OWNER)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, tenantId])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
 }
 
 model Account {
   id            String   @id @default(cuid())
-  code          String   @unique
+  tenantId      String   @default("dev")
+  code          String
   name          String
   type          AccountType
   normalBalance NormalBalance
@@ -26,10 +52,12 @@ model Account {
   categories    Category[]
 
   @@map("accounts")
+  @@unique([tenantId, code])
 }
 
 model Transaction {
   id           String   @id @default(cuid())
+  tenantId     String   @default("dev")
   date         DateTime
   description  String
   reference    String   @unique
@@ -48,6 +76,7 @@ model Transaction {
 
 model TransactionEntry {
   id              String   @id @default(cuid())
+  tenantId        String   @default("dev")
   transactionId   String
   debitAccountId  String?
   creditAccountId String?
@@ -64,6 +93,7 @@ model TransactionEntry {
 
 model Expense {
   id            String   @id @default(cuid())
+  tenantId      String   @default("dev")
   transactionId String   @unique
   vendor        String
   categoryId    String?
@@ -88,8 +118,9 @@ model Expense {
 
 model Category {
   id             String   @id @default(cuid())
-  name           String   @unique
-  key            String   @unique
+  tenantId       String   @default("dev")
+  name           String
+  key            String
   accountCode    String
   description    String?
   aiGenerated    Boolean  @default(false)
@@ -101,13 +132,16 @@ model Category {
 
   // Relations
   expenses Expense[]
-  account  Account @relation(fields: [accountCode], references: [code])
+  account  Account @relation(fields: [tenantId, accountCode], references: [tenantId, code])
 
   @@map("categories")
+  @@unique([tenantId, key])
+  @@unique([tenantId, name])
 }
 
 model PendingCategoryApproval {
   id               String   @id @default(cuid())
+  tenantId         String   @default("dev")
   expenseId        String   @unique
   suggestedName    String
   suggestedKey     String
@@ -127,9 +161,10 @@ model PendingCategoryApproval {
 
 model Customer {
   id        String   @id @default(cuid())
+  tenantId  String   @default("dev")
   name      String
   company   String?
-  email     String   @unique
+  email     String
   phone     String?
   address   String?
   city      String?
@@ -145,14 +180,16 @@ model Customer {
   invoices Invoice[]
 
   @@map("customers")
+  @@unique([tenantId, email])
 }
 
 model Invoice {
   id            String   @id @default(cuid())
+  tenantId      String   @default("dev")
   transactionId String   @unique
   customerId    String?
   customer      String
-  invoiceNumber String   @unique
+  invoiceNumber String
   date          DateTime
   dueDate       DateTime?
   amount        Decimal
@@ -166,6 +203,7 @@ model Invoice {
   customerRel Customer?   @relation(fields: [customerId], references: [id])
 
   @@map("invoices")
+  @@unique([tenantId, invoiceNumber])
 }
 
 enum AccountType {

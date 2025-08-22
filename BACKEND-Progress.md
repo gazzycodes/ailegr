@@ -207,4 +207,22 @@ Next backend hooks (incremental):
 - Endpoints: Health, Dashboard, Reports (PnL/BS/TB/COA), Accounts CRUD + ledger, OCR, Posting preview, Expenses, Invoices (+markâ€‘paid/+recordâ€‘payment), Revenue, Capital, Customers CRUD, Setup helpers, AI proxy, AI Categories, Metrics timeâ€‘series.
 - Services: `reportingService.js`, `src/services/posting.service.js`, `src/services/expense-account-resolver.service.js`, `src/services/ai-category.service.js`, `src/services/ai-rate-limiter.js`.
 - Boot: ensures core COA exists; local dev scripts `npm run db:generate && npm run db:push && npm run server`.
-- Auth: Not enforced serverâ€‘side yet; plan to verify Supabase JWT via JWKS and gate write endpoints.
+- Auth: Not enforced serverâ€‘side yet; plan to verify Supabase JWT via JWKS and gate write endpoints.## Sync — pulled origin/main (override local)
+- Reset workspace to origin/main; will re-apply tenancy changes after confirming.
+## Postgres switch + tenant bootstrap — 2025-08-22
+- Switched Prisma datasource to Postgres; created and applied initial migration.
+- Added /api/setup/bootstrap-tenant; seeded per-tenant core accounts.
+- Smoke: /health ok, COA listed, dashboard returns zeros (fresh DB).
+## Postgres switch + tenant bootstrap — 2025-08-22
+- Switched Prisma datasource to Postgres; created and applied initial migration.
+- Added /api/setup/bootstrap-tenant; seeded per-tenant core accounts.
+- Smoke: /health ok, COA listed, dashboard returns zeros (fresh DB).
+
+## Postgres switch + tenant bootstrap — 2025-08-22
+- Dev uses Postgres; initial migration applied.
+- Added /api/setup/bootstrap-tenant; per-tenant core accounts seeded.
+- Smoke: /health ok; COA listed; dashboard zeros (fresh DB).
+
+## Postgres credentials — 2025-08-22
+- Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
+- Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public

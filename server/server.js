@@ -332,12 +332,12 @@ app.put('/api/accounts/:code', async (req, res) => {
     const code = req.params.code
     const { name, type } = req.body || {}
     if (!name && !type) return res.status(400).json({ error: 'nothing to update' })
-    const account = await prisma.account.findUnique({ where: { code } })
+    const account = await prisma.account.findFirst({ where: { code } })
     if (!account) return res.status(404).json({ error: 'Account not found' })
     const data = {}
     if (typeof name === 'string' && name.trim()) data.name = name.trim()
     if (typeof type === 'string' && ['ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE'].includes(type)) data.type = type
-    const updated = await prisma.account.update({ where: { code }, data })
+    const updated = await prisma.account.update({ where: { id: account.id }, data })
     res.json({ success: true, account: updated })
   } catch (e) {
     console.error('update account error:', e)
@@ -349,7 +349,7 @@ app.put('/api/accounts/:code', async (req, res) => {
 app.delete('/api/accounts/:code', async (req, res) => {
   try {
     const code = req.params.code
-    const account = await prisma.account.findUnique({ where: { code } })
+    const account = await prisma.account.findFirst({ where: { code } })
     if (!account) return res.status(404).json({ error: 'Account not found' })
 
     // Prevent deletion of core accounts used by setup helpers
@@ -361,7 +361,7 @@ app.delete('/api/accounts/:code', async (req, res) => {
     })
     if (usageCount > 0) return res.status(409).json({ error: 'Account has transactions and cannot be deleted' })
 
-    await prisma.account.delete({ where: { code } })
+    await prisma.account.delete({ where: { id: account.id } })
     res.json({ success: true })
   } catch (e) {
     console.error('delete account error:', e)
@@ -375,7 +375,7 @@ app.get('/api/accounts/:accountCode/transactions', async (req, res) => {
     const { accountCode } = req.params
     const limit = parseInt(req.query.limit) || 50
 
-    const account = await prisma.account.findUnique({
+    const account = await prisma.account.findFirst({
       where: { code: accountCode },
       select: { id: true, code: true, name: true, type: true, normalBalance: true }
     })
@@ -856,7 +856,7 @@ app.post('/api/categories', async (req, res) => {
   try {
     const { name, key, accountCode, description } = req.body || {}
     if (!name || !key || !accountCode) return res.status(400).json({ success: false, error: 'name, key, accountCode required' })
-    const acc = await prisma.account.findUnique({ where: { code: accountCode } })
+    const acc = await prisma.account.findFirst({ where: { code: accountCode } })
     if (!acc) return res.status(422).json({ success: false, error: `Account ${accountCode} not found` })
     const exists = await prisma.category.findFirst({ where: { OR: [{ name: name.trim() }, { key: key.trim().toUpperCase() }] } })
     if (exists) return res.status(409).json({ success: false, error: 'Category with same name or key exists' })
@@ -884,7 +884,7 @@ app.put('/api/categories/:id', async (req, res) => {
     const existing = await prisma.category.findUnique({ where: { id } })
     if (!existing) return res.status(404).json({ success: false, error: 'Category not found' })
     if (accountCode) {
-      const acc = await prisma.account.findUnique({ where: { code: accountCode } })
+      const acc = await prisma.account.findFirst({ where: { code: accountCode } })
       if (!acc) return res.status(422).json({ success: false, error: `Account ${accountCode} not found` })
     }
     if (key && key.trim().toUpperCase() !== existing.key) {
@@ -927,11 +927,11 @@ app.post('/api/accounts', async (req, res) => {
   try {
     const { code, name, type, normalBalance, parentCode } = req.body || {}
     if (!code || !name || !type || !normalBalance) return res.status(400).json({ error: 'code, name, type, normalBalance required' })
-    const exists = await prisma.account.findUnique({ where: { code } })
+    const exists = await prisma.account.findFirst({ where: { code } })
     if (exists) return res.status(409).json({ error: 'Account code already exists' })
     let parentId = null
     if (parentCode) {
-      const parent = await prisma.account.findUnique({ where: { code: parentCode } })
+      const parent = await prisma.account.findFirst({ where: { code: parentCode } })
       if (!parent) return res.status(422).json({ error: `Parent account ${parentCode} not found` })
       parentId = parent.id
     }
@@ -1230,8 +1230,8 @@ app.post('/api/transactions/revenue', async (req, res) => {
     const existing = await prisma.transaction.findUnique({ where: { reference } })
     if (existing) return res.json({ success: true, isExisting: true, transactionId: existing.id, message: 'Idempotent: already exists' })
 
-    const cashAcc = await prisma.account.findUnique({ where: { code: b.cashAccount || '1010' } })
-    const revenueAcc = await prisma.account.findUnique({ where: { code: b.revenueAccount || '4020' } })
+    const cashAcc = await prisma.account.findFirst({ where: { code: b.cashAccount || '1010' } })
+    const revenueAcc = await prisma.account.findFirst({ where: { code: b.revenueAccount || '4020' } })
     if (!cashAcc || !revenueAcc) return res.status(422).json({ error: 'Required accounts missing' })
 
     const txId = await prisma.$transaction(async (tx) => {
@@ -1319,8 +1319,8 @@ app.post('/api/invoices/:id/record-payment', async (req, res) => {
     const paymentAmount = parseFloat(amount || invoice.amount)
     if (!(paymentAmount > 0)) return res.status(400).json({ error: 'amount must be > 0' })
 
-    const cash = await prisma.account.findUnique({ where: { code: '1010' } })
-    const ar = await prisma.account.findUnique({ where: { code: '1200' } })
+    const cash = await prisma.account.findFirst({ where: { code: '1010' } })
+    const ar = await prisma.account.findFirst({ where: { code: '1200' } })
     if (!cash || !ar) return res.status(422).json({ error: 'Required accounts missing (1010, 1200)' })
 
     const txId = await prisma.$transaction(async (tx) => {
@@ -1358,8 +1358,8 @@ app.post('/api/transactions/capital', async (req, res) => {
     const existing = await prisma.transaction.findUnique({ where: { reference } })
     if (existing) return res.json({ success: true, isExisting: true, transactionId: existing.id, message: 'Idempotent: already exists' })
 
-    const debitAcc = await prisma.account.findUnique({ where: { code: b.debitAccount || '1010' } })
-    const equityAcc = await prisma.account.findUnique({ where: { code: b.equityAccount || '3000' } })
+    const debitAcc = await prisma.account.findFirst({ where: { code: b.debitAccount || '1010' } })
+    const equityAcc = await prisma.account.findFirst({ where: { code: b.equityAccount || '3000' } })
     if (!debitAcc || !equityAcc) return res.status(422).json({ error: 'Required accounts missing' })
 
     const txId = await prisma.$transaction(async (tx) => {
@@ -1525,8 +1525,8 @@ app.post('/api/setup/ensure-core-accounts', async (req, res) => {
 app.post('/api/setup/initial-capital', async (req, res) => {
   try {
     const { amount = 10000, reference = 'INITIAL-CAPITAL' } = req.body || {}
-    const cash = await prisma.account.findUnique({ where: { code: '1010' } })
-    const equity = await prisma.account.findUnique({ where: { code: '3000' } })
+    const cash = await prisma.account.findFirst({ where: { code: '1010' } })
+    const equity = await prisma.account.findFirst({ where: { code: '3000' } })
     if (!cash || !equity) return res.status(422).json({ error: 'Core accounts missing. Run /api/setup/ensure-core-accounts first.' })
 
     const tx = await prisma.transaction.create({
@@ -1551,8 +1551,8 @@ app.post('/api/setup/initial-capital', async (req, res) => {
 app.post('/api/setup/sample-revenue', async (req, res) => {
   try {
     const { amount = 5000, reference = 'SAMPLE-REVENUE' } = req.body || {}
-    const cash = await prisma.account.findUnique({ where: { code: '1010' } })
-    const revenue = await prisma.account.findUnique({ where: { code: '4020' } })
+    const cash = await prisma.account.findFirst({ where: { code: '1010' } })
+    const revenue = await prisma.account.findFirst({ where: { code: '4020' } })
     if (!cash || !revenue) return res.status(422).json({ error: 'Core accounts missing. Run /api/setup/ensure-core-accounts first.' })
 
     const tx = await prisma.transaction.create({
@@ -1570,6 +1570,40 @@ app.post('/api/setup/sample-revenue', async (req, res) => {
   } catch (e) {
     console.error('sample-revenue error:', e)
     res.status(500).json({ error: String(e) })
+  }
+})
+
+// Bootstrap a tenant and seed per-tenant core accounts
+app.post('/api/setup/bootstrap-tenant', async (req, res) => {
+  try {
+    const body = req.body || {}
+    const tenantName = String(body.tenantName || 'Default Tenant').trim()
+    const userId = String(body.userId || 'local-dev').trim()
+    const role = String(body.role || 'OWNER').toUpperCase()
+
+    // 1) Create or get Tenant by name (no unique constraint on name, so find-first)
+    let tenant = await prisma.tenant.findFirst({ where: { name: tenantName } })
+    let tenantCreated = false
+    if (!tenant) {
+      tenant = await prisma.tenant.create({ data: { name: tenantName } })
+      tenantCreated = true
+    }
+
+    // 2) Ensure Membership (unique on [userId, tenantId])
+    let membership = await prisma.membership.findFirst({ where: { userId, tenantId: tenant.id } })
+    let membershipCreated = false
+    if (!membership) {
+      membership = await prisma.membership.create({ data: { userId, tenantId: tenant.id, role } })
+      membershipCreated = true
+    }
+
+    // 3) Ensure per-tenant core accounts
+    const createdCodes = await ensureCoreAccountsForTenant(tenant.id)
+
+    res.json({ ok: true, tenantId: tenant.id, tenantCreated, membershipCreated, accountsCreated: createdCodes })
+  } catch (e) {
+    console.error('bootstrap-tenant error:', e)
+    res.status(500).json({ ok: false, error: 'Failed to bootstrap tenant' })
   }
 })
 
@@ -1606,7 +1640,7 @@ async function ensureCoreAccountsIfMissing() {
     ]
     const created = []
     for (const a of coreAccounts) {
-      const existing = await prisma.account.findUnique({ where: { code: a.code } })
+      const existing = await prisma.account.findFirst({ where: { code: a.code } })
       if (!existing) {
         await prisma.account.create({ data: a })
         created.push(a.code)
@@ -1619,6 +1653,44 @@ async function ensureCoreAccountsIfMissing() {
     }
   } catch (e) {
     console.error('[bootstrap] ensure-core-accounts failed:', e)
+  }
+}
+
+// Per-tenant core accounts
+async function ensureCoreAccountsForTenant(tenantId) {
+  try {
+    const codes = [
+      { code: '1010', name: 'Cash and Cash Equivalents', type: 'ASSET', normalBalance: 'DEBIT' },
+      { code: '1200', name: 'Accounts Receivable', type: 'ASSET', normalBalance: 'DEBIT' },
+      { code: '1350', name: 'Deposits & Advances', type: 'ASSET', normalBalance: 'DEBIT' },
+      { code: '3000', name: 'Owner Equity', type: 'EQUITY', normalBalance: 'CREDIT' },
+      { code: '3200', name: 'Retained Earnings', type: 'EQUITY', normalBalance: 'CREDIT' },
+      { code: '4020', name: 'Services Revenue', type: 'REVENUE', normalBalance: 'CREDIT' },
+      { code: '4010', name: 'Product Sales', type: 'REVENUE', normalBalance: 'CREDIT' },
+      { code: '4910', name: 'Sales Discounts', type: 'REVENUE', normalBalance: 'DEBIT' },
+      { code: '2050', name: 'Customer Credits Payable', type: 'LIABILITY', normalBalance: 'CREDIT' },
+      { code: '2150', name: 'Sales Tax Payable', type: 'LIABILITY', normalBalance: 'CREDIT' },
+      { code: '2010', name: 'Accounts Payable', type: 'LIABILITY', normalBalance: 'CREDIT' },
+      { code: '5010', name: 'Cost of Goods Sold', type: 'EXPENSE', normalBalance: 'DEBIT' },
+      { code: '6020', name: 'Office Supplies Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
+      { code: '6030', name: 'Software Subscriptions', type: 'EXPENSE', normalBalance: 'DEBIT' },
+      { code: '6040', name: 'Marketing Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
+      { code: '6060', name: 'Travel Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
+      { code: '6110', name: 'Insurance', type: 'EXPENSE', normalBalance: 'DEBIT' },
+      { code: '6999', name: 'Other Business Expense', type: 'EXPENSE', normalBalance: 'DEBIT' }
+    ]
+    const created = []
+    for (const a of codes) {
+      const existing = await prisma.account.findFirst({ where: { tenantId, code: a.code } })
+      if (!existing) {
+        await prisma.account.create({ data: { ...a, tenantId } })
+        created.push(a.code)
+      }
+    }
+    return created
+  } catch (e) {
+    console.error('[bootstrap] ensureCoreAccountsForTenant failed:', e)
+    return []
   }
 }
 
