@@ -1508,7 +1508,7 @@ app.post('/api/setup/ensure-core-accounts', async (req, res) => {
     ]
     const created = []
     for (const a of coreAccounts) {
-      const existing = await prisma.account.findUnique({ where: { code: a.code } })
+      const existing = await prisma.account.findFirst({ where: { code: a.code } })
       if (!existing) {
         await prisma.account.create({ data: a })
         created.push(a.code)

@@ -5303,3 +5303,7 @@ We have successfully transformed the financial dashboard from "good" to "absolut
 ## Postgres credentials — 2025-08-22
 - Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
 - Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public
+
+## Postgres credentials — 2025-08-22
+- Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
+- Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public

@@ -94,3 +94,7 @@ Notes for implementation
 ## Dev parity checkpoint — 2025-08-22
 - Backend switched dev to Postgres; tenancy bootstrap added.
 - Next: auth-derived tenant, protect writes, chat persistence.
+
+## Postgres credentials — 2025-08-22
+- Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
+- Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public
