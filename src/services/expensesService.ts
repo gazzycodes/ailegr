@@ -3,7 +3,7 @@ import api from './api'
 export async function uploadOcr(file: File) {
   const form = new FormData()
   form.append('file', file)
-  const { data } = await api.post('/api/ocr', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  const { data } = await api.post('/api/ocr', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 })
   return data as { text?: string }
 }
 

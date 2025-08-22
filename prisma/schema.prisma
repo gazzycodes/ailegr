@@ -190,3 +190,23 @@ enum InvoiceStatus {
 }
 
 
+model CompanyProfile {
+  id                  String   @id @default(cuid())
+  workspaceId         String   @unique @default("default")
+  legalName           String
+  aliases             Json
+  email               String?
+  addressLines        Json
+  city                String?
+  state               String?
+  zipCode             String?
+  country             String   @default("US")
+  normalizedLegalName String
+  normalizedAliases   Json
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("company_profiles")
+}
+
+

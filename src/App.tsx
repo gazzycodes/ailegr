@@ -17,8 +17,7 @@ import { PredictiveAssistant } from './components/ai/PredictiveAssistant'
 import { ThemeSwitcher } from './components/ThemeSwitcher'
 import { FloatingParticles } from './components/effects/FloatingParticles'
 import { CollapsibleFloatingActionButton } from './components/layout/CollapsibleFloatingActionButton'
-import AiInvoiceModal from './components/ai/AiInvoiceModal'
-import AiRevenueModal from './components/ai/AiRevenueModal'
+import AiDocumentModal from './components/ai/AiDocumentModal'
 import ChatDrawer from './components/ai/ChatDrawer'
 import ChatFab from './components/layout/ChatFab'
 import {
@@ -37,8 +36,7 @@ function App() {
   const [currentView, setCurrentView] = useState<AppView>('landing')
   const [isVoiceActive, setIsVoiceActive] = useState(false)
   const [showPredictiveAssistant, setShowPredictiveAssistant] = useState(false)
-  const [openAiInvoice, setOpenAiInvoice] = useState(false)
-  const [openAiRevenue, setOpenAiRevenue] = useState(false)
+  const [openAiDocument, setOpenAiDocument] = useState(false)
   const [openChat, setOpenChat] = useState(false)
   const { currentTheme, isDark } = useTheme()
   const [fabExpanded, setFabExpanded] = useState(false)
@@ -312,8 +310,7 @@ function App() {
       {!(currentView === 'landing' || currentView === 'login' || currentView === 'register' || currentView === 'reset-password') && (
         <CollapsibleFloatingActionButton
           actions={[
-            { icon: "📄", label: "AI Invoice", action: () => setOpenAiInvoice(true) },
-            { icon: "💵", label: "AI Revenue", action: () => setOpenAiRevenue(true) },
+            { icon: "📄", label: "AI Document", action: () => setOpenAiDocument(true) },
           ]}
           onExpandedChange={setFabExpanded}
         />
@@ -325,11 +322,10 @@ function App() {
       )}
 
       {/* AI Modals & Chat Drawer */}
-      <AiInvoiceModal open={openAiInvoice} onClose={() => { setOpenAiInvoice(false) }} />
-      <AiRevenueModal open={openAiRevenue} onClose={() => { setOpenAiRevenue(false) }} />
+      <AiDocumentModal open={openAiDocument} onClose={() => { setOpenAiDocument(false) }} />
       <ToastContainer toasts={toasts} onClose={remove} />
       {!(currentView === 'landing' || currentView === 'login' || currentView === 'register' || currentView === 'reset-password') && (
-        <ChatDrawer open={openChat} onClose={() => setOpenChat(false)} onOpenAiInvoice={() => { setOpenChat(false); setOpenAiInvoice(true) }} onOpenAiRevenue={() => { setOpenChat(false); setOpenAiRevenue(true) }} />
+        <ChatDrawer open={openChat} onClose={() => setOpenChat(false)} onOpenAiDocument={() => { setOpenChat(false); setOpenAiDocument(true) }} />
       )}
 
       {/* Performance monitoring in development - hide on public views */}
