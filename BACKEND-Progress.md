@@ -26,7 +26,7 @@ Policy: All future backend/server functionality that the frontend needs will be 
 - Dashboard: GET /api/dashboard
 - Reports: GET /api/reports/pnl, /api/reports/balance-sheet, /api/reports/trial-balance, /api/reports/chart-of-accounts
 - Account ledger: GET /api/accounts/:accountCode/transactions?limit=50
-- OCR: POST /api/ocr (multipart)
+- OCR: POST /api/ocr (multipart), POST /api/ocr/normalize (best‑effort amounts/labels)
 - Posting preview: POST /api/posting/preview
 - Expenses: POST /api/expenses, GET /api/expenses
 - Invoices: POST /api/invoices, GET /api/invoices
@@ -34,7 +34,8 @@ Policy: All future backend/server functionality that the frontend needs will be 
 - Capital: POST /api/transactions/capital
 - Customers: GET/POST/PUT /api/customers
 - Setup helpers: POST /api/setup/ensure-core-accounts, /api/setup/initial-capital, /api/setup/sample-revenue
-- AI: POST /api/ai/generate, WebSocket chat (later)
+- AI: POST /api/ai/generate, WebSocket chat (later); Documents classifier: POST /api/documents/classify (heuristic + AI)
+  - Company Profile: GET/PUT /api/company-profile (non‑PII identity for perspective detection)
   - AI Category: POST /api/categories/ai/suggest, GET /api/categories/pending, POST /api/categories/pending/:id/approve, POST /api/categories/pending/:id/reject
   - AI Usage: GET /api/ai/usage (returns minute/day usage and reset timers)
 
@@ -66,6 +67,8 @@ Policy: All future backend/server functionality that the frontend needs will be 
 - [x] AI Category service endpoints (suggest/approve/reject/pending)
 - [x] AI Categories admin UI (pending list, approve/reject, inline edits)
 - [x] COA account update/delete endpoints (PUT/DELETE /api/accounts/:code) with safety checks
+ - [x] Company Profile storage (Prisma model) + GET/PUT /api/company-profile (non‑PII fields only)
+ - [x] Identity‑aware classifier: `/api/documents/classify` prefers Expense when Bill To matches saved legalName/aliases/email; falls back to heuristics
 
 ## Today’s checklist
 - Added boot-time ensure-core-accounts to remove manual setup; plan to move to on-tenant-created when auth lands.
@@ -78,11 +81,12 @@ Policy: All future backend/server functionality that the frontend needs will be 
    - `npm run server` (from frontend-rebuild)
  - Implemented AI Revenue: `AiRevenueModal` posts to `/api/transactions/revenue` via `src/services/transactionsService.ts` and emits `data:refresh`; Dashboard and Reports listen and refetch.
  - Implemented AI Invoice: `AiInvoiceModal` posts to `/api/invoices` via `TransactionsService` and emits `data:refresh`. Added server endpoints.
- - Added OCR + Preview + Expense posting in embedded server; created `src/services/expensesService.ts` (uploadOcr/previewExpense/postExpense).
+ - Added OCR + Normalize + Preview + Expense posting; created `src/services/expensesService.ts` (uploadOcr/previewExpense/postExpense).
   - Added `Expense (OCR)` modal wired into the + FAB: upload → preview → post; emits `data:refresh`.
   - Added Customers API + `src/services/customersService.ts` (searchCustomers). Wired customer auto-suggest in `AiInvoiceModal`. Extended service with list/create/update and built Customers screen & route.
   - COA drill modal now fetches live ledger via `/api/accounts/:code/transactions`.
   - Added AI proxy endpoint `/api/ai/generate` (Gemini) in embedded server for future chat.
+  - Hardened `/api/documents/classify`: tighter invoice cues, removed "bill to" as invoice signal, amounts no longer auto‑flip; prefers Expense when Bill To matches Company Profile
   - Added theme-aware liquid glass toasts and wired success/error notifications for AI Revenue/Invoice/Expense.
   - Implemented remaining endpoints: GET expenses/invoices, POST capital contributions, and `/api/debug/last-transaction`. Extended transactions service with `postCapital`.
   - Integrated PostingService + ExpenseAccountResolver; enhanced preview logic; added WebSocket AI chat and AI category endpoints.

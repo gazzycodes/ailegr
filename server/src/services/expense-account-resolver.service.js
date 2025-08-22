@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 class ExpenseAccountResolver {
   static CATEGORY_ACCOUNT_MAPPING = {
     SOFTWARE: '6030',
-    TELECOMMUNICATIONS: '6150',
+    TELECOMMUNICATIONS: '6100',
     BANK_FEES: '6100',
     UTILITIES: '6080',
     OFFICE_SUPPLIES: '6020',
@@ -26,18 +26,18 @@ class ExpenseAccountResolver {
   };
 
   static KEYWORD_MAPPINGS = {
-    SOFTWARE: ['software','adobe','microsoft','google','cloud','saas','hosting','domain','server','api','slack','zoom','dropbox','notion'],
-    TELECOMMUNICATIONS: ['phone','internet','wifi','mobile','cellular','data','plan','verizon','att','t-mobile','comcast','spectrum','xfinity','fiber','telephone'],
+    SOFTWARE: ['software','adobe','microsoft','google','cloud','saas','hosting','domain','server','api','slack','zoom','dropbox','notion','github','gitlab','figma'],
+    TELECOMMUNICATIONS: ['phone','internet','wifi','mobile','cellular','data','plan','verizon','att','t-mobile','comcast','spectrum','xfinity','fiber','telephone','isp','broadband','static ip','cloudwire'],
     BANK_FEES: ['bank','fee','charge','wire','transfer','overdraft','maintenance','atm','merchant','paypal','stripe'],
-    UTILITIES: ['utility','electric','power','water','sewer','garbage','waste','heating','cooling','energy'],
+    UTILITIES: ['utility','utilities','electric','power','water','sewer','garbage','waste','heating','cooling','energy','pg&e','pge','coned','aqua','aquapure','water delivery','bottled water','dispenser','cooler','jug','jugs','gallon','culligan','sparklett','sparkletts','arrowhead','primo','nestle'],
     OFFICE_SUPPLIES: ['office','supplies','stationery','paper','printer','ink','toner','desk','chair','equipment','furniture','staples','depot','costco'],
     PROFESSIONAL_SERVICES: ['legal','attorney','lawyer','consulting','consultant','accountant','accounting','audit','tax','bookkeeping','financial','advisor'],
     INSURANCE: ['insurance','liability','coverage','policy','premium','health','dental','vision','workers','compensation','auto','vehicle','property','business'],
     TRAINING: ['training','education','course','workshop','seminar','certification','conference','learning','udemy','coursera','pluralsight'],
     RENT: ['rent','lease','office','space','coworking','workspace','property'],
-    TRAVEL: ['travel','flight','hotel','airfare','airline','airport','uber','lyft','taxi','rental','car','gas','fuel','parking','toll','mileage'],
+    TRAVEL: ['travel','flight','hotel','airfare','airline','airport','uber','lyft','taxi','rental','car','gas','fuel','parking','toll','mileage','airbnb','delta','united','american'],
     MARKETING: ['marketing','advertising','ads','promotion','facebook','linkedin','twitter','instagram','youtube','social','media','campaign','seo','ppc'],
-    MEALS: ['meal','food','restaurant','lunch','dinner','breakfast','coffee','catering','starbucks','doordash','grubhub','ubereats','entertainment']
+    MEALS: ['meal','food','restaurant','lunch','dinner','breakfast','coffee','catering','starbucks','doordash','grubhub','ubereats','entertainment','chipotle','mcdonalds','kfc']
   };
 
   static PAYMENT_ACCOUNT_MAPPING = {
@@ -73,6 +73,15 @@ class ExpenseAccountResolver {
 
   static async resolveDebitAccount(expenseData) {
     const { categoryKey, vendorName = '', description = '' } = expenseData;
+    // Prefer obvious utility water delivery patterns before AI/keywords
+    try {
+      const text = `${vendorName} ${description}`.toLowerCase()
+      if (/(\baquapure\b|\bwater\b|bottled water|dispenser|cooler|jug|jugs|gallon|culligan|sparklett|sparkletts|arrowhead|primo)/i.test(text)) {
+        const acc = await this.getAccountByCode(this.CATEGORY_ACCOUNT_MAPPING.UTILITIES)
+        if (acc) return { accountCode: acc.code, accountName: acc.name, source: 'HEURISTIC_UTILITIES' }
+      }
+    } catch {}
+    // 1) If a category key is provided, honor it
     if (categoryKey && categoryKey !== 'OTHER' && categoryKey !== 'GENERAL_EXPENSE') {
       const accountCode = this.CATEGORY_ACCOUNT_MAPPING[categoryKey];
       if (accountCode) {
@@ -80,16 +89,40 @@ class ExpenseAccountResolver {
         if (account) return { accountCode, accountName: account.name, source: 'USER' };
       }
     }
-    if (categoryKey && this.CATEGORY_ACCOUNT_MAPPING[categoryKey]) {
-      const accountCode = this.CATEGORY_ACCOUNT_MAPPING[categoryKey];
-      const account = await this.getAccountByCode(accountCode);
-      if (account) return { accountCode, accountName: account.name, source: 'CATEGORY_KEY' };
-    }
+    // 2) AI-assisted account selection using actual Chart of Accounts (names + codes)
+    try {
+      const accounts = await prisma.account.findMany({ select: { code: true, name: true } })
+      if (accounts && accounts.length) {
+        const list = accounts.map(a => `${a.code} — ${a.name}`).join('\n')
+        const base = process.env.GEMINI_ENDPOINT || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+        if (process.env.GEMINI_API_KEY) {
+          const axios = (await import('axios')).default
+          const prompt = `Pick the BEST matching expense account from my Chart of Accounts for this expense. Return ONLY JSON {"accountCode":"6XXX","reason":"..."}.
+Text: "${description}" Vendor: "${vendorName}"
+Chart of Accounts:\n${list}`
+          try {
+            const url = `${base}?key=${process.env.GEMINI_API_KEY}`
+            const { data } = await axios.post(url, { contents: [{ parts: [{ text: prompt }] }] }, { headers: { 'Content-Type': 'application/json' } })
+            let content = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+            content = content.trim()
+            if (content.startsWith('```')) content = content.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '')
+            const parsed = JSON.parse(content)
+            const aiCode = String(parsed?.accountCode || '').replace(/[^0-9]/g, '')
+            if (aiCode) {
+              const aiAcc = await this.getAccountByCode(aiCode)
+              if (aiAcc) return { accountCode: aiAcc.code, accountName: aiAcc.name, source: 'AI' }
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+    // 3) Keyword mapping heuristic
     const keywordMatch = this.findKeywordMatch(vendorName, description);
     if (keywordMatch) {
       const account = await this.getAccountByCode(keywordMatch.accountCode);
       if (account) return { accountCode: keywordMatch.accountCode, accountName: account.name, source: 'KEYWORDS' };
     }
+    // 4) Fallback
     const fallback = await this.getAccountByCode('6999');
     if (!fallback) throw new Error('Fallback account 6999 (General Expense) not found in Chart of Accounts');
     return { accountCode: '6999', accountName: fallback.name, source: 'FALLBACK' };

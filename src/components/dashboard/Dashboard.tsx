@@ -18,6 +18,9 @@ import { useTheme } from '../../theme/ThemeProvider'
 import { cn } from '../../lib/utils'
 import SegmentedControl from '../themed/SegmentedControl'
 import PremiumLoader from '../themed/PremiumLoader'
+import ExpensesApi from '../../services/expensesService'
+import { listInvoices } from '../../services/transactionsService'
+import { FinancialDataService } from '../../services/financialDataService'
 
 interface DashboardProps {
   businessHealth: number
@@ -25,18 +28,13 @@ interface DashboardProps {
 
 
 
-const recentTransactions = [
-  { id: 1, description: 'Adobe Creative Suite', amount: -59.99, type: 'expense', category: 'Software' },
-  { id: 2, description: 'Client Payment - ACME Corp', amount: 5000, type: 'revenue', category: 'Consulting' },
-  { id: 3, description: 'Office Supplies', amount: -247.83, type: 'expense', category: 'Office' },
-  { id: 4, description: 'Freelancer Payment', amount: -1200, type: 'expense', category: 'Contractors' },
-  { id: 5, description: 'Investment Dividend', amount: 450.75, type: 'revenue', category: 'Investments' }
-]
+type RecentItem = { id: string; description: string; amount: number; type: 'expense' | 'revenue'; category?: string; date?: string }
 
 export function Dashboard({ businessHealth }: DashboardProps) {
   const [timeRange, setTimeRange] = useState<'1M' | '3M' | '6M' | '1Y'>('1M')
   const [isLoading, setIsLoading] = useState(true)
   const { currentTheme } = useTheme()
+  const [recent, setRecent] = useState<RecentItem[]>([])
 
   // Simulate loading state
   useEffect(() => {
@@ -90,18 +88,18 @@ export function Dashboard({ businessHealth }: DashboardProps) {
   const dashboardQuery = useQuery({
     queryKey: ['dashboard', timeRange],
     queryFn: async () => {
-      const mod = await import('../../services/realData')
-      return mod.getDashboardWithSeries(monthsForRange(timeRange))
+      const res = await FinancialDataService.getDashboardData()
+      return res
     },
     select: (result: any) => {
       if (!result?.metrics) return null
       const m = result.metrics
       return {
-        revenue: m.revenue,
-        expenses: m.expenses,
-        profit: m.profit,
-        cashFlow: m.cashFlow ?? { current: 0, previous: 0, trend: 'up' as const, change: 0 },
-        series: result.series ?? undefined,
+        revenue: { current: Number(m.totalRevenue || 0), previous: Number(m.totalRevenue || 0), trend: 'up' as const, change: 0 },
+        expenses: { current: Number(m.totalExpenses || 0), previous: Number(m.totalExpenses || 0), trend: 'up' as const, change: 0 },
+        profit: { current: Number(m.netProfit || 0), previous: Number(m.netProfit || 0), trend: 'up' as const, change: 0 },
+        cashFlow: { current: Number((m.netProfit ?? (m.totalRevenue - m.totalExpenses)) || 0), previous: Number((m.netProfit ?? (m.totalRevenue - m.totalExpenses)) || 0), trend: 'up' as const, change: 0 },
+        series: undefined,
         aiInsights: Array.isArray(result.aiInsights) ? result.aiInsights : []
       }
     },
@@ -109,6 +107,42 @@ export function Dashboard({ businessHealth }: DashboardProps) {
     staleTime: 15000,
     refetchInterval: 30000,
   })
+
+  // Recent activity: merge latest expenses (negative) and invoices (positive), sort desc by date
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [expenses, invoices] = await Promise.all([
+          ExpensesApi.listExpenses().catch(() => []),
+          listInvoices().catch(() => [])
+        ])
+        if (cancelled) return
+        const expItems: RecentItem[] = (Array.isArray(expenses) ? expenses : []).slice(0, 50).map((e: any) => ({
+          id: e.id,
+          description: e.description || e.transaction?.description || `Expense: ${e.vendor}`,
+          amount: -Math.abs(Number(e.amount || 0)),
+          type: 'expense',
+          category: e.categoryKey,
+          date: e.date || e.transaction?.date
+        }))
+        const invItems: RecentItem[] = (Array.isArray(invoices) ? invoices : []).slice(0, 50).map((i: any) => ({
+          id: i.id,
+          description: i.description || i.transaction?.description || `Invoice: ${i.customer}`,
+          amount: Math.abs(Number(i.amount || i.transaction?.amount || 0)),
+          type: 'revenue',
+          category: 'Invoice',
+          date: i.date || i.transaction?.date
+        }))
+        const merged = [...expItems, ...invItems]
+          .filter(it => Number.isFinite(it.amount))
+          .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
+          .slice(0, 10)
+        setRecent(merged)
+      } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     const d: any = dashboardQuery.data
@@ -305,7 +339,7 @@ export function Dashboard({ businessHealth }: DashboardProps) {
 
             <div className="space-y-3">
               <AnimatePresence>
-                {recentTransactions.map((transaction, index) => (
+                {recent.map((transaction, index) => (
                   <motion.div
                     key={transaction.id}
                     initial={{ opacity: 0, x: -20 }}

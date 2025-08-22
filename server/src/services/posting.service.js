@@ -111,10 +111,10 @@ class PostingService {
           // 🔥 OVERPAID: Create 3-line posting manually
           console.log(`💎 Creating overpaid expense posting: $${overpaidAmount.toFixed(2)} overpaid`);
           
-          // Get Customer Credits Payable account for overpaid amount
-          const creditsAccount = await tx.account.findFirst({ where: { code: '2050' } });
-          if (!creditsAccount) {
-            throw new Error('Customer Credits Payable account (2050) not found');
+          // US practice: represent overpayment as vendor credit (Accounts Payable debit)
+          const apAccount = await tx.account.findFirst({ where: { code: '2010' } });
+          if (!apAccount) {
+            throw new Error('Accounts Payable account (2010) not found - required for vendor overpayments');
           }
           
           entries = [];
@@ -143,18 +143,70 @@ class PostingService {
           });
           entries.push(cashCreditEntry);
           
-          // Entry 3: DEBIT customer credits payable (prepaid/asset - vendor owes us refund)
+          // Entry 3: DEBIT accounts payable (vendor credit)
           const vendorCreditEntry = await tx.transactionEntry.create({
             data: {
               transactionId: transaction.id,
-              debitAccountId: creditsAccount.id,
+              debitAccountId: apAccount.id,
               creditAccountId: null,
               amount: overpaidAmount,
-              description: `Prepaid/Vendor credit - overpaid by $${overpaidAmount.toFixed(2)}`
+              description: `Vendor credit - ${expenseData.vendorName} overpayment of $${overpaidAmount.toFixed(2)}`
             }
           });
           entries.push(vendorCreditEntry);
           
+        } else if (expenseData.paymentStatus === 'partial' && expenseData.amountPaid && parseFloat(expenseData.amountPaid) > 0) {
+          // 🔥 PARTIAL PAYMENT: Create 3-line posting manually
+          const amountPaidNum = parseFloat(expenseData.amountPaid);
+          const remainingBalance = totalExpense - amountPaidNum;
+
+          console.log(`📊 Creating partial payment posting: $${amountPaidNum} paid, $${remainingBalance} remaining`);
+
+          // Get Accounts Payable and Cash accounts
+          const apAccount = await tx.account.findFirst({ where: { code: '2010' } });
+          const cashAccount = await tx.account.findFirst({ where: { code: '1010' } });
+          if (!apAccount || !cashAccount) {
+            throw new Error('Required accounts not found: Cash (1010) or Accounts Payable (2010)');
+          }
+
+          entries = [];
+
+          // Entry 1: DEBIT expense account (full expense amount)
+          const debitEntry = await tx.transactionEntry.create({
+            data: {
+              transactionId: transaction.id,
+              debitAccountId: accounts.debit.id,
+              creditAccountId: null,
+              amount: totalExpense,
+              description: `${accountResolution.debit.accountName} - ${expenseData.vendorName}`
+            }
+          });
+          entries.push(debitEntry);
+
+          // Entry 2: CREDIT cash (amount paid)
+          const cashCreditEntry = await tx.transactionEntry.create({
+            data: {
+              transactionId: transaction.id,
+              debitAccountId: null,
+              creditAccountId: cashAccount.id,
+              amount: amountPaidNum,
+              description: `Partial payment to ${expenseData.vendorName}`
+            }
+          });
+          entries.push(cashCreditEntry);
+
+          // Entry 3: CREDIT accounts payable (remaining balance)
+          const apCreditEntry = await tx.transactionEntry.create({
+            data: {
+              transactionId: transaction.id,
+              debitAccountId: null,
+              creditAccountId: apAccount.id,
+              amount: remainingBalance,
+              description: `Balance due to ${expenseData.vendorName} - partial payment made`
+            }
+          });
+          entries.push(apCreditEntry);
+
         } else {
           // 🔥 STANDARD: Use normal 2-line posting
           console.log(`💸 Creating standard expense posting`);
@@ -217,33 +269,67 @@ class PostingService {
   static async createDoubleEntryRecords(tx, transactionId, accounts, accountResolution, expenseData) {
     const amount = parseFloat(expenseData.amount);
     const entries = [];
-    
-    // Entry 1: DEBIT the expense account
-    const debitEntry = await tx.transactionEntry.create({
-      data: {
-        transactionId: transactionId,
-        debitAccountId: accounts.debit.id,
-        creditAccountId: null, // Only debit side for this entry
-        amount: amount,
-        description: `${accountResolution.debit.accountName} - ${expenseData.vendorName}`
-      }
-    });
-    entries.push(debitEntry);
-    
-    // Entry 2: CREDIT cash or accounts payable based on payment status
-    const creditEntry = await tx.transactionEntry.create({
-      data: {
-        transactionId: transactionId,
-        debitAccountId: null, // Only credit side for this entry
-        creditAccountId: accounts.credit.id,
-        amount: amount,
-        description: this.buildCreditDescription(expenseData, accountResolution.credit.accountName)
-      }
-    });
-    entries.push(creditEntry);
-    
-    console.log(`📊 Double-entry created: Dr ${accountResolution.debit.accountCode} $${amount} | Cr ${accountResolution.credit.accountCode} $${amount}`);
-    
+
+    // Handle negative amounts (refunds) by swapping debit/credit logic
+    const isRefund = amount < 0;
+    const absAmount = Math.abs(amount);
+
+    if (isRefund) {
+      // Refund logic: Reverse the original expense transaction
+      // Entry 1: DEBIT cash/AP account (opposite of original credit)
+      const debitEntry = await tx.transactionEntry.create({
+        data: {
+          transactionId: transactionId,
+          debitAccountId: accounts.credit.id, // Was credit account, now debit
+          creditAccountId: null,
+          amount: absAmount,
+          description: `REFUND: ${this.buildCreditDescription(expenseData, accountResolution.credit.accountName)}`
+        }
+      });
+      entries.push(debitEntry);
+
+      // Entry 2: CREDIT expense account (opposite of original debit)
+      const creditEntry = await tx.transactionEntry.create({
+        data: {
+          transactionId: transactionId,
+          debitAccountId: null,
+          creditAccountId: accounts.debit.id, // Was debit account, now credit
+          amount: absAmount,
+          description: `REFUND: ${accountResolution.debit.accountName} - ${expenseData.vendorName}`
+        }
+      });
+      entries.push(creditEntry);
+
+      console.log(`📊 Refund entries created: Dr ${accountResolution.credit.accountCode} $${absAmount} | Cr ${accountResolution.debit.accountCode} $${absAmount}`);
+    } else {
+      // Normal expense logic
+      // Entry 1: DEBIT the expense account
+      const debitEntry = await tx.transactionEntry.create({
+        data: {
+          transactionId: transactionId,
+          debitAccountId: accounts.debit.id,
+          creditAccountId: null, // Only debit side for this entry
+          amount: absAmount,
+          description: `${accountResolution.debit.accountName} - ${expenseData.vendorName}`
+        }
+      });
+      entries.push(debitEntry);
+
+      // Entry 2: CREDIT cash or accounts payable based on payment status
+      const creditEntry = await tx.transactionEntry.create({
+        data: {
+          transactionId: transactionId,
+          debitAccountId: null, // Only credit side for this entry
+          creditAccountId: accounts.credit.id,
+          amount: absAmount,
+          description: this.buildCreditDescription(expenseData, accountResolution.credit.accountName)
+        }
+      });
+      entries.push(creditEntry);
+
+      console.log(`📊 Double-entry created: Dr ${accountResolution.debit.accountCode} $${absAmount} | Cr ${accountResolution.credit.accountCode} $${absAmount}`);
+    }
+
     return entries;
   }
 
@@ -416,11 +502,19 @@ class PostingService {
     if (!requestBody.vendorName || typeof requestBody.vendorName !== 'string') {
       errors.push('vendorName is required and must be a string');
     }
-    
-    if (!requestBody.amount || isNaN(parseFloat(requestBody.amount)) || parseFloat(requestBody.amount) <= 0) {
-      errors.push('amount is required and must be a positive number');
+    // Allow negative amounts for refund transactions
+    const amount = parseFloat(requestBody.amount);
+    const isRefund = requestBody.isRefund === true || requestBody.isRefundTransaction === true;
+    if (!requestBody.amount || isNaN(amount)) {
+      errors.push('amount is required and must be a valid number');
+    } else if (amount === 0) {
+      errors.push('amount cannot be zero');
+    } else if (amount > 0) {
+      // Positive amounts are valid
+    } else if (amount < 0 && !isRefund) {
+      errors.push('amount must be positive (use refund transactions for negative amounts)');
     }
-    
+
     if (!requestBody.date) {
       errors.push('date is required');
     }
@@ -431,8 +525,17 @@ class PostingService {
       errors.push('date must be in YYYY-MM-DD format');
     }
     
-    // Validate payment status
-    const validPaymentStatuses = ['paid', 'unpaid', 'partial', 'overpaid'];
+    // Validate payment status (expanded)
+    const validPaymentStatuses = [
+      'paid',
+      'unpaid',
+      'partial',
+      'overpaid',
+      'overdue',
+      'voided',
+      'draft',
+      'refunded'
+    ];
     const paymentStatus = requestBody.paymentStatus || 'unpaid';
     if (!validPaymentStatuses.includes(paymentStatus)) {
       errors.push(`paymentStatus must be one of: ${validPaymentStatuses.join(', ')}`);
@@ -497,8 +600,14 @@ class PostingService {
       
       // Step 3: Calculate amounts and determine posting logic
       const totalInvoice = parseFloat(invoiceData.amount);
-      const amountPaid = parseFloat(invoiceData.amountPaid || invoiceData.amount);
-      const balanceDue = parseFloat(invoiceData.balanceDue || (totalInvoice - amountPaid));
+      const amountPaid = (invoiceData.amountPaid === undefined || invoiceData.amountPaid === null)
+        ? 0
+        : parseFloat(invoiceData.amountPaid);
+      const balanceDue = parseFloat(
+        (invoiceData.balanceDue !== undefined && invoiceData.balanceDue !== null)
+          ? invoiceData.balanceDue
+          : (totalInvoice - amountPaid)
+      );
       const overpaidAmount = amountPaid > totalInvoice ? amountPaid - totalInvoice : 0;
       
       console.log(`📊 Invoice amounts: Total=$${totalInvoice}, Paid=$${amountPaid}, Balance=$${balanceDue}, Overpaid=$${overpaidAmount}`);
@@ -641,16 +750,48 @@ class PostingService {
         totalRevenueCredits += lineAmount;
       }
     } else {
+      // Determine authoritative total and whether provided subtotal/discount/tax are consistent
+      const authoritativeTotal = totalInvoice; // invoice amount field is authoritative
+      const computedFinal = subtotalAmount + taxAmount - discountAmount;
+      const isConsistent = Math.abs((computedFinal || 0) - authoritativeTotal) <= 0.01;
+
+      // Choose revenue credit amount
+      const revenueCreditAmount = isConsistent
+        ? subtotalAmount
+        : Math.max(authoritativeTotal - taxAmount, 0);
+
       const revenueEntry = await tx.transactionEntry.create({
         data: {
           transactionId: transactionId,
           debitAccountId: null,
           creditAccountId: accounts.revenue.id,
-          amount: subtotalAmount,
+          amount: revenueCreditAmount,
           description: `Revenue from ${invoiceData.customerName} - ${invoiceData.description || 'Services'}`
         }
       });
       entries.push(revenueEntry);
+
+      // Only post Sales Discounts as a separate debit when inputs are consistent
+      if (discountAmount > 0 && isConsistent) {
+        let discountAccountId;
+        if (accounts.salesDiscounts) {
+          discountAccountId = accounts.salesDiscounts.id;
+        } else {
+          const fallbackAccount = await this.getAccountByCode('4910');
+          if (!fallbackAccount) throw new Error('Sales Discounts account (4910) not found in database');
+          discountAccountId = fallbackAccount.id;
+        }
+        const discountEntry = await tx.transactionEntry.create({
+          data: {
+            transactionId: transactionId,
+            debitAccountId: discountAccountId,
+            creditAccountId: null,
+            amount: discountAmount,
+            description: `Sales Discount - ${invoiceData.customerName}`
+          }
+        });
+        entries.push(discountEntry);
+      }
     }
     
     // CREDIT: Sales Tax Payable (if tax is applied)
@@ -675,44 +816,39 @@ class PostingService {
       entries.push(taxEntry);
     }
     
-    // DEBIT: Sales Discounts (if discount is applied)
-    if (discountAmount > 0) {
-      let discountAccountId;
-      if (accounts.salesDiscounts) {
-        discountAccountId = accounts.salesDiscounts.id;
-      } else {
-        const fallbackAccount = await this.getAccountByCode('4910');
-        if (!fallbackAccount) throw new Error('Sales Discounts account (4910) not found in database');
-        discountAccountId = fallbackAccount.id;
-      }
-      const discountEntry = await tx.transactionEntry.create({
+    // Note: Sales Discounts entry handled above only when inputs are consistent
+    
+    // Compute FINAL TOTAL for invoice: use authoritative amount
+    const finalTotal = totalInvoice;
+
+    // DEBIT: Cash for amount actually received (if any)
+    if (amountPaid > 0) {
+      const cashDebit = await tx.transactionEntry.create({
         data: {
           transactionId: transactionId,
-          debitAccountId: discountAccountId,
+          debitAccountId: accounts.cash.id,
           creditAccountId: null,
-          amount: discountAmount,
-          description: `Sales Discount - ${invoiceData.customerName}`
+          amount: amountPaid,
+          description: `Cash received from ${invoiceData.customerName}`
         }
       });
-      entries.push(discountEntry);
+      entries.push(cashDebit);
     }
-    
-    // DEBIT: Cash or Accounts Receivable for FINAL TOTAL (after tax/discount)
-    const isPaymentReceived = invoiceData.paymentStatus === 'paid';
-    const debitAccountId = isPaymentReceived ? accounts.cash.id : accounts.arAccount?.id || accounts.cash.id;
-    const debitDescription = isPaymentReceived 
-      ? `Cash received from ${invoiceData.customerName}`
-      : `Accounts Receivable - ${invoiceData.customerName} (Invoice ${invoiceData.invoiceNumber || 'N/A'})`;
-    const debitEntry = await tx.transactionEntry.create({
-      data: {
-        transactionId: transactionId,
-        debitAccountId: debitAccountId,
-        creditAccountId: null,
-        amount: amountPaid,
-        description: debitDescription
-      }
-    });
-    entries.push(debitEntry);
+
+    // DEBIT: Accounts Receivable for remaining balance (if any)
+    const remainingReceivable = finalTotal - amountPaid;
+    if (remainingReceivable > 0) {
+      const arDebit = await tx.transactionEntry.create({
+        data: {
+          transactionId: transactionId,
+          debitAccountId: accounts.arAccount?.id || accounts.cash.id,
+          creditAccountId: null,
+          amount: remainingReceivable,
+          description: `Accounts Receivable - ${invoiceData.customerName} (Invoice ${invoiceData.invoiceNumber || 'N/A'})`
+        }
+      });
+      entries.push(arDebit);
+    }
     
     // CREDIT: Customer Credits Payable for overpaid amount (if any)
     if (overpaidAmount > 0) {
@@ -870,7 +1006,7 @@ class PostingService {
       errors.push('date must be in YYYY-MM-DD format');
     }
     const validPaymentStatuses = ['paid', 'invoice', 'overpaid', 'partial'];
-    const paymentStatus = requestBody.paymentStatus || 'paid';
+    const paymentStatus = requestBody.paymentStatus || 'invoice';
     if (!validPaymentStatuses.includes(paymentStatus)) {
       errors.push(`paymentStatus must be one of: ${validPaymentStatuses.join(', ')}`);
     }
@@ -880,8 +1016,14 @@ class PostingService {
     }
     
     const totalAmount = parseFloat(requestBody.amount);
-    const amountPaid = parseFloat(requestBody.amountPaid || requestBody.amount);
-    const balanceDue = parseFloat(requestBody.balanceDue || (totalAmount - amountPaid));
+    const amountPaid = (requestBody.amountPaid === undefined || requestBody.amountPaid === null)
+      ? 0
+      : parseFloat(requestBody.amountPaid);
+    const balanceDue = parseFloat(
+      (requestBody.balanceDue !== undefined && requestBody.balanceDue !== null)
+        ? requestBody.balanceDue
+        : (totalAmount - amountPaid)
+    );
     
     let lineItems = [];
     if (requestBody.lineItems && Array.isArray(requestBody.lineItems)) {

@@ -1107,9 +1107,9 @@ We have successfully transformed the financial dashboard from "good" to "absolut
 ### ✅ FAB Suite — AI Invoice, AI Revenue, AI Chat (100%)
 - **Status**: ✅ DEPLOYED (2025-08-19)
 - **What Added**:
-  - Two new FAB actions in the collapsible menu: AI Invoice, AI Revenue (each opens a liquid-glass modal; UI-only).
+  - New FAB action in the collapsible menu: ~~AI Invoice~~, ~~AI Revenue~~ → AI Document (single document upload; opens a liquid-glass modal; UI-only).
   - A fixed "AI Chat" button under the FAB with animated "New" tooltip; opens a slide-in chat drawer.
-  - Chat Drawer: localStorage threads, send/receive demo, quick-call CTA buttons for AI Invoice/Revenue.
+  - Chat Drawer: localStorage threads, send/receive demo, quick-call CTA for ~~AI Invoice/Revenue~~ AI Document.
 - **UX**: Nav auto-collapses; FAB collapses after action; Chat FAB mirrors scroll-aware behavior (hide on scroll down, show on scroll up/top); all overlays use theme tokens with liquid-glass effects.
 
 ### ✅ Reports → Chart of Accounts: Account Details Modal (100%)
@@ -1121,6 +1121,17 @@ We have successfully transformed the financial dashboard from "good" to "absolut
   - Ledger table with totals (debits/credits/balance) and theme-aware `reports-thead` styling.
   - Actions: Close, Edit Account, Delete Account.
 - **UX/Perf**: Theme-token driven (`modal-overlay`, `glass-modal`, `liquid-glass`); no hardcoded colors; CSS-only effects.
+
+### ✅ Settings → Company Information Modal (100%)
+- **Status**: ✅ DEPLOYED (2025-08-22)
+- **What Added**:
+  - Company Information now lives in a dedicated liquid‑glass modal launched from Settings.
+  - Fields: Legal name, Aliases, Business email, Address (line 1/2, city, state, ZIP, country).
+  - Reads/writes via new backend endpoints: GET/PUT `/api/company-profile` (non‑PII only).
+- **AI Integration**:
+  - Document classifier uses saved `legalName` and `aliases` to detect perspective: Bill To = us → Expense; From/Vendor = us → Invoice.
+  - Tightened rules: removed “bill to” as invoice signal; amounts no longer auto‑flip type.
+- **UX**: Kept Settings layout clean with an “Open” button → modal; toasts on save; graceful fallback before migrations.
 
 ### 🔜 Frontend-only Remaining (before backend wiring)
 - **Settings shell** (UI): basic theme/profile/org panels

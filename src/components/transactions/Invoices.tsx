@@ -48,24 +48,6 @@ const statusToneClass: Record<InvoiceStatus, string> = {
   PROFORMA: 'bg-neutral-500/10 border-neutral-400/25 text-foreground'
 }
 
-const MOCK_INVOICES: Invoice[] = Array.from({ length: 72 }).map((_, i) => {
-  const statuses: InvoiceStatus[] = ['PAID', 'UNPAID', 'OVERDUE', 'PARTIAL', 'CREDIT', 'RECURRING', 'PROFORMA']
-  const s = statuses[i % statuses.length]
-  const base = 1000 + i
-  return {
-    id: String(base),
-    number: `INV-${base}`,
-    date: `2025-08-${String(1 + (i % 28)).padStart(2, '0')}`,
-    dueDate: `2025-09-${String(1 + (i % 28)).padStart(2, '0')}`,
-    customer: ['BluePeak LLC', 'NovaSoft Inc', 'Acme Corp', 'Stellar Labs', 'Orion Media'][i % 5],
-    status: s,
-    amount: Math.round(250 + Math.random() * 9500)
-  }
-})
-
-type SortKey = 'number' | 'date' | 'dueDate' | 'customer' | 'status' | 'amount'
-type SortDir = 'asc' | 'desc'
-
 export function Invoices() {
   const { isDark } = useTheme()
   const [search, setSearch] = useState('')
@@ -90,8 +72,8 @@ export function Invoices() {
   useEffect(() => { localStorage.setItem('invoices.compact', JSON.stringify(compact)) }, [compact])
   useEffect(() => { localStorage.setItem('invoices.print', JSON.stringify(printFriendly)) }, [printFriendly])
 
-  // Load invoices from backend with safe fallback
-  const [invoices, setInvoices] = useState<Invoice[]>(MOCK_INVOICES)
+  // Load invoices from backend
+  const [invoices, setInvoices] = useState<Invoice[]>([])
   useEffect(() => {
     let cancelled = false
     ;(async () => {

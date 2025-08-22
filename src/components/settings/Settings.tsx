@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
+import { ModalPortal } from '../layout/ModalPortal'
 import SetupService from '../../services/setupService'
 import AICategories from './ai/AICategories'
 import supabase from '../../services/supabaseClient'
 import { useState as useReactState } from 'react'
+import CompanyService, { type CompanyProfileDTO } from '../../services/companyService'
 
 export default function Settings() {
   const [busy, setBusy] = useState<string | null>(null)
@@ -11,6 +13,19 @@ export default function Settings() {
   const [pwLoading, setPwLoading] = useReactState(false)
   const [newPw, setNewPw] = useReactState('')
   const [confirmPw, setConfirmPw] = useReactState('')
+
+  // Company profile state
+  const [company, setCompany] = useState<CompanyProfileDTO>({ legalName: '', aliases: [], email: '', addressLines: [], city: '', state: '', zipCode: '', country: 'US' })
+  const [companyLoading, setCompanyLoading] = useState(false)
+  const [companySaving, setCompanySaving] = useState(false)
+  const [companyOpen, setCompanyOpen] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    setCompanyLoading(true)
+    CompanyService.getCompanyProfile().then((p) => { if (mounted) setCompany(p) }).finally(() => setCompanyLoading(false))
+    return () => { mounted = false }
+  }, [])
 
   const run = async (key: string, fn: () => Promise<any>) => {
     try {
@@ -32,6 +47,88 @@ export default function Settings() {
   return (
     <div className="p-4 sm:p-6">
       <div className="max-w-3xl mx-auto space-y-4">
+        {/* Company Information trigger */}
+        <ThemedGlassSurface variant="light" className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-lg font-semibold">Company Information</div>
+              <div className="text-sm text-secondary-contrast">Used for identity-aware classification.</div>
+            </div>
+            <button className="px-3 py-2 rounded-lg bg-primary/20 text-primary border border-primary/30" onClick={()=>setCompanyOpen(true)}>Open</button>
+          </div>
+        </ThemedGlassSurface>
+
+        {companyOpen && (
+          <ModalPortal>
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+              <div className="modal-overlay absolute inset-0" onClick={()=>setCompanyOpen(false)} />
+              <div className="relative w-[96%] max-w-2xl" onClick={(e)=>e.stopPropagation()}>
+                <ThemedGlassSurface variant="light" className="p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-lg font-semibold">Company Information</div>
+                      <div className="text-sm text-secondary-contrast">Only non‑PII is stored and used.</div>
+                    </div>
+                    <button className="px-2 py-1 rounded bg-surface/60 hover:bg-surface" onClick={()=>setCompanyOpen(false)}>✕</button>
+                  </div>
+                  <div className="grid gap-3 text-sm">
+            <label className="block">
+              <span className="text-secondary-contrast">Legal name</span>
+              <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.legalName} onChange={(e)=>setCompany({ ...company, legalName: e.target.value })} placeholder="AILegr Solutions Inc" />
+            </label>
+            <label className="block">
+              <span className="text-secondary-contrast">Aliases (comma separated)</span>
+              <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.aliases.join(', ')} onChange={(e)=>setCompany({ ...company, aliases: e.target.value.split(',').map(s=>s.trim()).filter(Boolean) })} placeholder="AILegr, AILegr Inc" />
+            </label>
+            <label className="block">
+              <span className="text-secondary-contrast">Business email</span>
+              <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.email || ''} onChange={(e)=>setCompany({ ...company, email: e.target.value })} placeholder="finance@yourcompany.com" />
+            </label>
+            <label className="block">
+              <span className="text-secondary-contrast">Address line 1</span>
+              <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.addressLines[0] || ''} onChange={(e)=>{ const lines = [...company.addressLines]; lines[0] = e.target.value; setCompany({ ...company, addressLines: lines }) }} placeholder="123 Tech Park Drive" />
+            </label>
+            <label className="block">
+              <span className="text-secondary-contrast">Address line 2</span>
+              <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.addressLines[1] || ''} onChange={(e)=>{ const lines = [...company.addressLines]; lines[1] = e.target.value; setCompany({ ...company, addressLines: lines }) }} placeholder="Suite 500" />
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label className="block">
+                <span className="text-secondary-contrast">City</span>
+                <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.city || ''} onChange={(e)=>setCompany({ ...company, city: e.target.value })} />
+              </label>
+              <label className="block">
+                <span className="text-secondary-contrast">State</span>
+                <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.state || ''} onChange={(e)=>setCompany({ ...company, state: e.target.value })} />
+              </label>
+              <label className="block">
+                <span className="text-secondary-contrast">ZIP</span>
+                <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.zipCode || ''} onChange={(e)=>setCompany({ ...company, zipCode: e.target.value })} />
+              </label>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button disabled={companyLoading || companySaving} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 disabled:opacity-60" onClick={async ()=>{
+                setCompanyLoading(true)
+                try { setCompany(await CompanyService.getCompanyProfile()) } finally { setCompanyLoading(false) }
+              }}>{companyLoading ? 'Loading…' : 'Reload'}</button>
+              <button disabled={companySaving || !company.legalName.trim()} className="px-3 py-2 rounded-lg bg-primary/20 text-primary border border-primary/30 disabled:opacity-60" onClick={async ()=>{
+                setCompanySaving(true)
+                try {
+                  const res = await CompanyService.saveCompanyProfile(company)
+                  if (res.ok) { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Company profile saved', type: 'success' } })) }
+                } catch (e:any) {
+                  window.dispatchEvent(new CustomEvent('toast', { detail: { message: e?.message || 'Failed to save', type: 'error' } }))
+                } finally { setCompanySaving(false) }
+              }}>{companySaving ? 'Saving…' : 'Save'}</button>
+              <button className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" onClick={()=>setCompanyOpen(false)}>Close</button>
+            </div>
+          </div>
+                </ThemedGlassSurface>
+              </div>
+            </div>
+          </ModalPortal>
+        )}
+
         <div>
           <div className="text-xl font-semibold">Setup Helpers</div>
           <div className="text-sm text-secondary-contrast">Quick actions for local development</div>
