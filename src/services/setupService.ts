@@ -15,6 +15,16 @@ export async function addSampleRevenue(amount: number = 5000, reference?: string
   return data
 }
 
-export default { ensureCoreAccounts, addInitialCapital, addSampleRevenue }
+export async function bootstrapTenant(params: { tenantName?: string; userId?: string; role?: 'OWNER'|'ADMIN'|'MEMBER' } = {}) {
+  const { data } = await api.post('/api/setup/bootstrap-tenant', params)
+  return data
+}
+
+export async function seedCoa(preset: 'us-gaap' = 'us-gaap', tenantId?: string) {
+  const { data } = await api.post(`/api/setup/seed-coa?preset=${preset}`, { tenantId })
+  return data
+}
+
+export default { ensureCoreAccounts, addInitialCapital, addSampleRevenue, bootstrapTenant, seedCoa }
 
 

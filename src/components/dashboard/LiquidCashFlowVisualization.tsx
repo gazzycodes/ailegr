@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Activity } from 'lucide-react'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
@@ -63,20 +63,21 @@ export function LiquidCashFlowVisualization({
   const tooltipRef = useRef<HTMLDivElement>(null)
   const [tooltipLeft, setTooltipLeft] = useState<number | null>(null)
 
-  // Build chart data from real series when available
-  const [chartData] = useState(() => {
+  // Build chart data from real series when available; recompute on prop changes
+  const chartData = useMemo(() => {
+    const labels = (data as any).series?.labels
     const revenueData = generateChartData(
       data.revenue.current,
       data.revenue.trend,
       (data as any).series?.revenue,
-      (data as any).series?.labels,
+      labels,
       1
     )
     const expenseData = generateChartData(
       data.expenses.current,
       data.expenses.trend,
       (data as any).series?.expenses,
-      (data as any).series?.labels,
+      labels,
       2
     )
     // Profit is derived from revenue - expenses for data integrity when series are provided
@@ -85,13 +86,34 @@ export function LiquidCashFlowVisualization({
         ? (data as any).series!.revenue.map((r: number, i: number) => r - (data as any).series!.expenses[i])
         : undefined)
     const profitData = profitSeries
-      ? generateChartData(data.profit.current, data.profit.trend, profitSeries, (data as any).series?.labels, 3)
+      ? generateChartData(data.profit.current, data.profit.trend, profitSeries, labels, 3)
       : revenueData.map((p, i) => ({ value: Math.max(0, p.value - (expenseData[i]?.value ?? 0)), month: i }))
 
     return { revenueData, expenseData, profitData }
-  })
+  }, [
+    data.revenue.current,
+    data.revenue.trend,
+    data.expenses.current,
+    data.expenses.trend,
+    data.profit.current,
+    data.profit.trend,
+    (data as any).series?.revenue,
+    (data as any).series?.expenses,
+    (data as any).series?.profit,
+    (data as any).series?.labels
+  ])
 
-  const { revenueData, expenseData, profitData } = chartData
+  // Ensure we always have at least two points to avoid divide-by-zero in path math
+  const ensureTwoPoints = (arr: Array<{ value: number; month: number; label?: string }>) => {
+    if (!arr || arr.length === 0) return [{ value: 0, month: 0 }, { value: 0, month: 1 }]
+    if (arr.length >= 2) return arr
+    const first = arr[0]
+    return [first, { ...first, month: (first.month ?? 0) + 1 }]
+  }
+
+  const revenueData = ensureTwoPoints(chartData.revenueData)
+  const expenseData = ensureTwoPoints(chartData.expenseData)
+  const profitData = ensureTwoPoints(chartData.profitData)
 
   // Animate the liquid flow (slower for better performance)
   useEffect(() => {
@@ -104,7 +126,7 @@ export function LiquidCashFlowVisualization({
   // SVG dimensions - responsive
   const width = 500
   const height = 300
-  const padding = 40
+  const padding = 48
 
   // Calculate unified scale for all datasets
   const allValues = [
@@ -114,8 +136,8 @@ export function LiquidCashFlowVisualization({
   ]
   const globalMaxValue = Math.max(...allValues)
   const globalMinValue = Math.min(...allValues)
-  const globalRange = globalMaxValue - globalMinValue
-  const hasAnyData = allValues.some(v => Number.isFinite(v) && v !== 0)
+  const globalRange = Math.max(1, globalMaxValue - globalMinValue)
+  const hasAnyData = allValues.some(v => Number.isFinite(v))
 
   const normalize = (value: number) => {
     if (!Number.isFinite(value)) return 0
@@ -155,26 +177,25 @@ export function LiquidCashFlowVisualization({
 
   // Create SVG path for liquid flow with unified scale
   const createFlowPath = (dataPoints: any[], _color: string, offset: number = 0) => {
-    let path = `M ${padding} ${height - padding}`
-
+    if (!dataPoints || dataPoints.length === 0) return ''
+    let path = ''
     dataPoints.forEach((point, index) => {
       const x = padding + (index * (width - 2 * padding)) / (dataPoints.length - 1)
       const normalizedValue = normalize(point.value)
       const y = height - padding - (normalizedValue * (height - 2 * padding)) + offset
-
       if (index === 0) {
-        path += ` L ${x} ${y}`
+        path += `M ${x} ${y}`
       } else {
         const prevX = padding + ((index - 1) * (width - 2 * padding)) / (dataPoints.length - 1)
         const controlX1 = prevX + (x - prevX) / 3
         const controlX2 = prevX + (2 * (x - prevX)) / 3
         const prevY = height - padding - (normalize(dataPoints[index - 1].value) * (height - 2 * padding)) + offset
-
         path += ` C ${controlX1} ${prevY}, ${controlX2} ${y}, ${x} ${y}`
       }
     })
-
-    path += ` L ${width - padding} ${height - padding} L ${padding} ${height - padding} Z`
+    // Close to baseline for area fill
+    const lastX = padding + ((dataPoints.length - 1) * (width - 2 * padding)) / (dataPoints.length - 1)
+    path += ` L ${lastX} ${height - padding} L ${padding} ${height - padding} Z`
     return path
   }
 
@@ -300,8 +321,8 @@ export function LiquidCashFlowVisualization({
           </defs>
 
           {/* Background grid */}
-          <g opacity="0.1">
-            {Array.from({ length: 5 }).map((_, i) => (
+          <g opacity="0.12">
+            {Array.from({ length: 4 }).map((_, i) => (
               <line
                 key={`h-${i}`}
                 x1={padding}
@@ -312,12 +333,12 @@ export function LiquidCashFlowVisualization({
                 strokeWidth="1"
               />
             ))}
-            {Array.from({ length: 6 }).map((_, i) => (
+            {Array.from({ length: revenueData.length }).map((_, i) => (
               <line
                 key={`v-${i}`}
-                x1={padding + i * (width - 2 * padding) / 5}
+                x1={padding + i * (width - 2 * padding) / (revenueData.length - 1 || 1)}
                 y1={padding}
-                x2={padding + i * (width - 2 * padding) / 5}
+                x2={padding + i * (width - 2 * padding) / (revenueData.length - 1 || 1)}
                 y2={height - padding}
                 stroke="currentColor"
                 strokeWidth="1"
@@ -373,7 +394,7 @@ export function LiquidCashFlowVisualization({
           <motion.path
             d={hasAnyData ? createLinePath(revenueData, 0) : ''}
             stroke="rgb(var(--color-financial-revenue))"
-            strokeWidth="2.5"
+            strokeWidth="3"
             fill="none"
             initial={{ pathLength: 0, opacity: 0 }}
             animate={{ pathLength: 1, opacity: hasAnyData ? 0.95 : 0 }}
@@ -495,7 +516,16 @@ export function LiquidCashFlowVisualization({
                 ref={tooltipRef as any}
               >
                 <ThemedGlassSurface variant="heavy" className="px-4 py-3 text-sm shadow-xl chart-tooltip liquid-glass" hover={false}>
-                  <div className="font-semibold text-foreground mb-2">Month {index + 1}</div>
+                  {(() => {
+                    const label = (revenueData[index]?.label as any) || ''
+                    const ordinal = revenueData.length - index
+                    const suffix = index === (revenueData.length - 1) ? ' (current)' : ''
+                    return (
+                      <div className="font-semibold text-foreground mb-2">
+                        {label ? label : `Month ${ordinal}`}{suffix}
+                      </div>
+                    )
+                  })()}
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-financial-revenue" />

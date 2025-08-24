@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../tenancy.js';
 import { ExpenseAccountResolver } from './expense-account-resolver.service.js';
 
-const prisma = new PrismaClient();
 
 /**
  * PostingService - Centralized Double-Entry Bookkeeping Engine
@@ -17,6 +16,32 @@ const prisma = new PrismaClient();
  * - Comprehensive error handling and rollback
  */
 class PostingService {
+
+  /**
+   * Normalize/sanitize an invoice number. Returns null if invalid.
+   */
+  static normalizeInvoiceNumber(raw) {
+    try {
+      if (!raw) return null;
+      let s = String(raw).trim();
+      if (!s) return null;
+      // Reject obvious non-numbers and dates
+      if (/^invoice\s*(date|dt)?$/i.test(s)) return null;
+      if (/^date$/i.test(s)) return null;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return null; // ISO date
+      if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(s)) return null; // MDY/DMY
+      // Remove surrounding label fragments if any
+      s = s.replace(/^#/, '').replace(/\s+/g, '');
+      // Must contain at least one digit
+      if (!/[0-9]/.test(s)) return null;
+      // Allowed characters
+      if (!/^[A-Za-z0-9][A-Za-z0-9._\-\/]*$/.test(s)) return null;
+      if (s.length < 3 || s.length > 40) return null;
+      return s;
+    } catch {
+      return null;
+    }
+  }
 
   /**
    * Main posting method for expense transactions
@@ -58,6 +83,16 @@ class PostingService {
       ]);
       
       // Step 5: Create complete transaction with double-entry in atomic operation
+      // Pre-compute totals and payments for storage on transaction
+      const totalForStorage = parseFloat(expenseData.amount) || 0;
+      let amountPaidForStorage = 0;
+      try {
+        amountPaidForStorage = expenseData.amountPaid != null ? parseFloat(expenseData.amountPaid) : 0;
+        if (!Number.isFinite(amountPaidForStorage)) amountPaidForStorage = 0;
+      } catch {}
+      let balanceDueForStorage = expenseData.balanceDue != null ? parseFloat(expenseData.balanceDue) : (totalForStorage - amountPaidForStorage);
+      if (!Number.isFinite(balanceDueForStorage)) balanceDueForStorage = totalForStorage - amountPaidForStorage;
+
       const result = await prisma.$transaction(async (tx) => {
         // Create Transaction header
         const transaction = await tx.transaction.create({
@@ -71,17 +106,41 @@ class PostingService {
               vendorName: expenseData.vendorName,
               categoryKey: expenseData.categoryKey,
               paymentStatus: expenseData.paymentStatus,
+              amountPaid: amountPaidForStorage,
+              initialAmountPaid: amountPaidForStorage,
+              balanceDue: balanceDueForStorage,
               policy: accountResolution.policy,
-              source: 'PostingService'
+              source: 'PostingService',
+              isRecurring: !!expenseData.recurring,
+              recurringRuleId: expenseData.recurringRuleId || null
             }
           }
         });
         
         // Create Expense record linked to transaction
+        // Generate friendly bill number when not provided
+        let effectiveVendorInvoiceNo = expenseData.vendorInvoiceNo || null;
+        async function generateBillNumber(prefix) {
+          const pad = (n) => String(n).padStart(3, '0');
+          let seq = await tx.expense.count({ where: { vendorInvoiceNo: { startsWith: prefix } } }) + 1;
+          for (let i = 0; i < 10; i++) {
+            const candidate = `${prefix}${pad(seq)}`;
+            const clash = await tx.expense.findFirst({ where: { vendor: expenseData.vendorName, vendorInvoiceNo: candidate }, select: { id: true } });
+            if (!clash) return candidate;
+            seq += 1;
+          }
+          // Fallback unique-ish tail
+          return `${prefix}${String(Date.now()).slice(-6)}`;
+        }
+        if (!effectiveVendorInvoiceNo) {
+          const prefix = expenseData.recurring ? 'BILL-R' : 'BILL-';
+          try { effectiveVendorInvoiceNo = await generateBillNumber(prefix) } catch { effectiveVendorInvoiceNo = null }
+        }
         const expense = await tx.expense.create({
           data: {
             transactionId: transaction.id,
             vendor: expenseData.vendorName,
+            vendorInvoiceNo: effectiveVendorInvoiceNo,
             categoryKey: expenseData.categoryKey, // Keep enum for compatibility
             date: new Date(accountResolution.dateUsed),
             amount: parseFloat(expenseData.amount),
@@ -89,12 +148,31 @@ class PostingService {
             receiptUrl: expenseData.receiptUrl || null,
             customFields: {
               paymentStatus: expenseData.paymentStatus,
+              amountPaid: amountPaidForStorage,
+              balanceDue: balanceDueForStorage,
               notes: expenseData.notes || null
             },
-            isRecurring: false,
+            isRecurring: !!expenseData.recurring,
             isPending: false
           }
         });
+
+        // Backfill expenseId and aggregates into transaction customFields for easier queries
+        try {
+          const existingCf = transaction.customFields || {};
+          await tx.transaction.update({
+            where: { id: transaction.id },
+            data: {
+              customFields: {
+                ...existingCf,
+                expenseId: expense.id,
+                amountPaid: amountPaidForStorage,
+                initialAmountPaid: amountPaidForStorage,
+                balanceDue: balanceDueForStorage
+              }
+            }
+          });
+        } catch (e) {}
         
         // 🔥 ENHANCED: Check for overpaid expense scenario
         const totalExpense = parseFloat(expenseData.amount) || 0;
@@ -386,7 +464,7 @@ class PostingService {
    */
   static async checkExistingTransaction(reference) {
     try {
-      const existing = await prisma.transaction.findUnique({
+      const existing = await prisma.transaction.findFirst({
         where: { reference: reference },
         include: {
           entries: {
@@ -428,9 +506,7 @@ class PostingService {
   static async getAccountsByCode(accountCodes) {
     try {
       const accounts = await prisma.account.findMany({
-        where: {
-          code: { in: accountCodes }
-        },
+        where: { code: { in: accountCodes } },
         select: {
           id: true,
           code: true,
@@ -549,8 +625,30 @@ class PostingService {
     }
     
     // Normalize and return clean data
+    // Compute due date: manual dueDate wins; else use dueDays relative to date (default Net-0)
+    let computedDueDate = requestBody.dueDate || null
+    if (!computedDueDate) {
+      try {
+        const base = requestBody.date
+        if (base) {
+          const d = new Date(base)
+          if (!isNaN(d.getTime())) {
+            let dd = parseInt(String(requestBody.dueDays ?? '0'), 10)
+            if (!Number.isFinite(dd)) dd = 0
+            if (dd < 0) dd = 0
+            if (dd > 365) dd = 365
+            d.setDate(d.getDate() + dd)
+            const y = d.getFullYear()
+            const m = String(d.getMonth() + 1).padStart(2, '0')
+            const da = String(d.getDate()).padStart(2, '0')
+            computedDueDate = `${y}-${m}-${da}`
+          }
+        }
+      } catch {}
+    }
     const normalizedData = {
       vendorName: requestBody.vendorName.trim(),
+      vendorInvoiceNo: (requestBody.vendorInvoiceNo && String(requestBody.vendorInvoiceNo).trim()) || null,
       amount: parseFloat(requestBody.amount).toFixed(2),
       date: requestBody.date,
       categoryKey: requestBody.categoryKey || requestBody.category || null,
@@ -564,7 +662,8 @@ class PostingService {
       amountPaid: requestBody.amountPaid ? parseFloat(requestBody.amountPaid).toFixed(2) : null,
       balanceDue: requestBody.balanceDue ? parseFloat(requestBody.balanceDue).toFixed(2) : null,
       invoiceNumber: requestBody.invoiceNumber || null,
-      dueDate: requestBody.dueDate || null,
+      dueDate: computedDueDate || null,
+      dueDays: (requestBody.dueDays != null ? Math.max(0, Math.min(365, parseInt(String(requestBody.dueDays), 10) || 0)) : null),
       recurring: requestBody.recurring || false,
       overdue: requestBody.overdue || false
     };
@@ -591,6 +690,50 @@ class PostingService {
       const reference = invoiceData.reference || this.generateReference('INV', invoiceData);
       console.log(`🔗 Using reference: ${reference}`);
       
+      // Step 1.5: Idempotency by invoiceNumber (most user-friendly)
+      const normalizedInvoiceNumber = this.normalizeInvoiceNumber(invoiceData.invoiceNumber);
+      if (normalizedInvoiceNumber) {
+        try {
+          const existingInvoice = await prisma.invoice.findFirst({
+            where: { invoiceNumber: normalizedInvoiceNumber },
+            include: { transaction: true }
+          });
+          if (existingInvoice && existingInvoice.transactionId) {
+            // Return existing posting as idempotent success
+            const existingTx = await prisma.transaction.findUnique({
+              where: { id: existingInvoice.transactionId },
+              include: {
+                entries: {
+                  include: {
+                    debitAccount: { select: { code: true, name: true } },
+                    creditAccount: { select: { code: true, name: true } }
+                  }
+                }
+              }
+            });
+            if (existingTx) {
+              console.log(`🔄 Idempotent response: Invoice #${normalizedInvoiceNumber} already exists`);
+              return {
+                transactionId: existingTx.id,
+                invoiceId: existingInvoice.id,
+                reference: existingTx.reference,
+                totalInvoice: parseFloat(existingInvoice.amount),
+                amountPaid: parseFloat((existingTx.customFields && existingTx.customFields.amountPaid) || 0),
+                balanceDue: parseFloat((existingTx.customFields && existingTx.customFields.balanceDue) || 0),
+                overpaidAmount: parseFloat((existingTx.customFields && existingTx.customFields.overpaidAmount) || 0),
+                entries: existingTx.entries,
+                dateUsed: existingInvoice.date.toISOString().split('T')[0],
+                isExisting: true,
+                message: `Invoice already exists (number ${normalizedInvoiceNumber}).`,
+              };
+            }
+          }
+        } catch (dupCheckErr) {
+          // Non-fatal: continue to normal flow; creation will still validate uniqueness
+          console.warn('Invoice duplicate check warning:', dupCheckErr?.message || dupCheckErr);
+        }
+      }
+
       // Step 2: Check for existing transaction (idempotency)
       const existingTransaction = await this.checkExistingTransaction(reference);
       if (existingTransaction) {
@@ -630,9 +773,12 @@ class PostingService {
               invoiceNumber: invoiceData.invoiceNumber,
               invoiceTotal: totalInvoice,
               amountPaid: amountPaid,
+              initialAmountPaid: amountPaid, // enables synthetic initial payment row when posting with partial/paid amount
               balanceDue: balanceDue,
               overpaidAmount: overpaidAmount,
               paymentStatus: invoiceData.paymentStatus,
+              dueDate: invoiceData.dueDate || null,
+              dueDays: (invoiceData.dueDays != null ? Math.max(0, Math.min(365, parseInt(String(invoiceData.dueDays), 10) || 0)) : null),
               source: 'PostingService'
             }
           }
@@ -643,7 +789,7 @@ class PostingService {
           data: {
             transactionId: transaction.id,
             customer: invoiceData.customerName,
-            invoiceNumber: invoiceData.invoiceNumber || `INV-${Date.now()}`,
+            invoiceNumber: PostingService.normalizeInvoiceNumber(invoiceData.invoiceNumber) || `INV-${Date.now()}`,
             date: new Date(invoiceData.date),
             amount: totalInvoice,
             description: invoiceData.description || `Invoice for ${invoiceData.customerName}`,
@@ -694,6 +840,32 @@ class PostingService {
       
     } catch (error) {
       console.error(`❌ PostingService.postInvoiceTransaction() failed:`, error);
+      // Prisma P2002 unique constraint on (tenantId, invoiceNumber)
+      if (error && (error.code === 'P2002' || /Unique constraint failed/.test(String(error.message)))) {
+        try {
+          const invNum = (invoiceData.invoiceNumber || '').toString().trim();
+          if (invNum) {
+            const existingInvoice = await prisma.invoice.findFirst({ where: { invoiceNumber: invNum }, include: { transaction: { include: { entries: { include: { debitAccount: true, creditAccount: true } } } } } });
+            if (existingInvoice && existingInvoice.transaction) {
+              return {
+                transactionId: existingInvoice.transaction.id,
+                invoiceId: existingInvoice.id,
+                reference: existingInvoice.transaction.reference,
+                totalInvoice: parseFloat(existingInvoice.amount),
+                amountPaid: parseFloat((existingInvoice.transaction.customFields && existingInvoice.transaction.customFields.amountPaid) || 0),
+                balanceDue: parseFloat((existingInvoice.transaction.customFields && existingInvoice.transaction.customFields.balanceDue) || 0),
+                overpaidAmount: parseFloat((existingInvoice.transaction.customFields && existingInvoice.transaction.customFields.overpaidAmount) || 0),
+                entries: existingInvoice.transaction.entries,
+                dateUsed: existingInvoice.date.toISOString().split('T')[0],
+                isExisting: true,
+                message: `Invoice already exists (number ${invNum}).`,
+              };
+            }
+          }
+        } catch (e2) {
+          // fall through to generic error
+        }
+      }
       throw new Error(`Invoice posting error: ${error.message}`);
     }
   }
@@ -750,12 +922,14 @@ class PostingService {
         totalRevenueCredits += lineAmount;
       }
     } else {
-      // Determine authoritative total and whether provided subtotal/discount/tax are consistent
-      const authoritativeTotal = totalInvoice; // invoice amount field is authoritative
-      const computedFinal = subtotalAmount + taxAmount - discountAmount;
+      // Determine consistency: subtotal - discount + tax should equal total amount
+      const authoritativeTotal = totalInvoice;
+      const computedFinal = subtotalAmount - discountAmount + taxAmount;
       const isConsistent = Math.abs((computedFinal || 0) - authoritativeTotal) <= 0.01;
 
       // Choose revenue credit amount
+      // - If consistent, credit revenue at subtotal, and post discount as separate debit
+      // - If inconsistent, credit revenue at (total - tax), and do NOT post a separate discount
       const revenueCreditAmount = isConsistent
         ? subtotalAmount
         : Math.max(authoritativeTotal - taxAmount, 0);
@@ -771,7 +945,7 @@ class PostingService {
       });
       entries.push(revenueEntry);
 
-      // Only post Sales Discounts as a separate debit when inputs are consistent
+      // Post Sales Discounts only when inputs are consistent
       if (discountAmount > 0 && isConsistent) {
         let discountAccountId;
         if (accounts.salesDiscounts) {
@@ -936,7 +1110,7 @@ class PostingService {
    */
   static async getAccountByCode(accountCode) {
     try {
-      const account = await prisma.account.findUnique({
+      const account = await prisma.account.findFirst({
         where: { code: accountCode },
         select: { id: true, code: true, name: true, type: true, normalBalance: true }
       });
@@ -971,10 +1145,21 @@ class PostingService {
    * Determines invoice status based on payment information
    */
   static determineInvoiceStatus(paymentStatus, balanceDue) {
-    if (paymentStatus === 'paid' || Math.abs(balanceDue) < 0.01) return 'PAID';
-    if (paymentStatus === 'partial') return 'SENT';
-    if (paymentStatus === 'overpaid') return 'PAID';
-    return 'SENT';
+    try {
+      if (paymentStatus === 'paid' || Math.abs(balanceDue) < 0.01) return 'PAID';
+      if (paymentStatus === 'overpaid') return 'PAID';
+      if (paymentStatus === 'partial' || paymentStatus === 'invoice') {
+        // Use dueDate from caller context if available on this function (callers pass it via invoiceData)
+        const now = new Date();
+        // Fallback: try to read a bound this.invoiceDueDate if caller set it; otherwise, not overdue
+        const due = this.invoiceDueDate instanceof Date ? this.invoiceDueDate : null;
+        if (due && due.getTime() < new Date(now.toDateString()).getTime()) return 'OVERDUE';
+        return 'SENT';
+      }
+      return 'SENT';
+    } catch {
+      return 'SENT';
+    }
   }
 
   /**
@@ -1064,6 +1249,28 @@ class PostingService {
     }
     const subtotal = parseFloat(requestBody.subtotal || requestBody.amount || 0);
     
+    // Compute due date: manual dueDate wins; else use dueDays relative to invoice date (default Net-0)
+    let computedDueDate = requestBody.dueDate || null
+    if (!computedDueDate) {
+      try {
+        const base = requestBody.date
+        if (base) {
+          const d = new Date(base)
+          if (!isNaN(d.getTime())) {
+            let dd = parseInt(String(requestBody.dueDays ?? '0'), 10)
+            if (!Number.isFinite(dd)) dd = 0
+            if (dd < 0) dd = 0
+            if (dd > 365) dd = 365
+            d.setDate(d.getDate() + dd)
+            const y = d.getFullYear()
+            const m = String(d.getMonth() + 1).padStart(2, '0')
+            const da = String(d.getDate()).padStart(2, '0')
+            computedDueDate = `${y}-${m}-${da}`
+          }
+        }
+      } catch {}
+    }
+
     const normalizedData = {
       customerName: requestBody.customerName.trim(),
       amount: totalAmount.toFixed(2),
@@ -1075,7 +1282,8 @@ class PostingService {
       paymentStatus: paymentStatus,
       description: requestBody.description || requestBody.notes || `Invoice from ${requestBody.customerName}`,
       invoiceNumber: requestBody.invoiceNumber || null,
-      dueDate: requestBody.dueDate || null,
+      dueDate: computedDueDate || null,
+      dueDays: (requestBody.dueDays != null ? Math.max(0, Math.min(365, parseInt(String(requestBody.dueDays), 10) || 0)) : null),
       reference: requestBody.reference || null,
       lineItems: lineItems,
       taxSettings: taxSettings,

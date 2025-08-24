@@ -1,0 +1,61 @@
+{
+  "version": "2025-08-22",
+  "name": "US Small Business COA (Extended)",
+  "notes": "Idempotent; codes unique per tenant. Core accounts align with existing seeds and expand with common subaccounts.",
+  "accounts": [
+    { "code": "1000", "name": "Assets", "type": "ASSET", "normalBalance": "DEBIT" },
+    { "code": "1010", "name": "Cash and Cash Equivalents", "type": "ASSET", "normalBalance": "DEBIT" },
+    { "code": "1011", "name": "Operating Checking", "type": "ASSET", "normalBalance": "DEBIT", "parentCode": "1010" },
+    { "code": "1012", "name": "Savings", "type": "ASSET", "normalBalance": "DEBIT", "parentCode": "1010" },
+    { "code": "1013", "name": "Petty Cash", "type": "ASSET", "normalBalance": "DEBIT", "parentCode": "1010" },
+    { "code": "1020", "name": "Cash - Stripe Clearing", "type": "ASSET", "normalBalance": "DEBIT", "parentCode": "1010" },
+
+    { "code": "1200", "name": "Accounts Receivable", "type": "ASSET", "normalBalance": "DEBIT" },
+    { "code": "1201", "name": "A/R - Current", "type": "ASSET", "normalBalance": "DEBIT", "parentCode": "1200" },
+    { "code": "1202", "name": "A/R - 31-60 Days", "type": "ASSET", "normalBalance": "DEBIT", "parentCode": "1200" },
+    { "code": "1203", "name": "A/R - 61-90 Days", "type": "ASSET", "normalBalance": "DEBIT", "parentCode": "1200" },
+    { "code": "1204", "name": "A/R - 90+ Days", "type": "ASSET", "normalBalance": "DEBIT", "parentCode": "1200" },
+    { "code": "1210", "name": "Allowance for Doubtful Accounts", "type": "ASSET", "normalBalance": "CREDIT", "parentCode": "1200" },
+
+    { "code": "1350", "name": "Deposits & Advances", "type": "ASSET", "normalBalance": "DEBIT" },
+    { "code": "1400", "name": "Prepaid Expenses", "type": "ASSET", "normalBalance": "DEBIT" },
+    { "code": "1500", "name": "Fixed Assets", "type": "ASSET", "normalBalance": "DEBIT" },
+    { "code": "1510", "name": "Furniture & Equipment", "type": "ASSET", "normalBalance": "DEBIT", "parentCode": "1500" },
+    { "code": "1590", "name": "Accumulated Depreciation", "type": "ASSET", "normalBalance": "CREDIT", "parentCode": "1500" },
+
+    { "code": "2000", "name": "Liabilities", "type": "LIABILITY", "normalBalance": "CREDIT" },
+    { "code": "2010", "name": "Accounts Payable", "type": "LIABILITY", "normalBalance": "CREDIT" },
+    { "code": "2050", "name": "Customer Credits Payable", "type": "LIABILITY", "normalBalance": "CREDIT" },
+    { "code": "2100", "name": "Deferred Revenue", "type": "LIABILITY", "normalBalance": "CREDIT" },
+    { "code": "2150", "name": "Sales Tax Payable", "type": "LIABILITY", "normalBalance": "CREDIT" },
+    { "code": "2180", "name": "Payroll Liabilities", "type": "LIABILITY", "normalBalance": "CREDIT" },
+
+    { "code": "3000", "name": "Owner Equity", "type": "EQUITY", "normalBalance": "CREDIT" },
+    { "code": "3100", "name": "Additional Paid-in Capital", "type": "EQUITY", "normalBalance": "CREDIT" },
+    { "code": "3200", "name": "Retained Earnings", "type": "EQUITY", "normalBalance": "CREDIT" },
+
+    { "code": "4000", "name": "Revenue", "type": "REVENUE", "normalBalance": "CREDIT" },
+    { "code": "4010", "name": "Product Sales", "type": "REVENUE", "normalBalance": "CREDIT" },
+    { "code": "4020", "name": "Services Revenue", "type": "REVENUE", "normalBalance": "CREDIT" },
+    { "code": "4030", "name": "Marketing Services Revenue", "type": "REVENUE", "normalBalance": "CREDIT", "parentCode": "4020" },
+    { "code": "4040", "name": "Support & Maintenance Revenue", "type": "REVENUE", "normalBalance": "CREDIT", "parentCode": "4020" },
+    { "code": "4910", "name": "Sales Discounts", "type": "REVENUE", "normalBalance": "DEBIT" },
+
+    { "code": "5000", "name": "Cost of Goods Sold", "type": "EXPENSE", "normalBalance": "DEBIT" },
+    { "code": "5010", "name": "COGS - Materials & Supplies", "type": "EXPENSE", "normalBalance": "DEBIT", "parentCode": "5000" },
+    { "code": "5020", "name": "COGS - Subcontractors", "type": "EXPENSE", "normalBalance": "DEBIT", "parentCode": "5000" },
+
+    { "code": "6000", "name": "Operating Expenses", "type": "EXPENSE", "normalBalance": "DEBIT" },
+    { "code": "6020", "name": "Office Supplies Expense", "type": "EXPENSE", "normalBalance": "DEBIT", "parentCode": "6000" },
+    { "code": "6030", "name": "Software Subscriptions", "type": "EXPENSE", "normalBalance": "DEBIT", "parentCode": "6000" },
+    { "code": "6040", "name": "Marketing Expense", "type": "EXPENSE", "normalBalance": "DEBIT", "parentCode": "6000" },
+    { "code": "6050", "name": "Payroll Expense", "type": "EXPENSE", "normalBalance": "DEBIT", "parentCode": "6000" },
+    { "code": "6060", "name": "Travel Expense", "type": "EXPENSE", "normalBalance": "DEBIT", "parentCode": "6000" },
+    { "code": "6070", "name": "Rent Expense", "type": "EXPENSE", "normalBalance": "DEBIT", "parentCode": "6000" },
+    { "code": "6080", "name": "Utilities", "type": "EXPENSE", "normalBalance": "DEBIT", "parentCode": "6000" },
+    { "code": "6090", "name": "Professional Services", "type": "EXPENSE", "normalBalance": "DEBIT", "parentCode": "6000" },
+    { "code": "6110", "name": "Insurance", "type": "EXPENSE", "normalBalance": "DEBIT", "parentCode": "6000" },
+    { "code": "6120", "name": "Depreciation Expense", "type": "EXPENSE", "normalBalance": "DEBIT", "parentCode": "6000" },
+    { "code": "6999", "name": "Other Business Expense", "type": "EXPENSE", "normalBalance": "DEBIT", "parentCode": "6000" }
+  ]
+}

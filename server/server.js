@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
-import { PrismaClient } from '@prisma/client'
+import { prisma, tenantContextMiddleware, verifyBearerToken, requireRole, upsertUserProfile } from './src/tenancy.js'
 import ReportingService from './reportingService.js'
 import multer from 'multer'
 import fs from 'fs'
@@ -13,6 +13,8 @@ import crypto from 'crypto'
 import { ExpenseAccountResolver } from './src/services/expense-account-resolver.service.js'
 import { AICategoryService } from './src/services/ai-category.service.js'
 import { aiLimiter } from './src/services/ai-rate-limiter.js'
+import usGaapCoa from './data/us_gaap_coa.json' with { type: 'json' }
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 
 // Load env (development/local)
 try {
@@ -23,7 +25,7 @@ try {
 const app = express()
 const server = createServer(app)
 const wss = new WebSocketServer({ server })
-const prisma = new PrismaClient()
+// Prisma client is provided by tenancy layer (enforces tenant scoping)
 const PORT = process.env.PORT || 4000
 const CLASSIFY_MODE = String(process.env.CLASSIFY_MODE || 'hybrid').toLowerCase() // heuristic|hybrid|ai
 const CLASSIFY_AI_THRESHOLD = Math.min(1, Math.max(0, parseFloat(process.env.CLASSIFY_AI_THRESHOLD || '0.8')))
@@ -44,32 +46,85 @@ const setCached = (key, value) => {
 }
 
 // Middlewares
-app.use(cors())
+app.use(cors({ origin: true, credentials: true }))
 app.use(express.json({ limit: '5mb' }))
+// Enforce auth + tenant context for API routes only
+// Allow unauthenticated reads for a minimal set of public endpoints when enforcement is disabled.
+// All other endpoints still require auth when AILEGR_AUTH_ENFORCE=true.
+// Middleware respects AILEGR_AUTH_ENFORCE; when false, requests without a valid JWT
+// proceed as anonymous (no req.auth), but tenant-scoped reads still apply only when a tenant can be resolved.
+app.use('/api', tenantContextMiddleware({ enforceAuth: process.env.AILEGR_AUTH_ENFORCE }))
 
-// File upload (for OCR)
+// File upload (for OCR/receipts) with per-tenant subfolders
 const uploadDir = path.resolve(process.cwd(), 'uploads')
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
-const upload = multer({ dest: uploadDir, limits: { fileSize: 10 * 1024 * 1024 } })
-// Serve uploaded files for previews
-app.use('/uploads', express.static(uploadDir))
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    try {
+      const tid = String((req && req.tenantId) || 'dev')
+      const dir = path.join(uploadDir, tid)
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      cb(null, dir)
+    } catch (e) { cb(e, uploadDir) }
+  },
+  filename: (_req, file, cb) => {
+    const base = (file.originalname || 'file').replace(/[^A-Za-z0-9._-]/g, '_')
+    const ts = Date.now()
+    cb(null, `${ts}-${base}`)
+  }
+})
+const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } })
+// Serve uploaded files; enforce tenant path prefix
+app.use('/uploads', (req, res, next) => {
+  const mw = tenantContextMiddleware()
+  mw(req, res, () => {
+    try {
+      const tid = String((req && req.tenantId) || 'dev')
+      const urlPath = decodeURIComponent(req.path || req.url || '')
+      if (!urlPath.startsWith(`/${tid}/`)) return res.status(403).json({ error: 'Forbidden' })
+    } catch { return res.status(403).json({ error: 'Forbidden' }) }
+    return express.static(uploadDir)(req, res, next)
+  })
+})
 
-// WebSocket AI Chat (real-time)
+// WebSocket AI Chat (real-time) with auth handshake
+const wsClients = new WeakMap()
 wss.on('connection', (ws) => {
-  console.log('New WebSocket connection established')
+  wsClients.set(ws, { authed: false, userId: null, tenantId: null })
+  try { ws.send(JSON.stringify({ type: 'hello', message: 'auth_required' })) } catch {}
   ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message.toString())
+      const state = wsClients.get(ws) || { authed: false }
+      if (!state.authed) {
+        if (data.type !== 'auth') { ws.send(JSON.stringify({ type: 'error', message: 'auth required' })); return }
+        const token = String(data.token || '')
+        const tenantId = String(data.tenantId || '')
+        const auth = await verifyBearerToken(token)
+        if (!auth) { ws.send(JSON.stringify({ type: 'error', message: 'unauthorized' })); ws.close(); return }
+        let finalTenant = 'dev'
+        if (tenantId) {
+          const m = await prisma.membership.findFirst({ where: { userId: auth.userId, tenantId } })
+          if (m) finalTenant = tenantId
+        } else {
+          const m = await prisma.membership.findFirst({ where: { userId: auth.userId }, orderBy: { createdAt: 'asc' } })
+          if (m) finalTenant = m.tenantId
+        }
+        wsClients.set(ws, { authed: true, userId: auth.userId, tenantId: finalTenant })
+        ws.send(JSON.stringify({ type: 'auth_ok', tenantId: finalTenant }))
+        return
+      }
       if (data.type === 'chat') {
-        const aiResponse = await processAIChat(data.message, data.context)
+        const context = { ...(data.context || {}), tenantId: wsClients.get(ws)?.tenantId }
+        const aiResponse = await processAIChat(data.message, context)
         ws.send(JSON.stringify({ type: 'chat_response', message: aiResponse.content, action: aiResponse.action }))
       }
     } catch (error) {
       console.error('WebSocket error:', error)
-      ws.send(JSON.stringify({ type: 'error', message: 'Failed to process message' }))
+      try { ws.send(JSON.stringify({ type: 'error', message: 'Failed to process message' })) } catch {}
     }
   })
-  ws.on('close', () => { console.log('WebSocket connection closed') })
+  ws.on('close', () => { try { wsClients.delete(ws) } catch {}; console.log('WebSocket connection closed') })
 })
 
 // Health
@@ -77,23 +132,33 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', port: PORT })
 })
 
+// Auth status (debug): shows whether middleware attached auth and tenant
+app.get('/api/auth/status', (req, res) => {
+  try {
+    const enforceAuth = String(process.env.AILEGR_AUTH_ENFORCE || 'true').toLowerCase() === 'true'
+    res.json({ enforceAuth, auth: !!(req && req.auth), userId: req?.auth?.userId || null, tenantId: req?.tenantId || 'dev' })
+  } catch { res.json({ enforceAuth: true, auth: false }) }
+})
+
 app.get('/api/health', async (req, res) => {
   try {
-    const healthStatus = await ReportingService.healthCheck()
-    res.json(healthStatus)
+    // Compose a lightweight health snapshot using existing report services
+    const tb = await ReportingService.getTrialBalance()
+    const bs = await ReportingService.getBalanceSheet()
+    res.json({ status: 'ok', balanced: tb.totals.isBalanced, bsEquationOK: bs.totals.equationOK })
   } catch (error) {
     res.status(500).json({ status: 'ERROR', error: error.message })
   }
 })
 
-// Company Profile endpoints (additive, non-breaking)
+// Company Profile endpoints (tenant-scoped)
 app.get('/api/company-profile', async (req, res) => {
   try {
     if (!(prisma && (prisma).companyProfile)) {
       // Prisma client not regenerated for new model yet
       return res.json({ legalName: '', aliases: [], email: '', addressLines: [], city: '', state: '', zipCode: '', country: 'US' })
     }
-    const profile = await prisma.companyProfile.findFirst({ where: { workspaceId: 'default' } })
+    const profile = await prisma.companyProfile.findFirst({ where: {} })
     if (!profile) {
       return res.json({
         legalName: '',
@@ -109,7 +174,8 @@ app.get('/api/company-profile', async (req, res) => {
       aliases: Array.isArray(profile.aliases) ? profile.aliases : [],
       email: profile.email || '',
       addressLines: Array.isArray(profile.addressLines) ? profile.addressLines : [],
-      city: profile.city || '', state: profile.state || '', zipCode: profile.zipCode || '', country: profile.country || 'US'
+      city: profile.city || '', state: profile.state || '', zipCode: profile.zipCode || '', country: profile.country || 'US',
+      timeZone: profile.timeZone || null
     })
   } catch (e) {
     console.warn('company-profile get error (returning stub):', e?.message || e)
@@ -139,6 +205,7 @@ app.put('/api/company-profile', async (req, res) => {
     const state = body.state ? String(body.state).trim() : null
     const zipCode = body.zipCode ? String(body.zipCode).trim() : null
     const country = body.country ? String(body.country).trim() : 'US'
+    const timeZone = body.timeZone ? String(body.timeZone).trim() : null
 
     // Normalization helpers
     const normalize = (s) => String(s || '').toLowerCase().replace(/\b(inc|llc|ltd|corp|co)\.?$/i, '').trim()
@@ -146,11 +213,11 @@ app.put('/api/company-profile', async (req, res) => {
     const normalizedAliases = aliases.map((a) => normalize(a))
 
     const saved = await prisma.companyProfile.upsert({
-      where: { workspaceId: 'default' },
-      update: { legalName, aliases, email, addressLines, city, state, zipCode, country, normalizedLegalName, normalizedAliases },
-      create: { workspaceId: 'default', legalName, aliases, email, addressLines, city, state, zipCode, country, normalizedLegalName, normalizedAliases }
+      where: { tenantId: req.tenantId || 'dev' },
+      update: { legalName, aliases, email, addressLines, city, state, zipCode, country, timeZone, normalizedLegalName, normalizedAliases },
+      create: { tenantId: req.tenantId || 'dev', legalName, aliases, email, addressLines, city, state, zipCode, country, timeZone, normalizedLegalName, normalizedAliases }
     })
-    res.json({ ok: true, legalName: saved.legalName })
+    res.json({ ok: true, legalName: saved.legalName, timeZone: saved.timeZone || null })
   } catch (e) {
     const msg = (e && (e.code || e.name)) || (e && e.message) || String(e)
     // Graceful message when table doesn't exist yet
@@ -332,12 +399,12 @@ app.put('/api/accounts/:code', async (req, res) => {
     const code = req.params.code
     const { name, type } = req.body || {}
     if (!name && !type) return res.status(400).json({ error: 'nothing to update' })
-    const account = await prisma.account.findUnique({ where: { code } })
+    const account = await prisma.account.findFirst({ where: { code } })
     if (!account) return res.status(404).json({ error: 'Account not found' })
     const data = {}
     if (typeof name === 'string' && name.trim()) data.name = name.trim()
     if (typeof type === 'string' && ['ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE'].includes(type)) data.type = type
-    const updated = await prisma.account.update({ where: { code }, data })
+    const updated = await prisma.account.update({ where: { id: account.id }, data })
     res.json({ success: true, account: updated })
   } catch (e) {
     console.error('update account error:', e)
@@ -349,7 +416,7 @@ app.put('/api/accounts/:code', async (req, res) => {
 app.delete('/api/accounts/:code', async (req, res) => {
   try {
     const code = req.params.code
-    const account = await prisma.account.findUnique({ where: { code } })
+    const account = await prisma.account.findFirst({ where: { code } })
     if (!account) return res.status(404).json({ error: 'Account not found' })
 
     // Prevent deletion of core accounts used by setup helpers
@@ -361,7 +428,7 @@ app.delete('/api/accounts/:code', async (req, res) => {
     })
     if (usageCount > 0) return res.status(409).json({ error: 'Account has transactions and cannot be deleted' })
 
-    await prisma.account.delete({ where: { code } })
+    await prisma.account.delete({ where: { id: account.id } })
     res.json({ success: true })
   } catch (e) {
     console.error('delete account error:', e)
@@ -375,7 +442,7 @@ app.get('/api/accounts/:accountCode/transactions', async (req, res) => {
     const { accountCode } = req.params
     const limit = parseInt(req.query.limit) || 50
 
-    const account = await prisma.account.findUnique({
+    const account = await prisma.account.findFirst({
       where: { code: accountCode },
       select: { id: true, code: true, name: true, type: true, normalBalance: true }
     })
@@ -504,13 +571,15 @@ app.post('/api/ocr', upload.single('file'), async (req, res) => {
       }
     }
 
+    const tid = String((req && req.tenantId) || 'dev')
     res.json({
       message: 'File processed',
       filename: req.file.filename,
       originalName: req.file.originalname,
       mimetype: req.file.mimetype,
       size: req.file.size,
-      text: extractedText
+      text: extractedText,
+      previewUrl: `/uploads/${tid}/${req.file.filename}`
     })
   } catch (e) {
     console.error('OCR error:', e)
@@ -610,7 +679,17 @@ app.post('/api/ocr/normalize', async (req, res) => {
     } catch {}
 
     const labels = {
-      invoiceNumber: (normalized.match(/Invoice\s*(?:No\.?|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\.\/]*)/i)?.[1]) || null,
+      // Avoid matching "Invoice Date" by excluding Date/DT after 'Invoice'
+      invoiceNumber: (() => {
+        const m = normalized.match(/Invoice\s*(?!(?:Date|DT)\b)(?:No\.?|#|Number)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9._\-\/]*)/i)
+        const val = m?.[1] || null
+        if (!val) return null
+        // Hard filter: reject values that look like dates
+        if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return null
+        if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(val)) return null
+        if (/^date$/i.test(val)) return null
+        return val
+      })(),
       invoiceDate: dateFrom(labelGrab('invoice\s*date')),
       dueDate: dateFrom(labelGrab('due\s*date')),
       revenueRecognitionDate: dateFrom(labelGrab('revenue\s*recognition\s*date')),
@@ -797,7 +876,7 @@ app.post('/api/categories/ai/suggest', async (req, res) => {
   }
 })
 
-app.get('/api/categories/pending', async (req, res) => {
+app.get('/api/categories/pending', requireRole('OWNER','ADMIN'), async (req, res) => {
   try {
     const list = await AICategoryService.getPendingApprovals()
     res.json({ success: true, pending: list })
@@ -807,7 +886,7 @@ app.get('/api/categories/pending', async (req, res) => {
   }
 })
 
-app.post('/api/categories/pending/:id/approve', async (req, res) => {
+app.post('/api/categories/pending/:id/approve', requireRole('OWNER','ADMIN'), async (req, res) => {
   try {
     const id = req.params.id
     const updated = await AICategoryService.approveCategory(id, req.body || {})
@@ -818,7 +897,7 @@ app.post('/api/categories/pending/:id/approve', async (req, res) => {
   }
 })
 
-app.post('/api/categories/pending/:id/reject', async (req, res) => {
+app.post('/api/categories/pending/:id/reject', requireRole('OWNER','ADMIN'), async (req, res) => {
   try {
     const id = req.params.id
     const { existingCategoryId } = req.body || {}
@@ -852,11 +931,11 @@ app.get('/api/categories', async (req, res) => {
   }
 })
 
-app.post('/api/categories', async (req, res) => {
+app.post('/api/categories', requireRole('OWNER','ADMIN'), async (req, res) => {
   try {
     const { name, key, accountCode, description } = req.body || {}
     if (!name || !key || !accountCode) return res.status(400).json({ success: false, error: 'name, key, accountCode required' })
-    const acc = await prisma.account.findUnique({ where: { code: accountCode } })
+    const acc = await prisma.account.findFirst({ where: { code: accountCode } })
     if (!acc) return res.status(422).json({ success: false, error: `Account ${accountCode} not found` })
     const exists = await prisma.category.findFirst({ where: { OR: [{ name: name.trim() }, { key: key.trim().toUpperCase() }] } })
     if (exists) return res.status(409).json({ success: false, error: 'Category with same name or key exists' })
@@ -877,14 +956,14 @@ app.post('/api/categories', async (req, res) => {
   }
 })
 
-app.put('/api/categories/:id', async (req, res) => {
+app.put('/api/categories/:id', requireRole('OWNER','ADMIN'), async (req, res) => {
   try {
     const id = req.params.id
     const { name, key, accountCode, description, isApproved } = req.body || {}
     const existing = await prisma.category.findUnique({ where: { id } })
     if (!existing) return res.status(404).json({ success: false, error: 'Category not found' })
     if (accountCode) {
-      const acc = await prisma.account.findUnique({ where: { code: accountCode } })
+      const acc = await prisma.account.findFirst({ where: { code: accountCode } })
       if (!acc) return res.status(422).json({ success: false, error: `Account ${accountCode} not found` })
     }
     if (key && key.trim().toUpperCase() !== existing.key) {
@@ -908,7 +987,7 @@ app.put('/api/categories/:id', async (req, res) => {
   }
 })
 
-app.delete('/api/categories/:id', async (req, res) => {
+app.delete('/api/categories/:id', requireRole('OWNER','ADMIN'), async (req, res) => {
   try {
     const id = req.params.id
     const cat = await prisma.category.findUnique({ where: { id }, include: { expenses: { select: { id: true }, take: 1 } } })
@@ -923,15 +1002,15 @@ app.delete('/api/categories/:id', async (req, res) => {
 })
 
 // Create new account (COA)
-app.post('/api/accounts', async (req, res) => {
+app.post('/api/accounts', requireRole('OWNER','ADMIN'), async (req, res) => {
   try {
     const { code, name, type, normalBalance, parentCode } = req.body || {}
     if (!code || !name || !type || !normalBalance) return res.status(400).json({ error: 'code, name, type, normalBalance required' })
-    const exists = await prisma.account.findUnique({ where: { code } })
+    const exists = await prisma.account.findFirst({ where: { code } })
     if (exists) return res.status(409).json({ error: 'Account code already exists' })
     let parentId = null
     if (parentCode) {
-      const parent = await prisma.account.findUnique({ where: { code: parentCode } })
+      const parent = await prisma.account.findFirst({ where: { code: parentCode } })
       if (!parent) return res.status(422).json({ error: `Parent account ${parentCode} not found` })
       parentId = parent.id
     }
@@ -952,7 +1031,8 @@ app.post('/api/expenses/:id/receipt', upload.single('file'), async (req, res) =>
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' })
     const expense = await prisma.expense.findUnique({ where: { id } })
     if (!expense) return res.status(404).json({ error: 'Expense not found' })
-    const updated = await prisma.expense.update({ where: { id }, data: { receiptUrl: `/uploads/${req.file.filename}` } })
+    const tid = String((req && req.tenantId) || 'dev')
+    const updated = await prisma.expense.update({ where: { id }, data: { receiptUrl: `/uploads/${tid}/${req.file.filename}` } })
     res.json({ success: true, expense: updated })
   } catch (e) {
     console.error('attach receipt error:', e)
@@ -1001,7 +1081,7 @@ app.get('/api/metrics/time-series', async (req, res) => {
       if (e.creditAccount?.type === 'EXPENSE') expenses[idx] -= amt
     }
 
-    const result = { labels: labels }
+    const result = { labels }
     if (wantRevenue) result.revenue = revenue.map(v => Math.max(0, Math.round(v)))
     if (wantExpenses) result.expenses = expenses.map(v => Math.max(0, Math.round(v)))
     if (wantProfit) result.profit = revenue.map((v, i) => Math.max(0, Math.round(v - (expenses[i] || 0))))
@@ -1168,6 +1248,17 @@ app.post('/api/expenses', async (req, res) => {
     if (!validation.isValid) {
       return res.status(422).json({ code: 'VALIDATION_FAILED', message: 'Invalid expense data provided', details: validation.errors })
     }
+    // Duplicate vendor invoice number check (AP): vendor + vendorInvoiceNo per tenant
+    try {
+      const vin = validation.normalizedData.vendorInvoiceNo
+      const vendor = validation.normalizedData.vendorName
+      if (vin && vendor) {
+        const dup = await prisma.expense.findFirst({ where: { vendor: vendor, vendorInvoiceNo: vin } })
+        if (dup) {
+          return res.status(409).json({ code: 'DUPLICATE_VENDOR_INVOICE', message: `A bill from ${vendor} with Vendor Invoice No. "${vin}" already exists.` })
+        }
+      }
+    } catch {}
     const result = await PostingService.postTransaction(validation.normalizedData)
     return res.status(result.isExisting ? 200 : 201).json({ ...result, success: true })
   } catch (e) {
@@ -1182,6 +1273,105 @@ app.post('/api/expenses', async (req, res) => {
       return res.status(500).json({ code: 'ACCOUNTING_ERROR', message: e.message })
     }
     res.status(500).json({ code: 'POSTING_ENGINE_ERROR', message: 'Unexpected error in posting engine', details: String(e) })
+  }
+})
+
+// Mark expense as PAID (status update only via transaction customFields)
+app.post('/api/expenses/:id/mark-paid', async (req, res) => {
+  try {
+    const id = req.params.id
+    const expense = await prisma.expense.findUnique({ where: { id }, include: { transaction: true } })
+    if (!expense) return res.status(404).json({ error: 'Expense not found' })
+    const updatedTx = await prisma.transaction.update({ where: { id: expense.transactionId }, data: { customFields: { ...(expense.transaction?.customFields || {}), paymentStatus: 'paid' } } })
+    res.json({ success: true, transaction: updatedTx })
+  } catch (e) {
+    console.error('mark expense paid error:', e)
+    res.status(500).json({ error: 'Failed to mark expense paid' })
+  }
+})
+
+// Mark expense as UNPAID
+app.post('/api/expenses/:id/mark-unpaid', async (req, res) => {
+  try {
+    const id = req.params.id
+    const expense = await prisma.expense.findUnique({ where: { id }, include: { transaction: true } })
+    if (!expense) return res.status(404).json({ error: 'Expense not found' })
+    const updatedTx = await prisma.transaction.update({ where: { id: expense.transactionId }, data: { customFields: { ...(expense.transaction?.customFields || {}), paymentStatus: 'unpaid' } } })
+    res.json({ success: true, transaction: updatedTx })
+  } catch (e) {
+    console.error('mark expense unpaid error:', e)
+    res.status(500).json({ error: 'Failed to mark expense unpaid' })
+  }
+})
+
+// Record a payment for an expense: DR Expense/AP settlement; set payment status
+app.post('/api/expenses/:id/record-payment', async (req, res) => {
+  try {
+    const id = req.params.id
+    const { amount, date } = req.body || {}
+    const expense = await prisma.expense.findUnique({ where: { id }, include: { transaction: true } })
+    if (!expense) return res.status(404).json({ error: 'Expense not found' })
+    const paymentAmount = parseFloat(amount || expense.amount)
+    if (!(paymentAmount > 0)) return res.status(400).json({ error: 'amount must be > 0' })
+    const cash = await prisma.account.findFirst({ where: { code: '1010' } })
+    const ap = await prisma.account.findFirst({ where: { code: '2010' } })
+    if (!cash || !ap) return res.status(422).json({ error: 'Required accounts missing (1010, 2010)' })
+    // Sum prior payments for this expense to track partial/overpaid
+    const prior = await prisma.transaction.findMany({
+      where: { customFields: { path: ['expenseId'], equals: expense.id } },
+      select: { amount: true, customFields: true }
+    })
+    const priorPaidGross = prior.filter(p => { try { return p?.customFields?.type === 'expense_payment' } catch { return false } }).reduce((s, p) => s + parseFloat(p.amount), 0)
+    const priorVoids = prior.filter(p => { try { return p?.customFields?.type === 'void_payment' && p?.customFields?.expenseId === expense.id } catch { return false } }).reduce((s, p) => s + parseFloat(p.amount), 0)
+    const priorPaid = Math.max(0, priorPaidGross - priorVoids)
+    const txId = await prisma.$transaction(async (tx) => {
+      const header = await tx.transaction.create({
+        data: {
+          date: new Date(date || new Date()),
+          description: `Payment made for ${expense.vendor}`,
+          reference: `BILL-PAY-${Date.now()}`,
+          amount: paymentAmount,
+          customFields: { type: 'expense_payment', expenseId: expense.id, vendor: expense.vendor }
+        }
+      })
+      // CREDIT cash; DEBIT Accounts Payable (settle liability)
+      await tx.transactionEntry.create({ data: { transactionId: header.id, debitAccountId: null, creditAccountId: cash.id, amount: paymentAmount, description: `Payment to ${expense.vendor}` } })
+      await tx.transactionEntry.create({ data: { transactionId: header.id, debitAccountId: ap.id, creditAccountId: null, amount: paymentAmount, description: `Payment to ${expense.vendor}` } })
+      const total = parseFloat(expense.amount)
+      const initialPaid = Number(expense.transaction?.customFields?.initialAmountPaid || 0)
+      const paidTotal = initialPaid + priorPaid + paymentAmount
+      const balanceDue = Math.max(0, total - paidTotal)
+      let paymentStatus = 'paid'
+      if (paidTotal + 1e-6 < total) paymentStatus = 'partial'
+      else if (paidTotal - total > 1e-6) paymentStatus = 'overpaid'
+      await tx.transaction.update({
+        where: { id: expense.transactionId },
+        data: { customFields: { ...(expense.transaction?.customFields || {}), paymentStatus, amountPaid: paidTotal, balanceDue } }
+      })
+      return { id: header.id, paymentStatus, balanceDue, amountPaid: paidTotal }
+    })
+    res.json({ success: true, transactionId: txId.id, paymentStatus: txId.paymentStatus, balanceDue: txId.balanceDue, amountPaid: txId.amountPaid })
+  } catch (e) {
+    console.error('record expense payment error:', e)
+    res.status(500).json({ error: 'Failed to record expense payment' })
+  }
+})
+
+// Check duplicate vendor invoice (AP): vendor + vendorInvoiceNo
+app.get('/api/expenses/check-duplicate', async (req, res) => {
+  try {
+    const vendor = String(req.query.vendor || '').trim()
+    const vin = String(req.query.vendorInvoiceNo || '').trim()
+    if (!vendor || !vin) return res.json({ duplicate: false })
+    const existing = await prisma.expense.findFirst({
+      where: { vendor: vendor, vendorInvoiceNo: vin },
+      select: { id: true, date: true, amount: true, vendor: true, vendorInvoiceNo: true }
+    })
+    if (existing) return res.json({ duplicate: true, expense: existing })
+    return res.json({ duplicate: false })
+  } catch (e) {
+    console.error('check-duplicate error:', e)
+    res.status(500).json({ error: 'Failed to check duplicate' })
   }
 })
 
@@ -1227,11 +1417,11 @@ app.post('/api/transactions/revenue', async (req, res) => {
     }
 
     const reference = b.reference || `REV-${Date.now()}`
-    const existing = await prisma.transaction.findUnique({ where: { reference } })
+    const existing = await prisma.transaction.findFirst({ where: { reference, tenantId: req.tenantId || 'dev' } })
     if (existing) return res.json({ success: true, isExisting: true, transactionId: existing.id, message: 'Idempotent: already exists' })
 
-    const cashAcc = await prisma.account.findUnique({ where: { code: b.cashAccount || '1010' } })
-    const revenueAcc = await prisma.account.findUnique({ where: { code: b.revenueAccount || '4020' } })
+    const cashAcc = await prisma.account.findFirst({ where: { code: b.cashAccount || '1010' } })
+    const revenueAcc = await prisma.account.findFirst({ where: { code: b.revenueAccount || '4020' } })
     if (!cashAcc || !revenueAcc) return res.status(422).json({ error: 'Required accounts missing' })
 
     const txId = await prisma.$transaction(async (tx) => {
@@ -1294,6 +1484,55 @@ app.get('/api/invoices', async (req, res) => {
   }
 })
 
+// Suggest a unique invoice number using INV-<timestamp>-<n>
+app.get('/api/invoices/suggest-number', async (req, res) => {
+  try {
+    const pad2 = (n) => String(n).padStart(2, '0')
+    const now = new Date()
+    const ts = `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}-${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`
+    const gen = () => `INV-${ts}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+    let suggestion = gen()
+    // Ensure DB uniqueness (extremely low collision risk with random suffix)
+    for (let i = 0; i < 5; i++) {
+      const exists = await prisma.invoice.findFirst({ where: { invoiceNumber: suggestion } })
+      if (!exists) break
+      suggestion = gen()
+    }
+    res.json({ suggestion })
+  } catch (e) {
+    console.error('suggest-number error:', e)
+    res.status(500).json({ error: 'Failed to suggest invoice number' })
+  }
+})
+
+// Next sequential AR invoice number: INV-<YYYY>-<000001> per tenant (dev)
+app.get('/api/invoices/next-seq', async (req, res) => {
+  try {
+    const tenantId = 'dev'
+    const year = new Date().getFullYear()
+    const prefix = `INV-${year}-`
+    // Find the max existing sequence for this year
+    const latest = await prisma.invoice.findFirst({
+      where: { invoiceNumber: { startsWith: prefix } },
+      orderBy: { createdAt: 'desc' },
+      select: { invoiceNumber: true }
+    })
+    let next = 1
+    if (latest?.invoiceNumber) {
+      const m = latest.invoiceNumber.match(/^INV-\d{4}-(\d{6})$/)
+      if (m) next = Math.max(1, parseInt(m[1], 10) + 1)
+    }
+    const pad = String(next).padStart(6, '0')
+    const suggestion = `${prefix}${pad}`
+    // Ensure uniqueness (very unlikely to collide given max+1 logic)
+    const exists = await prisma.invoice.findFirst({ where: { invoiceNumber: suggestion } })
+    res.json({ suggestion: exists ? `${prefix}${String(next + 1).padStart(6, '0')}` : suggestion })
+  } catch (e) {
+    console.error('next-seq error:', e)
+    res.status(500).json({ error: 'Failed to compute next sequence' })
+  }
+})
+
 // Mark invoice as PAID (status update only)
 app.post('/api/invoices/:id/mark-paid', async (req, res) => {
   try {
@@ -1308,6 +1547,21 @@ app.post('/api/invoices/:id/mark-paid', async (req, res) => {
   }
 })
 
+// Mark invoice as UNPAID
+app.post('/api/invoices/:id/mark-unpaid', async (req, res) => {
+  try {
+    const id = req.params.id
+    const existing = await prisma.invoice.findUnique({ where: { id } })
+    if (!existing) return res.status(404).json({ error: 'Invoice not found' })
+    // Prisma enum does not have UNPAID; use SENT to represent unpaid/open invoices
+    const updated = await prisma.invoice.update({ where: { id }, data: { status: 'SENT' } })
+    res.json({ success: true, invoice: updated })
+  } catch (e) {
+    console.error('mark-unpaid error:', e)
+    res.status(500).json({ error: 'Failed to mark invoice unpaid' })
+  }
+})
+
 // Record a payment for an invoice: DR Cash (1010) / CR Accounts Receivable (1200)
 app.post('/api/invoices/:id/record-payment', async (req, res) => {
   try {
@@ -1319,9 +1573,17 @@ app.post('/api/invoices/:id/record-payment', async (req, res) => {
     const paymentAmount = parseFloat(amount || invoice.amount)
     if (!(paymentAmount > 0)) return res.status(400).json({ error: 'amount must be > 0' })
 
-    const cash = await prisma.account.findUnique({ where: { code: '1010' } })
-    const ar = await prisma.account.findUnique({ where: { code: '1200' } })
+    const cash = await prisma.account.findFirst({ where: { code: '1010' } })
+    const ar = await prisma.account.findFirst({ where: { code: '1200' } })
     if (!cash || !ar) return res.status(422).json({ error: 'Required accounts missing (1010, 1200)' })
+    // Sum prior payments to compute partial/overpaid
+    const prior = await prisma.transaction.findMany({
+      where: { customFields: { path: ['invoiceId'], equals: invoice.id } },
+      select: { amount: true, customFields: true }
+    })
+    const priorPaid = prior
+      .filter(p => { try { return p && p.customFields && typeof p.customFields === 'object' && p.customFields.type === 'invoice_payment' } catch { return false } })
+      .reduce((s, p) => s + parseFloat(p.amount), 0)
 
     const txId = await prisma.$transaction(async (tx) => {
       const header = await tx.transaction.create({
@@ -1335,14 +1597,171 @@ app.post('/api/invoices/:id/record-payment', async (req, res) => {
       })
       await tx.transactionEntry.create({ data: { transactionId: header.id, debitAccountId: cash.id, creditAccountId: null, amount: paymentAmount, description: `Payment received ${invoice.invoiceNumber}` } })
       await tx.transactionEntry.create({ data: { transactionId: header.id, debitAccountId: null, creditAccountId: ar.id, amount: paymentAmount, description: `Payment received ${invoice.invoiceNumber}` } })
-      await tx.invoice.update({ where: { id: invoice.id }, data: { status: 'PAID' } })
-      return header.id
+      const total = parseFloat(invoice.amount)
+      const paidTotal = priorPaid + paymentAmount
+      const balanceDue = Math.max(0, total - paidTotal)
+      // robust status with tolerances
+      let paymentStatus = 'paid'
+      if (paidTotal < total - 0.005) paymentStatus = 'partial'
+      else if (paidTotal > total + 0.005) paymentStatus = 'overpaid'
+      // Invoice DB status: PAID when fully paid/overpaid, otherwise SENT or OVERDUE if past due
+      let dbStatus = 'PAID'
+      if (paymentStatus === 'partial') {
+        const now = new Date(date || new Date())
+        dbStatus = (invoice.dueDate && new Date(invoice.dueDate) < now) ? 'OVERDUE' : 'SENT'
+      }
+      if (paymentStatus === 'overpaid') dbStatus = 'PAID'
+      await tx.invoice.update({ where: { id: invoice.id }, data: { status: dbStatus } })
+      // Store aggregates on the posting transaction (like AP)
+      const invTx = await tx.transaction.findUnique({ where: { id: invoice.transactionId } })
+      await tx.transaction.update({ where: { id: invoice.transactionId }, data: { customFields: { ...(invTx?.customFields || {}), paymentStatus, amountPaid: paidTotal, balanceDue } } })
+      // Reflect a convenient UI status: update a derived field on response only
+      return { id: header.id, paymentStatus, amountPaid: paidTotal, balanceDue, invoiceStatus: dbStatus }
     })
-
-    res.json({ success: true, transactionId: txId })
+    res.json({ success: true, transactionId: txId.id, paymentStatus: txId.paymentStatus, amountPaid: txId.amountPaid, balanceDue: txId.balanceDue, invoiceStatus: txId.invoiceStatus })
   } catch (e) {
     console.error('record-payment error:', e)
     res.status(500).json({ error: 'Failed to record payment' })
+  }
+})
+
+// List payments for an AR invoice
+app.get('/api/invoices/:id/payments', async (req, res) => {
+  try {
+    const id = req.params.id
+    const payments = await prisma.transaction.findMany({
+      where: { customFields: { path: ['invoiceId'], equals: id } },
+      orderBy: { date: 'desc' },
+      select: { id: true, date: true, amount: true, reference: true, description: true, customFields: true }
+    })
+    const filtered = payments.filter(p => { try { return p.customFields && p.customFields.type === 'invoice_payment' && !p.customFields.voided } catch { return false } })
+    // Include initial posting as a synthetic payment row when amountPaid > 0
+    try {
+      const invoice = await prisma.invoice.findUnique({ where: { id }, include: { transaction: true } })
+      const initialAmt = Number(invoice?.transaction?.customFields?.initialAmountPaid ?? 0)
+      if (invoice && initialAmt > 0) {
+        const exists = filtered.some(p => String(p?.customFields?.origin || '') === 'initial')
+        if (!exists) filtered.push({
+          id: `initial:${invoice.transactionId}`,
+          date: invoice.date,
+          amount: initialAmt,
+          reference: invoice.transaction?.reference || `INV-${invoice.id}`,
+          description: 'Initial payment at posting',
+          customFields: { type: 'invoice_payment', origin: 'initial' }
+        })
+      }
+    } catch {}
+    // Sort desc by date after synthetic add
+    filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    res.json({ success: true, payments: filtered })
+  } catch (e) {
+    console.error('list invoice payments error:', e)
+    res.status(500).json({ success: false, error: 'Failed to list invoice payments' })
+  }
+})
+
+// List payments for an AP expense (bill)
+app.get('/api/expenses/:id/payments', async (req, res) => {
+  try {
+    const id = req.params.id
+    let payments = await prisma.transaction.findMany({
+      where: { customFields: { path: ['expenseId'], equals: id } },
+      orderBy: { date: 'desc' },
+      select: { id: true, date: true, amount: true, reference: true, description: true, customFields: true }
+    })
+    let filtered = payments.filter(p => { try { return p.customFields && p.customFields.type === 'expense_payment' && !p.customFields.voided } catch { return false } })
+    // Include initial posting as synthetic payment when amountPaid > 0
+    try {
+      const expense = await prisma.expense.findUnique({ where: { id }, include: { transaction: true } })
+      const amt = Number(expense?.transaction?.customFields?.initialAmountPaid ?? expense?.transaction?.customFields?.amountPaid ?? 0)
+      if (expense && amt > 0) {
+        const exists = filtered.some(p => String(p?.customFields?.origin || '') === 'initial')
+        if (!exists) {
+          filtered.push({
+            id: `initial:${expense.transactionId}`,
+            date: expense.date,
+            amount: amt,
+            reference: expense.transaction?.reference || `EXP-${expense.id}`,
+            description: 'Initial payment at posting',
+            customFields: { type: 'expense_payment', origin: 'initial' }
+          })
+        }
+      }
+    } catch {}
+    filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    res.json({ success: true, payments: filtered })
+  } catch (e) {
+    console.error('list expense payments error:', e)
+    res.status(500).json({ success: false, error: 'Failed to list expense payments' })
+  }
+})
+
+// Void a payment transaction (creates a reversing journal)
+app.post('/api/payments/:id/void', async (req, res) => {
+  try {
+    const id = req.params.id
+    const tx = await prisma.transaction.findUnique({ where: { id }, include: { entries: true } })
+    if (!tx) return res.status(404).json({ error: 'Payment not found' })
+    const cf = tx.customFields || {}
+    const isInvoice = cf.type === 'invoice_payment'
+    const isExpense = cf.type === 'expense_payment'
+    if (!isInvoice && !isExpense) return res.status(400).json({ error: 'Not a payment transaction' })
+    // Create reversing journal
+    const revId = await prisma.$transaction(async (db) => {
+      const rev = await db.transaction.create({
+        data: {
+          date: new Date(),
+          description: `Void payment ${tx.reference}`,
+          reference: `VOID-${tx.reference || ('PAY-' + Date.now() + '-' + Math.random().toString(36).slice(2,6))}`,
+          amount: tx.amount,
+          customFields: { type: 'void_payment', sourcePaymentId: tx.id, ...(isInvoice ? { invoiceId: cf.invoiceId } : isExpense ? { expenseId: cf.expenseId } : {}) }
+        }
+      })
+      for (const e of tx.entries) {
+        if (e.debitAccountId) await db.transactionEntry.create({ data: { transactionId: rev.id, debitAccountId: null, creditAccountId: e.debitAccountId, amount: e.amount, description: 'Void' } })
+        if (e.creditAccountId) await db.transactionEntry.create({ data: { transactionId: rev.id, debitAccountId: e.creditAccountId, creditAccountId: null, amount: e.amount, description: 'Void' } })
+      }
+      // Mark original payment as voided in customFields for UI filtering
+      try {
+        await db.transaction.update({ where: { id: tx.id }, data: { customFields: { ...(cf || {}), voided: true } } })
+      } catch {}
+      // Recompute aggregates on the original invoice/expense transaction
+      if (isInvoice) {
+        const parentInvoice = await db.invoice.findUnique({ where: { id: cf.invoiceId } })
+        const payments = await db.transaction.findMany({ where: { customFields: { path: ['invoiceId'], equals: cf.invoiceId } }, select: { amount: true, customFields: true } })
+        const paidGross = payments.filter(p => p.customFields && p.customFields.type === 'invoice_payment').reduce((s, p) => s + parseFloat(p.amount), 0)
+        const voids = payments.filter(p => p.customFields && p.customFields.type === 'void_payment').reduce((s, p) => s + parseFloat(p.amount), 0)
+        const initial = Number(parentInvoice.transaction?.customFields?.initialAmountPaid || 0)
+        const sum = initial + Math.max(0, paidGross - voids)
+        const total = parseFloat(parentInvoice.amount)
+        const balanceDue = Math.max(0, total - sum)
+        let paymentStatus = 'paid'
+        if (sum + 1e-6 < total) paymentStatus = 'partial'
+        else if (sum - total > 1e-6) paymentStatus = 'overpaid'
+        let dbStatus = paymentStatus === 'partial' ? ((parentInvoice.dueDate && new Date(parentInvoice.dueDate) < new Date()) ? 'OVERDUE' : 'SENT') : 'PAID'
+        await db.invoice.update({ where: { id: parentInvoice.id }, data: { status: dbStatus } })
+        const invTx = await db.transaction.findUnique({ where: { id: parentInvoice.transactionId } })
+        await db.transaction.update({ where: { id: parentInvoice.transactionId }, data: { customFields: { ...(invTx?.customFields || {}), paymentStatus, amountPaid: sum, balanceDue } } })
+      } else if (isExpense) {
+        const parentExpense = await db.expense.findUnique({ where: { id: cf.expenseId }, include: { transaction: true } })
+        const payments = await db.transaction.findMany({ where: { customFields: { path: ['expenseId'], equals: cf.expenseId } }, select: { amount: true, customFields: true } })
+        const paidGross = payments.filter(p => p.customFields && p.customFields.type === 'expense_payment').reduce((s, p) => s + parseFloat(p.amount), 0)
+        const voids = payments.filter(p => p.customFields && p.customFields.type === 'void_payment').reduce((s, p) => s + parseFloat(p.amount), 0)
+        const initial = Number(parentExpense.transaction?.customFields?.initialAmountPaid || 0)
+        const sum = initial + Math.max(0, paidGross - voids)
+        const total = parseFloat(parentExpense.amount)
+        const balanceDue = Math.max(0, total - sum)
+        let paymentStatus = 'paid'
+        if (sum + 1e-6 < total) paymentStatus = 'partial'
+        else if (sum - total > 1e-6) paymentStatus = 'overpaid'
+        await db.transaction.update({ where: { id: parentExpense.transactionId }, data: { customFields: { ...(parentExpense.transaction?.customFields || {}), paymentStatus, amountPaid: sum, balanceDue } } })
+      }
+      return rev.id
+    })
+    res.json({ success: true, voidTransactionId: revId })
+  } catch (e) {
+    console.error('void payment error:', e)
+    res.status(500).json({ error: 'Failed to void payment' })
   }
 })
 
@@ -1355,11 +1774,11 @@ app.post('/api/transactions/capital', async (req, res) => {
       return res.status(400).json({ error: 'contributor, amount, date, description required' })
     }
     const reference = b.reference || `CAP-${Date.now()}`
-    const existing = await prisma.transaction.findUnique({ where: { reference } })
+    const existing = await prisma.transaction.findFirst({ where: { reference, tenantId: req.tenantId || 'dev' } })
     if (existing) return res.json({ success: true, isExisting: true, transactionId: existing.id, message: 'Idempotent: already exists' })
 
-    const debitAcc = await prisma.account.findUnique({ where: { code: b.debitAccount || '1010' } })
-    const equityAcc = await prisma.account.findUnique({ where: { code: b.equityAccount || '3000' } })
+    const debitAcc = await prisma.account.findFirst({ where: { code: b.debitAccount || '1010' } })
+    const equityAcc = await prisma.account.findFirst({ where: { code: b.equityAccount || '3000' } })
     if (!debitAcc || !equityAcc) return res.status(422).json({ error: 'Required accounts missing' })
 
     const txId = await prisma.$transaction(async (tx) => {
@@ -1423,6 +1842,439 @@ app.get('/api/customers', async (req, res) => {
   } catch (e) {
     console.error('get customers error:', e)
     res.status(500).json({ success: false, error: 'Failed to fetch customers' })
+  }
+})
+
+// Recurring rules — minimal CRUD + run
+app.get('/api/recurring', async (req, res) => {
+  try {
+    const list = await prisma.recurringRule.findMany({ where: { isActive: true }, orderBy: { nextRunAt: 'asc' } })
+    res.json({ rules: list })
+  } catch (e) { res.status(500).json({ error: 'Failed to list recurring rules' }) }
+})
+
+app.post('/api/recurring', async (req, res) => {
+  try {
+    const b = req.body || {}
+    if (!(b.type && b.cadence && b.startDate && b.payload)) return res.status(400).json({ error: 'type, cadence, startDate, payload required' })
+    const rule = await prisma.recurringRule.create({ data: {
+      type: String(b.type).toUpperCase(),
+      cadence: String(b.cadence).toUpperCase(),
+      startDate: new Date(b.startDate),
+      endDate: b.endDate ? new Date(b.endDate) : null,
+      dayOfMonth: b.dayOfMonth ?? null,
+      weekday: b.weekday ?? null,
+      nextRunAt: new Date(b.nextRunAt || b.startDate),
+      payload: b.payload,
+      isActive: b.isActive !== false
+    } })
+    res.json({ rule })
+  } catch (e) { res.status(500).json({ error: 'Failed to create rule' }) }
+})
+
+app.put('/api/recurring/:id', async (req, res) => {
+  try {
+    const id = req.params.id
+    const b = req.body || {}
+    const data = { ...b }
+    try {
+      if (b.startDate) data.startDate = new Date(b.startDate)
+      if (Object.prototype.hasOwnProperty.call(b, 'endDate')) data.endDate = b.endDate ? new Date(b.endDate) : null
+      if (b.nextRunAt) data.nextRunAt = new Date(b.nextRunAt)
+      if (b.lastRunAt) data.lastRunAt = new Date(b.lastRunAt)
+    } catch {}
+    const rule = await prisma.recurringRule.update({ where: { id }, data })
+    res.json({ rule })
+  } catch (e) {
+    console.error('Update recurring error:', e)
+    res.status(500).json({ error: 'Failed to update rule', details: e?.message })
+  }
+})
+
+app.post('/api/recurring/:id/pause', async (req, res) => {
+  try { const id = req.params.id; await prisma.recurringRule.update({ where: { id }, data: { isActive: false } }); res.json({ ok: true }) } catch (e) { res.status(500).json({ error: 'Failed to pause rule' }) }
+})
+
+app.post('/api/recurring/:id/resume', async (req, res) => {
+  try { const id = req.params.id; await prisma.recurringRule.update({ where: { id }, data: { isActive: true } }); res.json({ ok: true }) } catch (e) { res.status(500).json({ error: 'Failed to resume rule' }) }
+})
+
+// Simple scheduler run (idempotent by month key for now)
+//
+// Recurring scheduler run with advanced options and sandbox support
+// Body options:
+// { dryRun?: boolean, ruleId?: string }
+// - dryRun: does not commit transactions or advance nextRunAt; returns simulated entries and next date
+// - ruleId: target a specific rule (even if not due)
+//
+app.post('/api/recurring/run', async (req, res) => {
+  try {
+    const { dryRun = false, ruleId } = req.body || {}
+
+    const { PostingService } = await import('./src/services/posting.service.js')
+    const { ExpenseAccountResolver } = await import('./src/services/expense-account-resolver.service.js')
+
+    // Helper: compute next run honoring advanced options used in UI (endOfMonth, nth weekday)
+    function daysInMonth(year, month0) { return new Date(year, month0 + 1, 0).getDate() }
+    function computeNextRun(fromISO, cadence, opts = {}) {
+      const from = new Date(fromISO)
+      const next = new Date(from)
+      if (cadence === 'DAILY') {
+        const d = Math.max(1, opts.intervalDays || 1)
+        next.setDate(next.getDate() + d)
+      } else if (cadence === 'WEEKLY') {
+        const w = Math.max(1, opts.intervalWeeks || 1)
+        if (opts.weekday == null || typeof opts.weekday !== 'number') {
+          next.setDate(next.getDate() + 7 * w)
+        } else {
+          const currentDow = next.getDay()
+          let delta = (opts.weekday - currentDow + 7) % 7
+          if (delta === 0) delta = 7 * w
+          next.setDate(next.getDate() + delta)
+        }
+      } else if (cadence === 'MONTHLY') {
+        const y = next.getFullYear()
+        const m = next.getMonth() + 1
+        const moveTo = (year, month1, day) => {
+          const m0 = month1 - 1
+          const dim = daysInMonth(year, m0)
+          const d = Math.min(Math.max(1, day), dim)
+          return new Date(year, m0, d)
+        }
+        const hasNth = typeof opts.nthWeek === 'number' && typeof opts.nthWeekday === 'number' && opts.nthWeek >= 1
+        let candidate
+        if (opts.endOfMonth) {
+          const when = new Date(y, m, 0)
+          candidate = new Date(when.getFullYear(), when.getMonth() + 1, when.getDate())
+        } else if (typeof opts.dayOfMonth === 'number' && opts.dayOfMonth >= 1) {
+          candidate = moveTo(y, m + 1, opts.dayOfMonth)
+        } else if (hasNth) {
+          const targetMonth0 = next.getMonth() + 1
+          const firstDay = new Date(next.getFullYear(), targetMonth0, 1)
+          const firstDow = firstDay.getDay()
+          let day = 1 + ((opts.nthWeekday - firstDow + 7) % 7) + (opts.nthWeek - 1) * 7
+          const dim = daysInMonth(firstDay.getFullYear(), targetMonth0)
+          if (day > dim) day = dim
+          candidate = new Date(firstDay.getFullYear(), targetMonth0, day)
+        } else {
+          candidate = new Date(next.getFullYear(), next.getMonth() + 1, next.getDate())
+        }
+        next.setTime(candidate.getTime())
+      } else if (cadence === 'ANNUAL') {
+        next.setFullYear(next.getFullYear() + 1)
+      }
+      const yyyy = next.getFullYear()
+      const mm = String(next.getMonth() + 1).padStart(2, '0')
+      const dd = String(next.getDate()).padStart(2, '0')
+      // If tenant time zone is provided, interpret midnight in that TZ and convert to UTC
+      if (opts.timeZone && typeof Intl?.DateTimeFormat === 'function') {
+        try {
+          const tz = String(opts.timeZone)
+          const isoLocal = `${yyyy}-${mm}-${dd}T00:00:00`
+          // Approximate: create a Date from parts then adjust with resolved offset by formatting
+          const dt = new Date(isoLocal + 'Z')
+          const fmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          const parts = fmt.formatToParts(dt)
+          const get = (t) => Number(parts.find(p => p.type === t)?.value)
+          const loc = new Date(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'))
+          return new Date(Date.UTC(loc.getFullYear(), loc.getMonth(), loc.getDate(), loc.getHours(), loc.getMinutes(), loc.getSeconds())).toISOString()
+        } catch {}
+      }
+      return `${yyyy}-${mm}-${dd}T00:00:00.000Z`
+    }
+
+    const now = new Date()
+    let rules
+    if (ruleId) {
+      const r = await prisma.recurringRule.findUnique({ where: { id: ruleId } })
+      rules = r ? [r] : []
+    } else {
+      const forcedTenant = String((req.headers['x-tenant-id'] || req.headers['X-Tenant-Id'] || '')).trim()
+      if (forcedTenant) {
+        rules = await prisma.recurringRule.findMany({ where: { tenantId: forcedTenant, isActive: true, nextRunAt: { lte: now } } })
+      } else {
+        rules = await prisma.recurringRule.findMany({ where: { isActive: true, nextRunAt: { lte: now } } })
+      }
+      // Auto-resume: if a rule is paused (isActive=false) but payload.__options.resumeOn has passed, resume it
+      try {
+        const inactive = await prisma.recurringRule.findMany({ where: { isActive: false } })
+        for (const ir of inactive) {
+          const opts = ((ir.payload || {}).__options || {})
+          const resumeOnStr = opts?.resumeOn
+          if (resumeOnStr) {
+            const resumeOn = new Date(resumeOnStr)
+            if (!isNaN(resumeOn.getTime()) && now.getTime() >= resumeOn.getTime()) {
+              await prisma.recurringRule.update({ where: { id: ir.id }, data: { isActive: true } })
+              if (ir.nextRunAt && new Date(ir.nextRunAt).getTime() <= now.getTime()) {
+                rules.push(ir)
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+
+    const results = []
+    for (const r of rules) {
+      const basePayload = r.payload || {}
+      const options = {
+        weekday: r.weekday ?? null,
+        dayOfMonth: r.dayOfMonth ?? null,
+        ...(basePayload.__options || {})
+      }
+      // Inject tenant time zone if present
+      try {
+        const cp = await prisma.companyProfile.findFirst({ where: { tenantId: req.tenantId || 'dev' }, select: { timeZone: true } })
+        if (cp?.timeZone) options.timeZone = cp.timeZone
+      } catch {}
+      const currentRunISO = (r.nextRunAt || r.startDate).toISOString ? r.nextRunAt.toISOString() : new Date(r.nextRunAt || r.startDate).toISOString()
+      // Respect endDate window
+      if (r.endDate) {
+        const end = new Date(r.endDate)
+        if (new Date(currentRunISO).getTime() > end.getTime()) {
+          if (!dryRun) {
+            await prisma.recurringRule.update({ where: { id: r.id }, data: { isActive: false } })
+          }
+          results.push({ id: r.id, skipped: true, reason: 'Past endDate', dryRun: !!dryRun })
+          continue
+        }
+      }
+      // Respect pauseUntil in payload.__options (date-only semantics)
+      try {
+        const pauseUntilStr = ((r.payload || {}).__options || {}).pauseUntil
+        if (pauseUntilStr) {
+          const pu = new Date(pauseUntilStr)
+          if (!isNaN(pu.getTime())) {
+            const cutoff = new Date(pu.getFullYear(), pu.getMonth(), pu.getDate(), 23, 59, 59, 999)
+            if (now.getTime() <= cutoff.getTime()) {
+              results.push({ id: r.id, skipped: true, reason: 'Paused until', pauseUntil: pauseUntilStr, dryRun: !!dryRun })
+              continue
+            }
+          }
+        }
+      } catch {}
+      const nextRunISO = computeNextRun(currentRunISO, String(r.cadence).toUpperCase(), options)
+
+      // Build posting payload with date derived from current scheduled run
+      const runDateYMD = (currentRunISO || new Date().toISOString()).slice(0, 10)
+      let simulate = null
+
+      if (dryRun) {
+        if (String(r.type).toUpperCase() === 'EXPENSE') {
+          // Validate and compute preview entries (no DB writes)
+          const toValidate = {
+            ...basePayload,
+            date: runDateYMD,
+            paymentStatus: basePayload.paymentStatus || 'unpaid'
+          }
+          const validation = PostingService.validateExpensePayload(toValidate)
+          if (validation.isValid) {
+            // Resolve accounts and mirror preview entry composition
+            const resolution = await ExpenseAccountResolver.resolveExpenseAccounts({
+              vendorName: validation.normalizedData.vendorName,
+              amount: validation.normalizedData.amount,
+              date: validation.normalizedData.date,
+              categoryKey: validation.normalizedData.categoryKey,
+              paymentStatus: validation.normalizedData.paymentStatus,
+              description: validation.normalizedData.description
+            })
+            const amount = parseFloat(validation.normalizedData.amount)
+            const amountPaid = Math.min(amount, Math.max(0, parseFloat(validation.normalizedData.amountPaid || amount)))
+            const overpaid = Math.max(0, parseFloat(validation.normalizedData.amountPaid || 0) - amount)
+            const entries = []
+            entries.push({ type: 'debit', accountCode: resolution.debit.accountCode, accountName: resolution.debit.accountName, amount })
+            entries.push({ type: 'credit', accountCode: resolution.credit.accountCode, accountName: resolution.credit.accountName, amount: amountPaid })
+            if (overpaid > 0.01) {
+              const ap = await prisma.account.findFirst({ where: { code: '2010' } })
+              if (ap) entries.push({ type: 'debit', accountCode: '2010', accountName: ap.name, amount: overpaid })
+            }
+            simulate = { documentType: 'expense', dateUsed: validation.normalizedData.date, entries, normalizedData: validation.normalizedData }
+          } else {
+            simulate = { documentType: 'expense', errors: validation.errors }
+          }
+        } else {
+          const toValidate = {
+            ...basePayload,
+            date: runDateYMD,
+            paymentStatus: basePayload.paymentStatus || 'invoice'
+          }
+          const validation = PostingService.validateInvoicePayload(toValidate)
+          if (validation.isValid) {
+            const totalInvoice = parseFloat(validation.normalizedData.amount)
+            const amountPaid = Math.max(0, parseFloat(validation.normalizedData.amountPaid || '0'))
+            const overpaidAmount = amountPaid > totalInvoice ? amountPaid - totalInvoice : 0
+            const accounts = await PostingService.resolveInvoiceAccounts(validation.normalizedData, overpaidAmount)
+            const entries = []
+            entries.push({ type: 'credit', accountCode: accounts.revenue.code, accountName: accounts.revenue.name, amount: totalInvoice })
+            if (amountPaid > 0) entries.push({ type: 'debit', accountCode: accounts.cash.code, accountName: accounts.cash.name, amount: amountPaid })
+            const arAmt = Math.max(0, totalInvoice - amountPaid)
+            if (arAmt > 0) entries.push({ type: 'debit', accountCode: (accounts.arAccount?.code || accounts.cash.code), accountName: (accounts.arAccount?.name || accounts.cash.name), amount: arAmt })
+            if (overpaidAmount > 0 && accounts.customerCredits) entries.push({ type: 'credit', accountCode: accounts.customerCredits.code, accountName: accounts.customerCredits.name, amount: overpaidAmount })
+            simulate = { documentType: 'invoice', dateUsed: validation.normalizedData.date, entries, normalizedData: validation.normalizedData }
+          } else {
+            simulate = { documentType: 'invoice', errors: validation.errors }
+          }
+        }
+      } else {
+        // Commit posting
+        if (String(r.type).toUpperCase() === 'EXPENSE') {
+          // Per-rule terms: allow payload.__options.dueDays or explicit dueDate; default Net-0
+          const opts = (r.payload && r.payload.__options) || {}
+          const dueDays = (opts && (opts.dueDays != null)) ? opts.dueDays : undefined
+          const dueDate = (r.payload && r.payload.dueDate) || undefined
+          const validation = PostingService.validateExpensePayload({ ...basePayload, date: runDateYMD, paymentStatus: basePayload.paymentStatus || 'unpaid', dueDays, dueDate })
+          if (validation.isValid) {
+            const reference = `REC-${r.id}-${runDateYMD}`
+            const posted = await PostingService.postTransaction({ ...validation.normalizedData, reference, recurring: true, recurringRuleId: r.id })
+          results.push({ id: r.id, posted: posted.transactionId })
+            // Append success to run log
+            try {
+              const loaded = await prisma.recurringRule.findUnique({ where: { id: r.id }, select: { payload: true } })
+              const payloadNow = (loaded?.payload) || {}
+              const prior = Array.isArray(payloadNow.__runLog) ? payloadNow.__runLog : []
+              const entry = { at: new Date().toISOString(), runDate: runDateYMD, result: 'posted', transactionId: posted.transactionId }
+              const nextLog = [entry, ...prior].slice(0, 20)
+              await prisma.recurringRule.update({ where: { id: r.id }, data: { payload: { ...payloadNow, __runLog: nextLog } } })
+            } catch {}
+          } else {
+            results.push({ id: r.id, error: 'Validation failed', details: validation.errors })
+            // Append validation error to run log
+            try {
+              const loaded = await prisma.recurringRule.findUnique({ where: { id: r.id }, select: { payload: true } })
+              const payloadNow = (loaded?.payload) || {}
+              const prior = Array.isArray(payloadNow.__runLog) ? payloadNow.__runLog : []
+              const entry = { at: new Date().toISOString(), runDate: runDateYMD, result: 'validation_failed', errors: validation.errors }
+              const nextLog = [entry, ...prior].slice(0, 20)
+              await prisma.recurringRule.update({ where: { id: r.id }, data: { payload: { ...payloadNow, __runLog: nextLog } } })
+            } catch {}
+          }
+        } else {
+          // Per-rule terms for invoices as well
+          const opts = (r.payload && r.payload.__options) || {}
+          const dueDays = (opts && (opts.dueDays != null)) ? opts.dueDays : undefined
+          const dueDate = (r.payload && r.payload.dueDate) || undefined
+          const validation = PostingService.validateInvoicePayload({ ...basePayload, date: runDateYMD, paymentStatus: basePayload.paymentStatus || 'invoice', dueDays, dueDate })
+          if (validation.isValid) {
+            const reference = `REC-${r.id}-${runDateYMD}`
+            const posted = await PostingService.postInvoiceTransaction({ ...validation.normalizedData, reference, recurring: true, recurringRuleId: r.id })
+          results.push({ id: r.id, posted: posted.transactionId })
+            try {
+              const loaded = await prisma.recurringRule.findUnique({ where: { id: r.id }, select: { payload: true } })
+              const payloadNow = (loaded?.payload) || {}
+              const prior = Array.isArray(payloadNow.__runLog) ? payloadNow.__runLog : []
+              const entry = { at: new Date().toISOString(), runDate: runDateYMD, result: 'posted', transactionId: posted.transactionId }
+              const nextLog = [entry, ...prior].slice(0, 20)
+              await prisma.recurringRule.update({ where: { id: r.id }, data: { payload: { ...payloadNow, __runLog: nextLog } } })
+            } catch {}
+          } else {
+            results.push({ id: r.id, error: 'Validation failed', details: validation.errors })
+            try {
+              const loaded = await prisma.recurringRule.findUnique({ where: { id: r.id }, select: { payload: true } })
+              const payloadNow = (loaded?.payload) || {}
+              const prior = Array.isArray(payloadNow.__runLog) ? payloadNow.__runLog : []
+              const entry = { at: new Date().toISOString(), runDate: runDateYMD, result: 'validation_failed', errors: validation.errors }
+              const nextLog = [entry, ...prior].slice(0, 20)
+              await prisma.recurringRule.update({ where: { id: r.id }, data: { payload: { ...payloadNow, __runLog: nextLog } } })
+            } catch {}
+          }
+        }
+      }
+
+      // Advance nextRunAt using advanced cadence rules (only when not dryRun)
+      if (!dryRun) {
+        // If next run goes beyond endDate, deactivate rule
+        if (r.endDate && new Date(nextRunISO).getTime() > new Date(r.endDate).getTime()) {
+          await prisma.recurringRule.update({ where: { id: r.id }, data: { lastRunAt: now, isActive: false } })
+        } else {
+          await prisma.recurringRule.update({ where: { id: r.id }, data: { lastRunAt: now, nextRunAt: new Date(nextRunISO) } })
+        }
+      }
+
+      // Always report planning info
+      results.push({ id: r.id, dryRun: !!dryRun, runDate: runDateYMD, nextRunAt: nextRunISO, simulate })
+    }
+
+    res.json({ ok: true, results })
+  } catch (e) { console.error('recurring run error', e); res.status(500).json({ error: 'Recurring run failed' }) }
+})
+
+// Preview upcoming occurrences for a specific rule (server-parity schedule)
+app.get('/api/recurring/:id/occurrences', async (req, res) => {
+  try {
+    const id = req.params.id
+    const count = Math.max(1, Math.min(24, parseInt(String(req.query.count || '3')) || 3))
+    const r = await prisma.recurringRule.findUnique({ where: { id } })
+    if (!r) return res.status(404).json({ error: 'Rule not found' })
+
+    function daysInMonth(year, month0) { return new Date(year, month0 + 1, 0).getDate() }
+    function computeNextRun(fromISO, cadence, opts = {}) {
+      const from = new Date(fromISO)
+      const next = new Date(from)
+      if (cadence === 'DAILY') {
+        const d = Math.max(1, opts.intervalDays || 1)
+        next.setDate(next.getDate() + d)
+      } else if (cadence === 'WEEKLY') {
+        const w = Math.max(1, opts.intervalWeeks || 1)
+        if (opts.weekday == null || typeof opts.weekday !== 'number') {
+          next.setDate(next.getDate() + 7 * w)
+        } else {
+          const currentDow = next.getDay()
+          let delta = (opts.weekday - currentDow + 7) % 7
+          if (delta === 0) delta = 7 * w
+          next.setDate(next.getDate() + delta)
+        }
+      } else if (cadence === 'MONTHLY') {
+        const y = next.getFullYear()
+        const m = next.getMonth() + 1
+        const moveTo = (year, month1, day) => {
+          const m0 = month1 - 1
+          const dim = daysInMonth(year, m0)
+          const d = Math.min(Math.max(1, day), dim)
+          return new Date(year, m0, d)
+        }
+        const hasNth = typeof opts.nthWeek === 'number' && typeof opts.nthWeekday === 'number' && opts.nthWeek >= 1
+        let candidate
+        if (opts.endOfMonth) {
+          const when = new Date(y, m, 0)
+          candidate = new Date(when.getFullYear(), when.getMonth() + 1, when.getDate())
+        } else if (typeof opts.dayOfMonth === 'number' && opts.dayOfMonth >= 1) {
+          candidate = moveTo(y, m + 1, opts.dayOfMonth)
+        } else if (hasNth) {
+          const targetMonth0 = next.getMonth() + 1
+          const firstDay = new Date(next.getFullYear(), targetMonth0, 1)
+          const firstDow = firstDay.getDay()
+          let day = 1 + ((opts.nthWeekday - firstDow + 7) % 7) + (opts.nthWeek - 1) * 7
+          const dim = daysInMonth(firstDay.getFullYear(), targetMonth0)
+          if (day > dim) day = dim
+          candidate = new Date(firstDay.getFullYear(), targetMonth0, day)
+        } else {
+          candidate = new Date(next.getFullYear(), next.getMonth() + 1, next.getDate())
+        }
+        next.setTime(candidate.getTime())
+      } else if (cadence === 'ANNUAL') {
+        next.setFullYear(next.getFullYear() + 1)
+      }
+      const yyyy = next.getFullYear()
+      const mm = String(next.getMonth() + 1).padStart(2, '0')
+      const dd = String(next.getDate()).padStart(2, '0')
+      return `${yyyy}-${mm}-${dd}T00:00:00.000Z`
+    }
+
+    const basePayload = r.payload || {}
+    const options = { weekday: r.weekday ?? null, dayOfMonth: r.dayOfMonth ?? null, ...(basePayload.__options || {}) }
+    let current = (r.nextRunAt || r.startDate).toISOString ? r.nextRunAt.toISOString() : new Date(r.nextRunAt || r.startDate).toISOString()
+    const out = []
+    for (let i = 0; i < count; i++) {
+      const next = computeNextRun(current, String(r.cadence).toUpperCase(), options)
+      // stop at endDate if set
+      if (r.endDate && new Date(next).getTime() > new Date(r.endDate).getTime()) break
+      out.push(next.slice(0, 10))
+      current = next
+    }
+    res.json({ ruleId: r.id, occurrences: out })
+  } catch (e) {
+    console.error('occurrences preview error:', e)
+    res.status(500).json({ error: 'Failed to compute occurrences' })
   }
 })
 
@@ -1508,7 +2360,7 @@ app.post('/api/setup/ensure-core-accounts', async (req, res) => {
     ]
     const created = []
     for (const a of coreAccounts) {
-      const existing = await prisma.account.findUnique({ where: { code: a.code } })
+      const existing = await prisma.account.findFirst({ where: { code: a.code } })
       if (!existing) {
         await prisma.account.create({ data: a })
         created.push(a.code)
@@ -1521,12 +2373,53 @@ app.post('/api/setup/ensure-core-accounts', async (req, res) => {
   }
 })
 
+// Seed: extended COA pack (idempotent, per-tenant)
+app.post('/api/setup/seed-coa', requireRole('OWNER','ADMIN'), async (req, res) => {
+  try {
+    const preset = String(req.query.preset || 'us-gaap').toLowerCase()
+    const tenantId = String((req && req.tenantId) || 'dev')
+    if (preset !== 'us-gaap') return res.status(400).json({ success: false, error: 'Unsupported preset' })
+
+    const rows = Array.isArray(usGaapCoa.accounts) ? usGaapCoa.accounts : []
+    if (!rows.length) return res.status(500).json({ success: false, error: 'COA dataset missing' })
+
+    const created = []
+    const updated = []
+
+    // Parent linking requires two passes
+    // First ensure all base accounts exist
+    for (const a of rows) {
+      const where = { tenantId_code: { tenantId, code: a.code } }
+      const existing = await prisma.account.findUnique({ where })
+      if (!existing) {
+        await prisma.account.create({ data: { tenantId, code: a.code, name: a.name, type: a.type, normalBalance: a.normalBalance } })
+        created.push(a.code)
+      }
+    }
+    // Second pass: set parentId for those with parentCode
+    for (const a of rows) {
+      if (!a.parentCode) continue
+      const child = await prisma.account.findFirst({ where: { tenantId, code: a.code } })
+      const parent = await prisma.account.findFirst({ where: { tenantId, code: a.parentCode } })
+      if (child && parent && child.parentId !== parent.id) {
+        await prisma.account.update({ where: { id: child.id }, data: { parentId: parent.id } })
+        updated.push(a.code)
+      }
+    }
+
+    res.json({ success: true, preset, tenantId, created, updated, total: rows.length, version: usGaapCoa.version })
+  } catch (e) {
+    console.error('seed-coa error:', e)
+    res.status(500).json({ success: false, error: 'Failed to seed COA' })
+  }
+})
+
 // Seed: initial capital
 app.post('/api/setup/initial-capital', async (req, res) => {
   try {
     const { amount = 10000, reference = 'INITIAL-CAPITAL' } = req.body || {}
-    const cash = await prisma.account.findUnique({ where: { code: '1010' } })
-    const equity = await prisma.account.findUnique({ where: { code: '3000' } })
+    const cash = await prisma.account.findFirst({ where: { code: '1010' } })
+    const equity = await prisma.account.findFirst({ where: { code: '3000' } })
     if (!cash || !equity) return res.status(422).json({ error: 'Core accounts missing. Run /api/setup/ensure-core-accounts first.' })
 
     const tx = await prisma.transaction.create({
@@ -1551,8 +2444,8 @@ app.post('/api/setup/initial-capital', async (req, res) => {
 app.post('/api/setup/sample-revenue', async (req, res) => {
   try {
     const { amount = 5000, reference = 'SAMPLE-REVENUE' } = req.body || {}
-    const cash = await prisma.account.findUnique({ where: { code: '1010' } })
-    const revenue = await prisma.account.findUnique({ where: { code: '4020' } })
+    const cash = await prisma.account.findFirst({ where: { code: '1010' } })
+    const revenue = await prisma.account.findFirst({ where: { code: '4020' } })
     if (!cash || !revenue) return res.status(422).json({ error: 'Core accounts missing. Run /api/setup/ensure-core-accounts first.' })
 
     const tx = await prisma.transaction.create({
@@ -1573,6 +2466,47 @@ app.post('/api/setup/sample-revenue', async (req, res) => {
   }
 })
 
+// Bootstrap a tenant and seed per-tenant core accounts
+app.post('/api/setup/bootstrap-tenant', async (req, res) => {
+  try {
+    const body = req.body || {}
+    const tenantName = String(body.tenantName || 'Default Tenant').trim()
+    const userId = String((req.auth && req.auth.userId) || body.userId || 'local-dev').trim()
+    const role = String(body.role || 'OWNER').toUpperCase()
+
+    // 1) Create or get Tenant by name (no unique constraint on name, so find-first)
+    let tenant = await prisma.tenant.findFirst({ where: { name: tenantName } })
+    let tenantCreated = false
+    if (!tenant) {
+      tenant = await prisma.tenant.create({ data: { name: tenantName } })
+      tenantCreated = true
+    }
+
+    // 2) Ensure Membership (unique on [userId, tenantId])
+    let membership = await prisma.membership.findFirst({ where: { userId, tenantId: tenant.id } })
+    let membershipCreated = false
+    if (!membership) {
+      membership = await prisma.membership.create({ data: { userId, tenantId: tenant.id, role } })
+      membershipCreated = true
+    }
+
+    // 3) Ensure per-tenant core accounts
+    const createdCodes = await ensureCoreAccountsForTenant(tenant.id)
+
+    // Optional: migrate dev data to new tenant on first bootstrap
+    let migrated = 0
+    try {
+      if (tenantCreated) {
+        // No-op placeholder for future data migration
+      }
+    } catch {}
+    res.json({ ok: true, tenantId: tenant.id, tenantCreated, membershipCreated, accountsCreated: createdCodes, migrated })
+  } catch (e) {
+    console.error('bootstrap-tenant error:', e)
+    res.status(500).json({ ok: false, error: 'Failed to bootstrap tenant' })
+  }
+})
+
 // Global error handler
 app.use((err, req, res, next) => {
   const status = 500
@@ -1581,10 +2515,21 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: 'Internal Server Error', details })
 })
 
-// Boot-time safeguard: ensure core accounts exist (idempotent)
+// Boot-time safeguard: ensure core accounts exist for dev tenant (idempotent)
 async function ensureCoreAccountsIfMissing() {
   try {
-    const coreAccounts = [
+    const created = await ensureCoreAccountsForTenant('dev')
+    if (created.length) console.log('[bootstrap] Core accounts created:', created.join(', '))
+    else console.log('[bootstrap] Core accounts already present')
+  } catch (e) {
+    console.error('[bootstrap] ensure-core-accounts failed:', e)
+  }
+}
+
+// Per-tenant core accounts
+async function ensureCoreAccountsForTenant(tenantId) {
+  try {
+    const codes = [
       { code: '1010', name: 'Cash and Cash Equivalents', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '1200', name: 'Accounts Receivable', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '1350', name: 'Deposits & Advances', type: 'ASSET', normalBalance: 'DEBIT' },
@@ -1605,26 +2550,66 @@ async function ensureCoreAccountsIfMissing() {
       { code: '6999', name: 'Other Business Expense', type: 'EXPENSE', normalBalance: 'DEBIT' }
     ]
     const created = []
-    for (const a of coreAccounts) {
-      const existing = await prisma.account.findUnique({ where: { code: a.code } })
+    for (const a of codes) {
+      const existing = await prisma.account.findFirst({ where: { tenantId, code: a.code } })
       if (!existing) {
-        await prisma.account.create({ data: a })
+        await prisma.account.create({ data: { ...a, tenantId } })
         created.push(a.code)
       }
     }
-    if (created.length) {
-      console.log('[bootstrap] Core accounts created:', created.join(', '))
-    } else {
-      console.log('[bootstrap] Core accounts already present')
-    }
+    return created
   } catch (e) {
-    console.error('[bootstrap] ensure-core-accounts failed:', e)
+    console.error('[bootstrap] ensureCoreAccountsForTenant failed:', e)
+    return []
   }
 }
 
 server.listen(PORT, async () => {
   console.log(`Embedded server running on http://localhost:${PORT}`)
-  try { await ensureCoreAccountsIfMissing() } catch {}
+  try {
+    const isProd = String(process.env.NODE_ENV || 'development').toLowerCase() === 'production'
+    const seedFlag = String(process.env.EZE_SEED_CORE_ACCOUNTS || '').toLowerCase() === 'true'
+    if (!isProd || seedFlag) {
+      await ensureCoreAccountsIfMissing()
+    }
+    // Production-grade recurring scheduler (optional).
+    // Enable with AILEGR_RECURRING_CRON=true and optionally control cadence via AILEGR_RECURRING_INTERVAL_MINUTES (default 15).
+    try {
+      const enable = String(process.env.AILEGR_RECURRING_CRON || 'true').toLowerCase() === 'true'
+      const jobKey = String(process.env.AILEGR_JOB_KEY || '')
+      const intervalMinutes = Math.max(1, parseInt(String(process.env.AILEGR_RECURRING_INTERVAL_MINUTES || '15')) || 15)
+      if (enable) {
+        let inFlight = false
+        const runAllTenants = async () => {
+          try {
+            const tenants = await prisma.tenant.findMany({ select: { id: true } })
+            for (const t of tenants) {
+              try {
+                await fetch(`http://localhost:${PORT}/api/recurring/run`, { method: 'POST', headers: { ...(jobKey ? { 'X-Job-Key': jobKey } : {}), 'X-Tenant-Id': t.id } })
+              } catch {}
+            }
+          } catch {
+            // Fallback single call
+            try { await fetch(`http://localhost:${PORT}/api/recurring/run`, { method: 'POST', headers: jobKey ? { 'X-Job-Key': jobKey } : {} }) } catch {}
+          }
+        }
+        const guardedRun = async () => {
+          if (inFlight) return
+          inFlight = true
+          try { await runAllTenants() } finally { inFlight = false }
+        }
+        // Startup: small backfill burst to catch up any missed windows
+        const backfillRuns = Math.max(1, parseInt(String(process.env.AILEGR_RECURRING_STARTUP_BACKFILL_RUNS || '2')) || 2)
+        for (let i = 0; i < backfillRuns; i++) {
+          setTimeout(guardedRun, 1500 + i * 750)
+        }
+        // Interval scheduler (minutes)
+        const intervalMs = intervalMinutes * 60 * 1000
+        setInterval(guardedRun, intervalMs)
+        console.log(`Recurring scheduler enabled: every ${intervalMinutes}m (per-tenant)`) 
+      }
+    } catch {}
+  } catch {}
 })
 
 // AI proxy (optional)
@@ -1645,8 +2630,106 @@ app.post('/api/ai/generate', async (req, res) => {
     res.json({ content, usage: data?.usageMetadata })
   } catch (e) {
     console.error('AI proxy error:', e)
-    res.status(500).json({ error: 'AI request failed', details: 'An error occurred while generating the response.' })
+    // Return vendor‑neutral, user‑friendly message with rate limit hints
+    const status = e?.response?.status
+    if (status === 429) {
+      return res.status(429).json({ code: 'AI_RATE_LIMIT_EXCEEDED', message: 'AI usage limit exceeded. Please try again in a moment.' })
+    }
+    res.status(500).json({ error: 'AI request failed', message: 'We had trouble generating a response. Please try again.' })
   }
+})
+
+app.get('/api/memberships', async (req, res) => {
+  try {
+    // In dev mode (auth disabled), return empty list rather than 401 so UI can proceed.
+    const enforceAuth = String(process.env.AILEGR_AUTH_ENFORCE || 'true').toLowerCase() === 'true'
+    if (!req?.auth?.userId && !enforceAuth) {
+      return res.json({ memberships: [] })
+    }
+    if (!req?.auth?.userId) return res.status(401).json({ error: 'Unauthorized' })
+    const list = await prisma.membership.findMany({ where: { userId: req.auth.userId }, include: { tenant: true }, orderBy: { createdAt: 'asc' } })
+    // Cache profile for current user
+    await upsertUserProfile(req.auth.userId, req?.auth?.email || null)
+    res.json({ memberships: list.map((m) => ({ tenantId: m.tenantId, role: m.role, tenantName: m.tenant?.name || '' })) })
+  } catch (e) { res.status(500).json({ error: 'Failed to load memberships' }) }
+})
+
+app.post('/api/memberships/switch', async (req, res) => {
+  try {
+    const { tenantId } = req.body || {}
+    if (!req?.auth?.userId || !tenantId) return res.status(400).json({ error: 'tenantId required' })
+    const m = await prisma.membership.findFirst({ where: { userId: req.auth.userId, tenantId } })
+    if (!m) return res.status(404).json({ error: 'Not a member of requested tenant' })
+    res.json({ ok: true, tenantId })
+  } catch (e) { res.status(500).json({ error: 'Failed to switch tenant' }) }
+})
+
+// Example RBAC-protected endpoint (admin only)
+app.post('/api/admin/reindex', requireRole('OWNER','ADMIN'), async (req, res) => {
+  try { res.json({ ok: true }) } catch { res.status(500).json({ error: 'Failed' }) }
+})
+
+// Tenant member management
+app.get('/api/members', requireRole('OWNER','ADMIN'), async (req, res) => {
+  try {
+    const list = await prisma.membership.findMany({ where: { tenantId: req.tenantId || 'dev' }, orderBy: { createdAt: 'asc' } })
+    let emailById = new Map()
+    try {
+      const users = await prisma.userProfile.findMany({ where: { userId: { in: list.map(m => m.userId) } } })
+      emailById = new Map(users.map(u => [u.userId, u.email]))
+    } catch {}
+    res.json({ members: list.map(m => ({ userId: m.userId, email: emailById.get(m.userId) || '', role: m.role })) })
+  } catch (e) { res.status(500).json({ error: 'Failed to load members' }) }
+})
+
+app.post('/api/members', requireRole('OWNER'), async (req, res) => {
+  try {
+    const { userId, role } = req.body || {}
+    const uid = String(userId || '').trim()
+    const r = String(role || 'MEMBER').toUpperCase()
+    if (!uid) return res.status(400).json({ error: 'userId required' })
+    if (!['OWNER','ADMIN','MEMBER'].includes(r)) return res.status(400).json({ error: 'Invalid role' })
+    const exists = await prisma.membership.findFirst({ where: { userId: uid, tenantId: req.tenantId || 'dev' } })
+    if (exists) return res.status(409).json({ error: 'Member already exists' })
+    const created = await prisma.membership.create({ data: { userId: uid, tenantId: req.tenantId || 'dev', role: r } })
+    // Try to cache email if provided
+    try { await upsertUserProfile(uid, req?.body?.email || null) } catch {}
+    res.status(201).json({ member: { userId: created.userId, role: created.role } })
+  } catch (e) { res.status(500).json({ error: 'Failed to add member' }) }
+})
+
+app.put('/api/members/:userId', requireRole('OWNER'), async (req, res) => {
+  try {
+    const targetUserId = String(req.params.userId || '').trim()
+    const { role } = req.body || {}
+    const r = String(role || '').toUpperCase()
+    if (!['OWNER','ADMIN','MEMBER'].includes(r)) return res.status(400).json({ error: 'Invalid role' })
+    const m = await prisma.membership.findFirst({ where: { userId: targetUserId, tenantId: req.tenantId || 'dev' } })
+    if (!m) return res.status(404).json({ error: 'Member not found' })
+    // Prevent demoting last OWNER
+    if (m.role === 'OWNER' && r !== 'OWNER') {
+      const owners = await prisma.membership.count({ where: { tenantId: req.tenantId || 'dev', role: 'OWNER' } })
+      if (owners <= 1) return res.status(409).json({ error: 'At least one OWNER required' })
+    }
+    const updated = await prisma.membership.update({ where: { id: m.id }, data: { role: r } })
+    res.json({ member: { userId: updated.userId, role: updated.role } })
+  } catch (e) { res.status(500).json({ error: 'Failed to update member' }) }
+})
+
+app.delete('/api/members/:userId', requireRole('OWNER'), async (req, res) => {
+  try {
+    const targetUserId = String(req.params.userId || '').trim()
+    const m = await prisma.membership.findFirst({ where: { userId: targetUserId, tenantId: req.tenantId || 'dev' } })
+    if (!m) return res.status(404).json({ error: 'Member not found' })
+    // Prevent removing self and prevent removing last OWNER
+    if (req?.auth?.userId && targetUserId === req.auth.userId) return res.status(409).json({ error: 'Cannot remove yourself' })
+    if (m.role === 'OWNER') {
+      const owners = await prisma.membership.count({ where: { tenantId: req.tenantId || 'dev', role: 'OWNER' } })
+      if (owners <= 1) return res.status(409).json({ error: 'At least one OWNER required' })
+    }
+    await prisma.membership.delete({ where: { id: m.id } })
+    res.json({ ok: true })
+  } catch (e) { res.status(500).json({ error: 'Failed to remove member' }) }
 })
 
 

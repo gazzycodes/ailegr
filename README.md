@@ -145,6 +145,7 @@ npm run dev      # Start development server
 npm run build    # Build for production
 npm run preview  # Preview production build
 npm run lint     # Run code linting
+npm run server   # Start backend API (Express + Prisma)
 ```
 
 ### **📁 Project Structure**
@@ -190,3 +191,27 @@ npm run dev
 This is not just accounting software. This is the future of financial interfaces.
 
 **Welcome to the revolution! 🌟**
+
+---
+
+## 🔐 Tenancy & Auth Quick Reference
+
+### Server env (required in prod)
+```bash
+AILEGR_AUTH_ENFORCE=true
+AILEGR_SUPABASE_URL=https://<your-supabase-project>.supabase.co
+AILEGR_JOB_KEY=<random-job-key-for-scheduler>
+AILEGR_RECURRING_CRON=false   # set true on the instance running the scheduler
+# Optional scheduler tuning
+# AILEGR_RECURRING_INTERVAL_MINUTES=15
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public
+```
+
+### Frontend behavior
+- Axios attaches `Authorization: Bearer <jwt>` + `X-Tenant-Id` persisted via tenant switcher.
+- Auth guard protects app views when not logged in (landing/auth only allowed).
+- Tenant bootstrap runs after login; active tenant saved to localStorage.
+- Global `data:refresh` invalidates dashboard/reports/lists consistently.
+
+### Admin actions
+- Settings → Setup Helpers: “Seed Full COA (US‑GAAP)” — idempotent, per‑tenant.

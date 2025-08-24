@@ -1,3 +1,23 @@
+- Implemented due date terms:
+  - Backend: invoices and expenses accept `dueDays` and optional `dueDate`.
+  - If `dueDate` omitted, compute as `date + dueDays` (default Net-0).
+  - Recurring engine passes per-rule terms from `payload.__options.dueDays` and optional `payload.dueDate`.
+  - Stored in transaction customFields for visibility.
+  - Overdue status computation now respects bound dueDate when determining SENT vs OVERDUE for unpaid/partial.
+  - No backend change required for compact actions menu; endpoints already advance `lastRunAt` on Force/cron. Client now auto-refreshes.
+- 2025-08-23 — AP payments engine hardened
+  - Posting stores initialAmountPaid; record/void recomputes amountPaid = initial + payments − voids.
+  - Payments list excludes voided rows; original payment is flagged customFields.voided.
+  - Void reference ids guaranteed unique to avoid Prisma P2002; edit flow supported by delta post or void+repost.
+  - AI proxy and services return vendor-neutral errors; 429 mapped to friendly rate-limit message.
+
+Backlog (Backend)
+- Supabase JWT verification middleware; protect write endpoints
+- Per-tenant bootstrap (COA on tenant creation)
+- Observability: structured logs and error analytics
+- WS AI chat REST fallback and persistence (threads/messages)
+- Tests: unit/integration for posting/edit/void and report aggregations
+ - Discovery: Backend API surface/services/schema reviewed; no backend edits.
 - Dashboard endpoint now returns `aiInsights`; frontend consumes them and displays under PredictiveInsights.
 - Reports endpoints already supported `asOf` and compare; React Query adopted on the client with cache invalidation on `data:refresh`.
 # Backend Integration Progress — frontend-rebuild
@@ -33,7 +53,7 @@ Policy: All future backend/server functionality that the frontend needs will be 
 - Revenue: POST /api/transactions/revenue
 - Capital: POST /api/transactions/capital
 - Customers: GET/POST/PUT /api/customers
-- Setup helpers: POST /api/setup/ensure-core-accounts, /api/setup/initial-capital, /api/setup/sample-revenue
+- Setup helpers: POST /api/setup/ensure-core-accounts, /api/setup/initial-capital, /api/setup/sample-revenue, POST /api/setup/seed-coa?preset=us-gaap
 - AI: POST /api/ai/generate, WebSocket chat (later); Documents classifier: POST /api/documents/classify (heuristic + AI)
   - Company Profile: GET/PUT /api/company-profile (non‑PII identity for perspective detection)
   - AI Category: POST /api/categories/ai/suggest, GET /api/categories/pending, POST /api/categories/pending/:id/approve, POST /api/categories/pending/:id/reject
@@ -71,6 +91,7 @@ Policy: All future backend/server functionality that the frontend needs will be 
  - [x] Identity‑aware classifier: `/api/documents/classify` prefers Expense when Bill To matches saved legalName/aliases/email; falls back to heuristics
 
 ## Today’s checklist
+- Added COA seeding endpoint `POST /api/setup/seed-coa?preset=us-gaap` with idempotent per-tenant insertion, parent linking, and JSON dataset at `server/data/us_gaap_coa.json`. Client helper `seedCoa()` added in `src/services/setupService.ts`.
 - Added boot-time ensure-core-accounts to remove manual setup; plan to move to on-tenant-created when auth lands.
 - Added axios client (`src/services/api.ts`).
 - Added `ReportsService` with P&L, COA, and account transactions.
@@ -98,6 +119,22 @@ Policy: All future backend/server functionality that the frontend needs will be 
   - Reports period-aware: `/api/reports/pnl`, `/api/reports/balance-sheet`, `/api/reports/trial-balance` accept `?asOf=YYYY-MM-DD`; UI passes asOf based on period.
   - Invoices wired: GET `/api/invoices` and POST `/api/invoices` integrated into Invoices view; emits `data:refresh` post‑create.
 - Universal AI rate limiter added (15/min, 200/day). Applied to `/api/ai/generate`, WebSocket chat handler, and AI Category service calls. Neutral errors + X-AI-RateLimit-* headers.
+
+### Tenancy readiness (2025-08-23)
+- Enforced JWT verification via Supabase JWKS; `tenantContextMiddleware` attaches `req.tenantId`.
+- Prisma middleware scopes reads/writes by `tenantId` for tenant models.
+- Membership endpoints:
+  - GET `/api/memberships` (list) and POST `/api/memberships/switch` (switch active tenant)
+  - Admin CRUD at `/api/members` (OWNER/ADMIN list; OWNER add/update/delete)
+- Setup helpers:
+  - POST `/api/setup/bootstrap-tenant` creates tenant + OWNER membership, seeds core accounts.
+  - POST `/api/setup/seed-coa?preset=us-gaap` seeds extended COA (OWNER/ADMIN).
+- Static uploads gated per-tenant at `/uploads/{tenantId}` with auth.
+
+Prod checklist:
+- Set env: `AILEGR_AUTH_ENFORCE=true`, `AILEGR_SUPABASE_URL`, `AILEGR_JOB_KEY`, and `AILEGR_RECURRING_CRON` as appropriate.
+- Configure `DATABASE_URL` (Postgres) and run `prisma migrate deploy`.
+- Ensure proxy forwards `Authorization` and `X-Tenant-Id` headers.
 
 ### Landing support notes
 - No backend work required for recent landing updates (hero simplification, FAQ independence).
@@ -207,4 +244,122 @@ Next backend hooks (incremental):
 - Endpoints: Health, Dashboard, Reports (PnL/BS/TB/COA), Accounts CRUD + ledger, OCR, Posting preview, Expenses, Invoices (+mark‑paid/+record‑payment), Revenue, Capital, Customers CRUD, Setup helpers, AI proxy, AI Categories, Metrics time‑series.
 - Services: `reportingService.js`, `src/services/posting.service.js`, `src/services/expense-account-resolver.service.js`, `src/services/ai-category.service.js`, `src/services/ai-rate-limiter.js`.
 - Boot: ensures core COA exists; local dev scripts `npm run db:generate && npm run db:push && npm run server`.
-- Auth: Not enforced server‑side yet; plan to verify Supabase JWT via JWKS and gate write endpoints.
+- Auth: Not enforced server‑side yet; plan to verify Supabase JWT via JWKS and gate write endpoints.## Sync � pulled origin/main (override local)
+- Reset workspace to origin/main; will re-apply tenancy changes after confirming.
+## Postgres switch + tenant bootstrap � 2025-08-22
+- Switched Prisma datasource to Postgres; created and applied initial migration.
+- Added /api/setup/bootstrap-tenant; seeded per-tenant core accounts.
+- Smoke: /health ok, COA listed, dashboard returns zeros (fresh DB).
+## Postgres switch + tenant bootstrap � 2025-08-22
+- Switched Prisma datasource to Postgres; created and applied initial migration.
+- Added /api/setup/bootstrap-tenant; seeded per-tenant core accounts.
+- Smoke: /health ok, COA listed, dashboard returns zeros (fresh DB).
+
+## Postgres switch + tenant bootstrap � 2025-08-22
+- Dev uses Postgres; initial migration applied.
+- Added /api/setup/bootstrap-tenant; per-tenant core accounts seeded.
+- Smoke: /health ok; COA listed; dashboard zeros (fresh DB).
+
+## Postgres credentials � 2025-08-22
+- Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
+- Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public
+
+## Postgres credentials � 2025-08-22
+- Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
+- Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public
+
+## Postgres credentials � 2025-08-22
+- Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
+- Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public
+
+## AP Bills — parity with AR detail (2025-08-23)
+- Added endpoints:
+  - POST `/api/expenses/:id/mark-paid` — sets `transaction.customFields.paymentStatus = 'paid'`
+  - POST `/api/expenses/:id/record-payment` — creates payment journal (CR 1010 cash, DR 2010 A/P), marks original expense transaction as paid
+- Duplicate check: GET `/api/expenses/check-duplicate?vendor=&vendorInvoiceNo=` — returns `{ duplicate, expense? }`
+- Frontend uses these in `src/services/expensesService.ts` and the AP Bills detail modal in `src/components/transactions/Invoices.tsx`.
+- AP list now supports search (vendor/VIN), status chips, date range, CSV/print, and a detail modal with actions: Mark Paid, Attach Receipt, Record Payment, Duplicate.
+- 2025-08-23T10:53:23.6490884+05:30 - Recurring API: CRUD + run already present; enabled daily scheduler toggle (EZE_RECURRING_CRON) to call /api/recurring/run.
+
+## Discovery Snapshot � 2025-08-23
+- Endpoint map verified: dashboard, reports, accounts, posting, OCR, AI, customers, setup, metrics.
+- Postgres + tenancy in progress: migrations present; bootstrap-tenant; per-tenant COA seeding.
+- Core accounts ensured at boot; move to per-tenant bootstrap later.
+- AP Bills: mark-paid/record-payment endpoints and duplicate check present.
+- AI rate limiting (15/min, 200/day); neutral error messages.
+- Recurring API + daily scheduler toggle (EZE_RECURRING_CRON) to call /api/recurring/run.
+- Next backend: JWT verify middleware, protect writes, WS AI chat persistence, observability.
+
+## Recurring � Backend updates (2025-08-23)
+- /api/recurring/run extended: supports { dryRun, ruleId } and honors payload.__options (endOfMonth, nth weekday).
+- Dry-run returns simulated entries and nextRunAt without committing; commit path advances nextRunAt via advanced cadence.
+
+
+## Recurring � Run endpoint notes (2025-08-23)
+- /api/recurring/run supports { dryRun, ruleId }. DryRun returns simulated entries + nextRunAt; no state change.
+- Commit path tags postings with { isRecurring: true, recurringRuleId } in transaction customFields; Expense.isRecurring=true.
+- Note: dry-run endpoints and UI are for development only and should be disabled in production builds.
+
+
+## Recurring � Scheduling & logging (2025-08-23)
+- Enforced pauseUntil/resumeOn from payload.__options; auto-resume when resumeOn passes.
+- Run log saved in payload.__runLog (last 20).
+- Scheduler toggle env renamed: AILEGR_RECURRING_CRON.
+- Added GET /api/recurring/:id/occurrences for upcoming dates.
+
+### Production toggle notes
+- Dev-only surfaces to hide in production (env-gated):
+  - POST /api/recurring/run with { dryRun } pathways (keep endpoint; hide UI)
+  - UI controls: Simulate, Run Log, Run Due Now
+- Use `AILEGR_RECURRING_CRON` to enable/disable background runs per environment
+
+
+## Tenancy/Auth rollout (2025-08-24T01:33:13.3388457+05:30)
+- Added JWKS-based JWT verification via jose; middleware attaches req.auth and req.tenantId.
+- Prisma tenancy middleware enforces tenantId on models (read/write).
+- Migrated uniqueness: Transaction now unique by (tenantId, reference).
+- Server routes moved to '/api' auth scope; scheduler disabled when auth enforced.
+- Services now import prisma from tenancy layer (single client).
+
+
+## Tenancy hardening (2025-08-24T01:54:09.3549919+05:30)
+- Per-tenant uploads to uploads/{tenantId}; gated /uploads behind auth + path check.
+- WS auth handshake added; tenant bound to connection.
+- CompanyProfile made tenant-scoped; Prisma regenerated.
+- Memberships endpoints + UI selector in Navigation.
+- RBAC middleware applied to admin-sensitive routes.
+- Scheduler uses AILEGR_JOB_KEY; can run per tenant via X-Tenant-Id.
+
+## Recurring — Production scheduler & timezone (2025-08-24)
+- Interval scheduler enabled via `AILEGR_RECURRING_CRON=true`; default every 15 minutes (override `AILEGR_RECURRING_INTERVAL_MINUTES`).
+- Per-tenant sweep with guarded concurrency; startup backfill burst to catch missed windows.
+- CompanyProfile now includes `timeZone` (IANA). If set, recurring computes nextRunAt at tenant-local midnight; else server time.
+- Endpoints unchanged; smoke tests updated to tolerate cron timing.
+
+
+## Membership management (2025-08-24T02:03:13.7336803+05:30)
+- Added /api/members (list/add/update/remove) with OWNER/ADMIN RBAC.
+- Prevent removing last OWNER; prevent self-removal.
+
+### Auth toggle behavior (2025-08-24)
+- Honored `AILEGR_AUTH_ENFORCE=false` as dev/anonymous mode:
+  - `tenantContextMiddleware` now provides a safe fallback identity `{ userId: 'dev-local' }` when no JWT is present.
+  - `requireRole` bypasses RBAC when auth enforcement is disabled.
+  - `GET /api/memberships` returns `{ memberships: [] }` instead of 401 in dev mode.
+  - All other endpoints continue to scope data by `req.tenantId` (defaults to `dev`).
+  - Production: set `AILEGR_AUTH_ENFORCE=true` to require valid JWT and RBAC on protected routes.
+  - JWT verification hardened: tries Supabase JWKS at `/.well-known/jwks.json` and legacy `/certs`, then falls back to HS256 using `AILEGR_SUPABASE_JWT_SECRET`/`SUPABASE_JWT_SECRET`.
+  - Added `GET /api/auth/status` to quickly inspect `enforceAuth`, `userId`, and `tenantId`.
+  - CORS set to `cors({ origin: true, credentials: true })` to avoid preflight/header issues in dev.
+
+### Dashboard metrics & series (2025-08-24)
+- Admin: email invites deferred — we will add after Stripe + SMTP integration. For now, members are added by `userId` in the Admin panel.
+- Time-series endpoint returns `labels` for month display. Frontend passes labels to the chart for accurate tooltip and alignment.
+- Liquid Cash Flow visualization hardened (no degenerate ranges, grid aligned to data points, improved hover).
+
+
+- 2025-08-24 07:21:25Z Extended smoke runs (2 clean + 1 keep). Snapshots at server\tests\snapshots\20250824_072125
+
+- 2025-08-24 08:00:31Z Recurring smoke x3 passed
+
+- 2025-08-24 08:25:43Z Extended recurring smoke suite passed: EOM, nth-weekday, pauseUntil/resume, endDate deactivation, overpaid credits, auto-resume

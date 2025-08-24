@@ -1,0 +1,45 @@
+﻿{
+    "period":  {
+                   "start":  "2025-07-31",
+                   "end":  "2025-08-24"
+               },
+    "revenue":  [
+                    {
+                        "name":  "Product Sales",
+                        "amount":  97033.69
+                    }
+                ],
+    "expenses":  [
+                     {
+                         "name":  "Utilities",
+                         "amount":  424
+                     },
+                     {
+                         "name":  "Other Business Expense",
+                         "amount":  19272
+                     }
+                 ],
+    "cogs":  [
+
+             ],
+    "operatingExpenses":  [
+                              {
+                                  "name":  "Utilities",
+                                  "amount":  424
+                              },
+                              {
+                                  "name":  "Other Business Expense",
+                                  "amount":  19272
+                              }
+                          ],
+    "totals":  {
+                   "revenue":  97033.69,
+                   "cogs":  0,
+                   "grossProfit":  97033.69,
+                   "operatingExpenses":  19696,
+                   "operatingIncome":  77337.69,
+                   "netIncome":  77337.69,
+                   "expenses":  19696,
+                   "netProfit":  77337.69
+               }
+}

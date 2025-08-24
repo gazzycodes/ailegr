@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import FinancialDataService from '../../services/financialDataService'
+import { useAuth } from '../../theme/AuthProvider'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import { BarChart3, Sparkles, Globe, ShieldCheck, Star, RefreshCw, Upload, Wand2, FileText, Calendar, DollarSign } from 'lucide-react'
 import LandingTopNav from './LandingTopNav'
@@ -328,11 +329,14 @@ function HeroAIChip() {
 }
 
 function LiveChips() {
+	const { session } = useAuth()
 	const [metrics, setMetrics] = useState<{ revenue?: number; expenses?: number; profit?: number } | null>(null)
 	const [ai, setAi] = useState<{ minute?: { remaining?: number; limit?: number; resetSeconds?: number }; day?: { remaining?: number; limit?: number } } | null>(null)
 	const [serverOk, setServerOk] = useState<boolean | null>(null)
 	useEffect(() => {
 		;(async () => {
+			// Do not call protected APIs on public landing when not logged in
+			if (!session?.access_token) { setServerOk(false); return }
 			try {
 				const dash = await FinancialDataService.getDashboardData()
 				setMetrics({
@@ -350,7 +354,7 @@ function LiveChips() {
 				if (serverOk === null) setServerOk(false)
 			}
 		})()
-	}, [])
+	}, [session?.access_token])
 	return (
 		<div className="flex flex-wrap items-center justify-center gap-2">
 			<div className="glass-modal rounded-xl border border-white/10 px-3 py-1.5 text-xs shadow">
@@ -510,6 +514,7 @@ function CategorySuggestMini() {
 }
 
 function AnomalyMini() {
+	const { session } = useAuth()
 	const [msg, setMsg] = useState<string>('Loading…')
 	const [trend, setTrend] = useState<'up'|'down'|'flat'>('flat')
 	const [delta, setDelta] = useState<number>(0)
@@ -519,6 +524,13 @@ function AnomalyMini() {
 	const fetchInsight = async () => {
 		try {
 			setLoading(true)
+			if (!session?.access_token) {
+				setMsg('Revenue $20,137.88 — steady upward trend. Consider upselling top clients.')
+				setTrend('up')
+				setDelta(0.07)
+				setTopDriver('Subscriptions')
+				return
+			}
 			const data = await FinancialDataService.getDashboardData()
 			const insights = Array.isArray(data?.aiInsights) ? data.aiInsights : []
 			const first = insights[0] || { message: 'Revenue $20,137.88 — steady upward trend. Consider upselling top clients.', trend: 'up', delta: 0.08, driver: 'Top 3 customers' }
@@ -535,7 +547,7 @@ function AnomalyMini() {
 		finally { setLoading(false) }
 	}
 
-	useEffect(() => { fetchInsight() }, [])
+	useEffect(() => { fetchInsight() }, [session?.access_token])
 
 	return (
 		<ThemedGlassSurface elevation={1} variant="light" className="p-4">

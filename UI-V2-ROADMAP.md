@@ -1,7 +1,36 @@
+- AP Bills (V2 polish) — Completed 2025-08-23
+  - Seamless partial-payment lifecycle: post → edit (delta or void+repost) → void.
+  - Modal and table share a single source-of-truth for Paid/Due/status and synthetic initial payments.
+  - Overpaid state transitions handled live; no animation flicker.
+  - Error UX: vendor-neutral AI errors with helpful rate-limit messaging.
+
+Backlog (UI)
+- Auth UI: login/logout flows with role awareness (Owner/Admin/Member)
+- Auto-refresh for reports/COA after payments/voids (React Query invalidations)
+- Payments history UX: pagination, filters, CSV export
+- Attachments previewer for expenses/invoices (image/PDF)
+- COA drill: running balance, export ledger as CSV/PDF
+- WS AI chat drawer: connect and handle ACTIONs (create expense/invoice)
+- Accessibility pass: ARIA, keyboard nav, focus management
+- Performance: bundle/code-splitting sweep; revisit virtualization where safe
+
+### Recurring (dev-only controls)
+- Hide the following in production (gate behind build flag):
+  - Simulate Next Run (dry‑run)
+  - Build Payload preview
+  - Per‑rule Run Log modal
+  - Global "Run Due Now" action
+- Use `VITE_DEV_TOOLS` or `NODE_ENV !== 'production'` to conditionally render
+- Scheduler env: `AILEGR_RECURRING_CRON` controls background daily runs
 ## Added (2025-08-21)
 - Logout control in navigation: theme-aware button (expanded) and icon (collapsed); uses toast feedback and shallow redirect to `/login`.
 - Reset Password UX: public `/reset-password` screen + Settings → Account Security (change password).
 ## UI V2 Roadmap
+
+## Added (2025-08-22)
+- Backend support for per-tenant COA seeding: `POST /api/setup/seed-coa?preset=us-gaap`.
+- Client helper `seedCoa()` added in `src/services/setupService.ts`.
+- Planned UI: admin-only action in Settings → Company to trigger COA seeding (idempotent) and display created/updated counts.
 
 Purpose: elevate visual polish while staying 100% theme-token driven. No hardcoded values; all styles use tokens in `src/theme/tokens.ts` and theme variables from `src/theme/themes.ts`.
 
@@ -77,6 +106,11 @@ Work queue (execution order)
 - [ ] Reports/Customers polish sweep
 - [ ] A11y + Perf QA checklist
 
+### Multi‑tenant prep (after auth lands)
+- [ ] Add tenant‑aware UI context (store active tenant, show tenant name)
+- [ ] Call `/api/setup/bootstrap-tenant` after login
+- [ ] Ensure recurring list/actions operate per‑tenant only
+
 Non‑goals (for now)
 - Actual authentication logic, session/state
 - Stripe subscription flows — UI scaffold only
@@ -89,4 +123,22 @@ Notes for implementation
 
 - Supabase Auth (initial): client/provider wired; register uses email verification with redirect back to /login; login navigates to /dashboard. Auth UIs upgraded with motion, token-driven focus rings, and success overlays. Dev HUD and chat hidden on public views.
 
+
+
+## Dev parity checkpoint � 2025-08-22
+- Backend switched dev to Postgres; tenancy bootstrap added.
+- Next: auth-derived tenant, protect writes, chat persistence.
+
+## Postgres credentials � 2025-08-22
+- Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
+- Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public
+
+## Postgres credentials � 2025-08-22
+- Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
+- Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public
+
+### Pricing & Membership
+- Dev-only Free plan toggle via VITE_AILEGR_ENABLE_FREE_PLAN.
+- Later: integrate Stripe Checkout + webhooks; map plan->role limits per tenant.
+- On rollout: remove Free or keep as perpetual free tier with usage caps.
 

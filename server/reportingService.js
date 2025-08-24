@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client'
+import { prisma } from './src/tenancy.js'
 import { Decimal } from '@prisma/client/runtime/library'
 
-const prisma = new PrismaClient()
 
 export class ReportingService {
   static async getTrialBalance(asOfDate = null) {

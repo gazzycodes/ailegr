@@ -6,6 +6,10 @@ import AICategories from './ai/AICategories'
 import supabase from '../../services/supabaseClient'
 import { useState as useReactState } from 'react'
 import CompanyService, { type CompanyProfileDTO } from '../../services/companyService'
+import RecurringManager from './RecurringManager'
+import TenantMembers from './TenantMembers'
+import { getUserMemberships } from '../../services/membershipService'
+import { seedCoa } from '../../services/setupService'
 
 export default function Settings() {
   const [busy, setBusy] = useState<string | null>(null)
@@ -15,15 +19,23 @@ export default function Settings() {
   const [confirmPw, setConfirmPw] = useReactState('')
 
   // Company profile state
-  const [company, setCompany] = useState<CompanyProfileDTO>({ legalName: '', aliases: [], email: '', addressLines: [], city: '', state: '', zipCode: '', country: 'US' })
+  const [company, setCompany] = useState<CompanyProfileDTO>({ legalName: '', aliases: [], email: '', addressLines: [], city: '', state: '', zipCode: '', country: 'US', timeZone: null })
   const [companyLoading, setCompanyLoading] = useState(false)
   const [companySaving, setCompanySaving] = useState(false)
   const [companyOpen, setCompanyOpen] = useState(false)
+  const [role, setRole] = useState<'OWNER'|'ADMIN'|'MEMBER'>('MEMBER')
 
   useEffect(() => {
     let mounted = true
     setCompanyLoading(true)
     CompanyService.getCompanyProfile().then((p) => { if (mounted) setCompany(p) }).finally(() => setCompanyLoading(false))
+    ;(async () => {
+      try {
+        const list = await getUserMemberships()
+        const current = Array.isArray(list) && list.length > 0 ? list[0] : null
+        if (mounted && current?.role) setRole(current.role as any)
+      } catch {}
+    })()
     return () => { mounted = false }
   }, [])
 
@@ -85,6 +97,11 @@ export default function Settings() {
               <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.email || ''} onChange={(e)=>setCompany({ ...company, email: e.target.value })} placeholder="finance@yourcompany.com" />
             </label>
             <label className="block">
+              <span className="text-secondary-contrast">Time zone (IANA)</span>
+              <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.timeZone || ''} onChange={(e)=>setCompany({ ...company, timeZone: e.target.value })} placeholder="America/New_York" />
+              <div className="text-xs text-secondary-contrast mt-1">If set, recurring runs at tenant‑local midnight; otherwise server time is used.</div>
+            </label>
+            <label className="block">
               <span className="text-secondary-contrast">Address line 1</span>
               <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.addressLines[0] || ''} onChange={(e)=>{ const lines = [...company.addressLines]; lines[0] = e.target.value; setCompany({ ...company, addressLines: lines }) }} placeholder="123 Tech Park Drive" />
             </label>
@@ -130,11 +147,13 @@ export default function Settings() {
         )}
 
         <div>
-          <div className="text-xl font-semibold">Setup Helpers</div>
-          <div className="text-sm text-secondary-contrast">Quick actions for local development</div>
+          <div className="text-xl font-semibold">Profile & Security</div>
+          <div className="text-sm text-secondary-contrast">Manage your account.</div>
         </div>
 
-        <ThemedGlassSurface variant="light" className="p-4">
+        {/* Developer helpers moved out of Settings for end users; keep minimal profile + security here */}
+        {/* Hidden helpers can remain behind env flags later */}
+        <ThemedGlassSurface variant="light" className="p-4 hidden">
           <div className="space-y-3">
             <button
               disabled={busy === 'accounts'}
@@ -159,11 +178,32 @@ export default function Settings() {
               >
                 {busy === 'revenue' ? 'Posting revenue…' : 'Add Sample Revenue ($5,000)'}
               </button>
+              <button
+                disabled={busy === 'seed-coa'}
+                className="px-3 py-2 rounded-lg bg-primary/20 text-primary border border-primary/30 disabled:opacity-60"
+                onClick={() => run('seed-coa', async () => {
+                  const res = await seedCoa('us-gaap')
+                  return { message: res?.message || 'COA seeded (idempotent)' }
+                })}
+              >
+                {busy === 'seed-coa' ? 'Seeding COA…' : 'Seed Full COA (US‑GAAP)'}
+              </button>
             </div>
 
             {result && <div className="text-sm text-secondary-contrast">{result}</div>}
           </div>
         </ThemedGlassSurface>
+
+        {/* Owner/Admin features: Recurring Manager and Tenant Members */}
+        {(role === 'OWNER' || role === 'ADMIN') && (
+          <>
+            {/* Recurring Manager */}
+            <RecurringManager />
+
+            {/* Tenant Members */}
+            <TenantMembers />
+          </>
+        )}
 
         {/* Account Security */}
         <ThemedGlassSurface variant="light" className="p-4">
