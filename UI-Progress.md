@@ -1,3 +1,9 @@
+- Add Due Terms (dueDays) + Manual Due Date fields to `Settings/RecurringManager` and `RecurringModal`.
+- New Invoice modal now supports entering Due Terms; we default to Net-0 unless provided, with manual Due Date overriding.
+- AI Invoice/Expense modals: added Due Terms field (invoice + expense) with clear labels; minor tooltip-style labels via consistent label text.
+- Due Terms controls now use preset dropdown (Net 0/14/30/45/60/90) + custom days input; server already clamps 0..365.
+- Added compact actions menu (⋯) in `RecurringManager` to keep list dense and avoid overflow; auto-close on outside click and after action.
+- Auto-refresh in `RecurringManager` after Force/Run Due Now and on tab visibility change; light 30s polling while visible.
 2025-08-24 — Auth & Dashboard polish
 - Auto-redirect authenticated users from /, /login, /register, /reset-password → /dashboard.
 - Liquid Cash Flow visualization hardened (labels from backend, better grid alignment, hover stability, thicker line). 1M/3M request at least 6 months to preserve curve shape.

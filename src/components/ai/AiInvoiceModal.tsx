@@ -7,6 +7,7 @@ import { TransactionsService } from '../../services/transactionsService'
 import CustomersService from '../../services/customersService'
 import ExpensesService from '../../services/expensesService'
 import api from '../../services/api'
+import ThemedSelect from '../themed/ThemedSelect'
 
 interface AiInvoiceModalProps {
   open: boolean
@@ -28,6 +29,7 @@ export function AiInvoiceModal({ open, onClose }: AiInvoiceModalProps) {
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [dueDays, setDueDays] = useState('')
   const [invoiceNumber, setInvoiceNumber] = useState('')
   const [status, setStatus] = useState<'paid' | 'invoice' | 'partial' | 'overpaid'>('invoice')
   const [notes, setNotes] = useState('')
@@ -89,7 +91,9 @@ export function AiInvoiceModal({ open, onClose }: AiInvoiceModalProps) {
         date,
         description: notes || `Invoice for ${customer.trim()}`,
         invoiceNumber: invoiceNumber || undefined,
-        paymentStatus: status
+        paymentStatus: status,
+        dueDate: dueDate || undefined,
+        dueDays: dueDays === '' ? undefined : Math.max(0, Math.min(365, Number(dueDays) || 0))
       })
       // Inform user explicitly if this was an idempotent duplicate
       try {
@@ -322,8 +326,23 @@ TEXT:\n${text.slice(0, 12000)}`
                           <input type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={date} onChange={(e) => setDate(e.target.value)} />
                         </label>
                         <label className="flex flex-col gap-1">
-                          <span className="text-secondary-contrast">Due Date</span>
+                          <span className="text-secondary-contrast flex items-center gap-1">Due Date</span>
                           <input type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <span className="text-secondary-contrast flex items-center gap-1">Due Terms</span>
+                          <div className="flex gap-2">
+                            <ThemedSelect value={["0","14","30","45","60","90"].includes(dueDays) ? dueDays : ''} onChange={(e) => setDueDays((e.target as HTMLSelectElement).value || dueDays)}>
+                              <option value="">Custom</option>
+                              <option value="0">Net 0</option>
+                              <option value="14">Net 14</option>
+                              <option value="30">Net 30</option>
+                              <option value="45">Net 45</option>
+                              <option value="60">Net 60</option>
+                              <option value="90">Net 90</option>
+                            </ThemedSelect>
+                            <input type="number" min={0} max={365} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md w-24" value={dueDays} onChange={(e) => setDueDays(e.target.value)} placeholder="days" />
+                          </div>
                         </label>
                         <label className="flex flex-col gap-1">
                           <span className="text-secondary-contrast">Invoice #</span>

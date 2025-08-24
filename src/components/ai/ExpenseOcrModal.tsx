@@ -15,6 +15,7 @@ export default function ExpenseOcrModal({ open, onClose }: ExpenseOcrModalProps)
 	const [vendorInvoiceNo, setVendorInvoiceNo] = useState('')
 	const [amount, setAmount] = useState('')
 	const [date, setDate] = useState('')
+	const [dueDays, setDueDays] = useState('')
 	const [preview, setPreview] = useState<any | null>(null)
 	const [submitting, setSubmitting] = useState(false)
 	const [error, setError] = useState<string | null>(null)
@@ -83,7 +84,7 @@ export default function ExpenseOcrModal({ open, onClose }: ExpenseOcrModalProps)
 					}
 				} catch {}
 			}
-			const res = await ExpensesService.postExpense({ vendorName: vendor.trim(), vendorInvoiceNo: vendorInvoiceNo.trim() || undefined, amount: amt, date, paymentStatus: 'paid', description: `Expense: ${vendor.trim()}` })
+			const res = await ExpensesService.postExpense({ vendorName: vendor.trim(), vendorInvoiceNo: vendorInvoiceNo.trim() || undefined, amount: amt, date, paymentStatus: 'paid', description: `Expense: ${vendor.trim()}`, dueDays: (dueDays === '' ? undefined : Math.max(0, Math.min(365, Number(dueDays) || 0))) })
 			// Attach receipt if available and we have the expense id
 			try {
 				const expenseId = (res as any)?.expenseId || (res as any)?.expense?.id
@@ -143,6 +144,10 @@ export default function ExpenseOcrModal({ open, onClose }: ExpenseOcrModalProps)
 							<label className="flex flex-col gap-1">
 								<span className="text-secondary-contrast">Date</span>
 								<input type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={date} onChange={(e) => setDate(e.target.value)} />
+							</label>
+							<label className="flex flex-col gap-1">
+								<span className="text-secondary-contrast">Due Terms (days)</span>
+								<input type="number" min={0} max={365} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={dueDays} onChange={(e) => setDueDays(e.target.value)} placeholder="e.g., 0, 14, 30" />
 							</label>
 							<div className="flex items-end gap-2">
 								<button className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" onClick={handlePreview}>Preview</button>

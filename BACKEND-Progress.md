@@ -1,3 +1,10 @@
+- Implemented due date terms:
+  - Backend: invoices and expenses accept `dueDays` and optional `dueDate`.
+  - If `dueDate` omitted, compute as `date + dueDays` (default Net-0).
+  - Recurring engine passes per-rule terms from `payload.__options.dueDays` and optional `payload.dueDate`.
+  - Stored in transaction customFields for visibility.
+  - Overdue status computation now respects bound dueDate when determining SENT vs OVERDUE for unpaid/partial.
+  - No backend change required for compact actions menu; endpoints already advance `lastRunAt` on Force/cron. Client now auto-refreshes.
 - 2025-08-23 — AP payments engine hardened
   - Posting stores initialAmountPaid; record/void recomputes amountPaid = initial + payments − voids.
   - Payments list excludes voided rows; original payment is flagged customFields.voided.

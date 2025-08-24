@@ -2118,7 +2118,11 @@ app.post('/api/recurring/run', async (req, res) => {
       } else {
         // Commit posting
         if (String(r.type).toUpperCase() === 'EXPENSE') {
-          const validation = PostingService.validateExpensePayload({ ...basePayload, date: runDateYMD, paymentStatus: basePayload.paymentStatus || 'unpaid' })
+          // Per-rule terms: allow payload.__options.dueDays or explicit dueDate; default Net-0
+          const opts = (r.payload && r.payload.__options) || {}
+          const dueDays = (opts && (opts.dueDays != null)) ? opts.dueDays : undefined
+          const dueDate = (r.payload && r.payload.dueDate) || undefined
+          const validation = PostingService.validateExpensePayload({ ...basePayload, date: runDateYMD, paymentStatus: basePayload.paymentStatus || 'unpaid', dueDays, dueDate })
           if (validation.isValid) {
             const reference = `REC-${r.id}-${runDateYMD}`
             const posted = await PostingService.postTransaction({ ...validation.normalizedData, reference, recurring: true, recurringRuleId: r.id })
@@ -2145,7 +2149,11 @@ app.post('/api/recurring/run', async (req, res) => {
             } catch {}
           }
         } else {
-          const validation = PostingService.validateInvoicePayload({ ...basePayload, date: runDateYMD, paymentStatus: basePayload.paymentStatus || 'invoice' })
+          // Per-rule terms for invoices as well
+          const opts = (r.payload && r.payload.__options) || {}
+          const dueDays = (opts && (opts.dueDays != null)) ? opts.dueDays : undefined
+          const dueDate = (r.payload && r.payload.dueDate) || undefined
+          const validation = PostingService.validateInvoicePayload({ ...basePayload, date: runDateYMD, paymentStatus: basePayload.paymentStatus || 'invoice', dueDays, dueDate })
           if (validation.isValid) {
             const reference = `REC-${r.id}-${runDateYMD}`
             const posted = await PostingService.postInvoiceTransaction({ ...validation.normalizedData, reference, recurring: true, recurringRuleId: r.id })

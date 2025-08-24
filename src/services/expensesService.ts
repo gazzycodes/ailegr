@@ -13,7 +13,11 @@ export async function previewExpense(payload: any) {
 }
 
 export async function postExpense(payload: any) {
-  const { data } = await api.post('/api/expenses', payload)
+  const body = {
+    ...payload,
+    dueDays: payload.dueDays != null ? (typeof payload.dueDays === 'string' ? parseInt(payload.dueDays, 10) : payload.dueDays) : undefined
+  }
+  const { data } = await api.post('/api/expenses', body)
   return data
 }
 

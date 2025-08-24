@@ -49,6 +49,23 @@ Evaluation order (first match wins):
 ### Annual
 - Adds +1 year (same day). Date clamp rules apply via the underlying JS Date.
 
+### Due Date Terms
+- Each rule can optionally specify `dueDays` in `payload.__options` and/or a manual `dueDate`.
+- If `dueDate` is provided on the rule, it is used for each occurrence; otherwise the engine computes `dueDate = runDate + dueDays`.
+- Default is Net‑0 (dueDays=0). UI exposes both fields; manual due date overrides terms.
+
+### UI/UX (Production)
+- The Recurring screens provide:
+  - Preset Due Terms (Net 0/14/30/45/60/90) via a theme-aware select, plus a custom days input.
+  - Tooltips (InfoHint) explaining Day of month, End of month, Nth week, Nth weekday, Due Terms, and Manual Due Date.
+  - Compact actions menu (⋯) per rule with Edit, Pause/Resume, Preview, Force, View Log, Run, Delete.
+  - Auto-refresh of the list after operations and when the tab becomes visible; also light periodic refresh while visible.
+
+### Simulation and Force
+- Simulate Due: Runs a dry-run across due rules (or a single rule) and returns what would post; no DB changes.
+- Force: Posts one occurrence immediately using the scheduled run date (respects dueDays and manual dueDate). Useful for backdating/future-dating tests.
+- Cron: On schedule, the same logic is used as Force, so simulation results match production behavior.
+
 ## Timezone Handling
 
 - Field: `CompanyProfile.timeZone` (IANA, e.g., `America/New_York`)

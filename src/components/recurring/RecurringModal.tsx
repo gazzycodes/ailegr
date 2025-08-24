@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import { ModalPortal } from '../layout/ModalPortal'
 import RecurringService from '../../services/recurringService'
+import ThemedSelect from '../themed/ThemedSelect'
+import InfoHint from '../themed/InfoHint'
 import { getNextOccurrences } from '../../lib/recurring'
 
 export type RecurringModalPayload =
@@ -21,6 +23,8 @@ export default function RecurringModal({ open, onClose, seed }: { open: boolean;
   const [endOfMonth, setEndOfMonth] = useState(false)
   const [nthWeek, setNthWeek] = useState<string>('')
   const [nthWeekday, setNthWeekday] = useState<string>('')
+  const [dueDays, setDueDays] = useState<string>('')
+  const [manualDueDate, setManualDueDate] = useState<string>('')
   const [preview, setPreview] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [payloadPreview, setPayloadPreview] = useState<any | null>(null)
@@ -46,7 +50,8 @@ export default function RecurringModal({ open, onClose, seed }: { open: boolean;
       const body: any = { type, cadence, startDate: start, endDate: end || undefined, payload }
       if (weekday !== '') body.weekday = Number(weekday)
       if (dayOfMonth !== '') body.dayOfMonth = Number(dayOfMonth)
-      payload.__options = { endOfMonth, nthWeek: nthWeek === '' ? undefined : Number(nthWeek), nthWeekday: nthWeekday === '' ? undefined : Number(nthWeekday) }
+      payload.__options = { endOfMonth, nthWeek: nthWeek === '' ? undefined : Number(nthWeek), nthWeekday: nthWeekday === '' ? undefined : Number(nthWeekday), dueDays: dueDays === '' ? undefined : Math.max(0, Math.min(365, Number(dueDays) || 0)) }
+      if (manualDueDate) (payload as any).dueDate = manualDueDate
       await RecurringService.createRecurring(body)
       window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Recurring rule saved', type: 'success' } }))
       onClose()
@@ -164,20 +169,20 @@ export default function RecurringModal({ open, onClose, seed }: { open: boolean;
                 {cadence === 'MONTHLY' && (
                   <>
                     <label className="flex flex-col gap-1">
-                      <span className="text-secondary-contrast">Day of month</span>
+                      <InfoHint label="Day of month">Runs on this calendar day each month (1–31). If the month has fewer days, we clamp to the month end.</InfoHint>
                       <input type="number" min={1} max={31} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={dayOfMonth} onChange={(e) => setDayOfMonth(e.target.value)} placeholder="1..31" />
                     </label>
                     <label className="flex items-center gap-2 mt-7">
                       <input type="checkbox" checked={endOfMonth} onChange={(e) => setEndOfMonth(e.target.checked)} />
-                      <span className="text-sm">Run on end of month</span>
+                      <InfoHint label="Run on end of month">Always schedule on the last day of each month, accounting for variable month lengths.</InfoHint>
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-secondary-contrast">Nth week (1..5, 5=last)</span>
+                      <InfoHint label="Nth week (1..5, 5=last)">Choose which week of the month (1st to 4th; 5th = last occurrence) to use with the weekday below.</InfoHint>
                       <input type="number" min={1} max={5} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={nthWeek} onChange={(e) => setNthWeek(e.target.value)} />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-secondary-contrast">Nth weekday</span>
-                      <select className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={nthWeekday} onChange={(e) => setNthWeekday(e.target.value)}>
+                      <InfoHint label="Nth weekday">Paired with Nth week. For example, 2nd Friday of each month.</InfoHint>
+                      <ThemedSelect value={nthWeekday} onChange={(e) => setNthWeekday((e.target as HTMLSelectElement).value)}>
                         <option value="">—</option>
                         <option value="0">Sunday</option>
                         <option value="1">Monday</option>
@@ -186,10 +191,31 @@ export default function RecurringModal({ open, onClose, seed }: { open: boolean;
                         <option value="4">Thursday</option>
                         <option value="5">Friday</option>
                         <option value="6">Saturday</option>
-                      </select>
+                      </ThemedSelect>
                     </label>
                   </>
                 )}
+
+                {/* Terms */}
+                <label className="flex flex-col gap-1">
+                  <InfoHint label="Due Terms">Per-rule payment terms. Presets or custom days (0–365).</InfoHint>
+                  <div className="flex gap-2">
+                    <ThemedSelect value={["0","14","30","45","60","90"].includes(dueDays) ? dueDays : ''} onChange={(e) => setDueDays((e.target as HTMLSelectElement).value || dueDays)}>
+                      <option value="">Custom</option>
+                      <option value="0">Net 0</option>
+                      <option value="14">Net 14</option>
+                      <option value="30">Net 30</option>
+                      <option value="45">Net 45</option>
+                      <option value="60">Net 60</option>
+                      <option value="90">Net 90</option>
+                    </ThemedSelect>
+                    <input type="number" min={0} max={365} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 w-24" value={dueDays} onChange={(e) => setDueDays(e.target.value)} placeholder="days" />
+                  </div>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <InfoHint label="Manual Due Date (optional)">Overrides Due Terms for each posting.</InfoHint>
+                  <input type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={manualDueDate} onChange={(e) => setManualDueDate(e.target.value)} />
+                </label>
 
                 <div className="sm:col-span-2">
                   <div className="text-xs text-secondary-contrast">Next 3 occurrences:</div>

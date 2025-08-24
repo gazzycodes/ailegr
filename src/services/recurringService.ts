@@ -51,11 +51,17 @@ export async function simulateNextRun(ruleId?: string) {
   return data
 }
 
+export async function forceRunRule(ruleId: string) {
+  // Posts one occurrence for the specified rule immediately, even if not due
+  const { data } = await api.post('/api/recurring/run', { ruleId })
+  return data
+}
+
 export async function getOccurrences(ruleId: string, count: number = 3): Promise<string[]> {
   const { data } = await api.get(`/api/recurring/${ruleId}/occurrences`, { params: { count } })
   return Array.isArray(data?.occurrences) ? data.occurrences : []
 }
 
-export default { listRecurring, createRecurring, updateRecurring, pauseRecurring, resumeRecurring, runRecurringNow, simulateNextRun, getOccurrences }
+export default { listRecurring, createRecurring, updateRecurring, pauseRecurring, resumeRecurring, runRecurringNow, simulateNextRun, getOccurrences, forceRunRule }
 
 

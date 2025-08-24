@@ -8,6 +8,8 @@ import ExpensesService from '../../services/expensesService'
 import CustomersService from '../../services/customersService'
 import { TransactionsService } from '../../services/transactionsService'
 import api from '../../services/api'
+import ThemedSelect from '../themed/ThemedSelect'
+import InfoHint from '../themed/InfoHint'
 
 interface AiDocumentModalProps {
   open: boolean
@@ -822,7 +824,7 @@ TEXT:\n${text.slice(0,12000)}`
           } catch {}
         }
 
-        const res = await ExpensesService.postExpense({ vendorName: vendor.trim(), vendorInvoiceNo: vendorInvoiceNo.trim() || undefined, amount: totalWithTax, amountPaid: amountPaidVal, balanceDue: balanceDueVal, date, paymentStatus: paymentStatusVal, description: description || `Expense: ${vendor.trim()}` })
+        const res = await ExpensesService.postExpense({ vendorName: vendor.trim(), vendorInvoiceNo: vendorInvoiceNo.trim() || undefined, amount: totalWithTax, amountPaid: amountPaidVal, balanceDue: balanceDueVal, date, paymentStatus: paymentStatusVal, description: description || `Expense: ${vendor.trim()}`, dueDays: undefined })
         try {
           const expenseId = (res as any)?.expenseId || (res as any)?.expense?.id
           if (expenseId && selectedFile) {
@@ -972,8 +974,8 @@ TEXT:\n${text.slice(0,12000)}`
                       {mode === 'invoice' ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                           <label className="flex flex-col gap-1 relative">
-                            <span className="text-secondary-contrast">Customer</span>
-                            <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={customer} onChange={(e) => handleCustomerChange(e.target.value)} placeholder="Acme Corp" onFocus={() => setShowSuggest(true)} />
+                            <InfoHint label="Customer">Name of the customer receiving your invoice.</InfoHint>
+                            <input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={customer} onChange={(e) => handleCustomerChange(e.target.value)} placeholder="Acme Corp" onFocus={() => setShowSuggest(true)} />
                             {showSuggest && (suggestions.length > 0 || loadingSuggest) && (
                               <div className="absolute top-full mt-1 left-0 right-0 z-10 rounded-lg border border-white/10 bg-surface/80 backdrop-blur-xl shadow-lg max-h-56 overflow-auto">
                                 {loadingSuggest && <div className="px-3 py-2 text-sm text-secondary-contrast">Searching...</div>}
@@ -994,15 +996,15 @@ TEXT:\n${text.slice(0,12000)}`
                             )}
                           </label>
                           <label className="flex flex-col gap-1">
-                            <span className="text-secondary-contrast">Date</span>
-                            <input disabled={!manualEdit} type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={date} onChange={(e) => { setDate(e.target.value); if (manualEdit) updateConf('date', 1.0) }} />
+                            <InfoHint label="Date">Invoice issue date. Due date is computed from terms if left blank.</InfoHint>
+                            <input type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={date} onChange={(e) => setDate(e.target.value)} />
                             {fieldConfidence.date !== undefined && (
                               <div className={`${(fieldConfidence.date as number) < 0.6 ? 'text-yellow-400' : 'text-secondary-contrast'} text-xs`}>Confidence: {Math.round((fieldConfidence.date as number) * 100)}%</div>
                             )}
                           </label>
                           <label className="flex flex-col gap-1">
-                            <span className="text-secondary-contrast">Due Date</span>
-                            <input disabled={!manualEdit} type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={dueDate} onChange={(e) => { setDueDate(e.target.value); if (manualEdit) updateConf('dueDate', 1.0) }} />
+                            <InfoHint label="Due Date">Optional override. If set, we ignore Due Terms.</InfoHint>
+                            <input type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
                             {fieldConfidence.dueDate !== undefined && (
                               <div className={`${(fieldConfidence.dueDate as number) < 0.6 ? 'text-yellow-400' : 'text-secondary-contrast'} text-xs`}>Confidence: {Math.round((fieldConfidence.dueDate as number) * 100)}%</div>
                             )}

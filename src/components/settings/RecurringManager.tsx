@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import RecurringService, { type RecurringRule } from '../../services/recurringService'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
+import ThemedSelect from '../themed/ThemedSelect'
+import InfoHint from '../themed/InfoHint'
 import { ModalPortal } from '../layout/ModalPortal'
 import { getNextOccurrences } from '../../lib/recurring'
 
@@ -13,6 +15,7 @@ export default function RecurringManager() {
   const [editor, setEditor] = useState<{ open: boolean; rule?: RecurringRule }>(() => ({ open: false }))
   const [previewModal, setPreviewModal] = useState<{ open: boolean; json?: any }>({ open: false })
   const [logModal, setLogModal] = useState<{ open: boolean; entries: any[] }>({ open: false, entries: [] })
+  const [actionsOpenId, setActionsOpenId] = useState<string | null>(null)
 
   const load = async () => {
     try {
@@ -26,6 +29,23 @@ export default function RecurringManager() {
   }
 
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    const onRefresh = () => load()
+    const onVis = () => { try { if (document.visibilityState === 'visible') load() } catch {} }
+    try { window.addEventListener('recurring:updated', onRefresh) } catch {}
+    try { window.addEventListener('data:refresh', onRefresh) } catch {}
+    try { document.addEventListener('visibilitychange', onVis) } catch {}
+    const id = window.setInterval(() => { try { if (document.visibilityState === 'visible') load() } catch {} }, 30000)
+    const onDocClick = () => setActionsOpenId(null)
+    try { document.addEventListener('click', onDocClick) } catch {}
+    return () => {
+      try { window.removeEventListener('recurring:updated', onRefresh) } catch {}
+      try { window.removeEventListener('data:refresh', onRefresh) } catch {}
+      try { document.removeEventListener('visibilitychange', onVis) } catch {}
+      try { document.removeEventListener('click', onDocClick) } catch {}
+      window.clearInterval(id)
+    }
+  }, [])
 
   const doAction = async (id: string, action: ManagerAction) => {
     try {
@@ -56,6 +76,7 @@ export default function RecurringManager() {
               await RecurringService.runRecurringNow()
               window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Triggered Run Due Now', type: 'success' } }))
               await load()
+              try { window.dispatchEvent(new Event('recurring:updated')) } catch {}
             } catch (e: any) {
               window.dispatchEvent(new CustomEvent('toast', { detail: { message: e?.message || 'Run failed', type: 'error' } }))
             }
@@ -76,8 +97,9 @@ export default function RecurringManager() {
       {loading && <div className="text-sm text-secondary-contrast">Loading…</div>}
       {error && <div className="text-sm text-red-400">{error}</div>}
 
-      <div className="rounded-lg border border-white/10 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="rounded-lg border border-white/10">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[780px] text-sm table-auto">
           <thead className="bg-surface/60">
             <tr>
               <th className="text-left px-3 py-2">Name</th>
@@ -89,15 +111,15 @@ export default function RecurringManager() {
               <th className="text-right px-3 py-2">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="align-top">
             {rules.map((r) => (
-              <tr key={r.id} className="border-t border-white/10">
+              <tr key={r.id} className="border-t border-white/10 align-top">
                 <td className="px-3 py-2 truncate">{(r as any).name || (r.payload?.description || r.payload?.vendorName || r.payload?.customerName || '-') }</td>
                 <td className="px-3 py-2">{String(r.type).toLowerCase()}</td>
                 <td className="px-3 py-2">{r.cadence}</td>
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2">
-                    <span>{(r.nextRunAt || '').slice(0,10)}</span>
+                    <span className="whitespace-nowrap">{(r.nextRunAt || '').slice(0,10)}</span>
                     <button className="px-2 py-0.5 text-xs rounded border border-white/10 hover:bg-white/10" onClick={async () => {
                       try {
                         const occ = await RecurringService.getOccurrences(r.id, 3)
@@ -108,39 +130,55 @@ export default function RecurringManager() {
                     }}>Upcoming</button>
                   </div>
                 </td>
-                <td className="px-3 py-2">{r.lastRunAt ? String(r.lastRunAt).slice(0,10) : '-'}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{r.lastRunAt ? String(r.lastRunAt).slice(0,10) : '-'}</td>
                 <td className="px-3 py-2">{r.isActive ? 'Active' : 'Paused'}</td>
-                <td className="px-3 py-2 text-right">
-                  <div className="inline-flex gap-1">
-                    <button className="px-2 py-1 rounded border border-white/10 hover:bg-white/10" onClick={() => setEditor({ open: true, rule: r })}>Edit</button>
-                    {r.isActive ? (
-                      <button className="px-2 py-1 rounded border border-white/10 hover:bg-white/10" onClick={() => doAction(r.id, 'pause')}>Pause</button>
-                    ) : (
-                      <button className="px-2 py-1 rounded border border-white/10 hover:bg-white/10" onClick={() => doAction(r.id, 'resume')}>Resume</button>
+                <td className="px-3 py-1 align-top">
+                  <div className="relative flex justify-end">
+                    <button className="px-2 py-1 text-xs rounded border border-white/10 hover:bg-white/10" onClick={(e) => { e.stopPropagation(); setActionsOpenId(actionsOpenId === r.id ? null : r.id) }}>⋯</button>
+                    {actionsOpenId === r.id && (
+                      <div className="absolute right-0 top-full mt-1 z-20 min-w-[160px] rounded-lg border border-white/10 bg-surface/80 backdrop-blur-xl shadow-xl p-1 text-sm" onClick={(e) => e.stopPropagation()}>
+                        <button className="w-full text-left px-2 py-1 rounded hover:bg-white/10" onClick={() => { setEditor({ open: true, rule: r }); setActionsOpenId(null) }}>Edit</button>
+                        {r.isActive ? (
+                          <button className="w-full text-left px-2 py-1 rounded hover:bg-white/10" onClick={() => { doAction(r.id, 'pause'); setActionsOpenId(null) }}>Pause</button>
+                        ) : (
+                          <button className="w-full text-left px-2 py-1 rounded hover:bg-white/10" onClick={() => { doAction(r.id, 'resume'); setActionsOpenId(null) }}>Resume</button>
+                        )}
+                        <button className="w-full text-left px-2 py-1 rounded hover:bg-white/10" onClick={async () => {
+                          try {
+                            const sim = await RecurringService.simulateNextRun(r.id)
+                            setPreviewModal({ open: true, json: sim })
+                            window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Preview simulated (dry‑run)', type: 'success' } }))
+                          } catch (e: any) {
+                            window.dispatchEvent(new CustomEvent('toast', { detail: { message: e?.message || 'Simulation failed', type: 'error' } }))
+                          } finally { setActionsOpenId(null) }
+                        }}>Preview</button>
+                        <button className="w-full text-left px-2 py-1 rounded hover:bg-white/10" onClick={async () => {
+                          try {
+                            await RecurringService.forceRunRule(r.id)
+                            window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Forced one run for this rule', type: 'success' } }))
+                            await load()
+                            window.dispatchEvent(new Event('data:refresh'))
+                            try { window.dispatchEvent(new Event('recurring:updated')) } catch {}
+                          } catch (e: any) {
+                            window.dispatchEvent(new CustomEvent('toast', { detail: { message: e?.message || 'Force run failed', type: 'error' } }))
+                          } finally { setActionsOpenId(null) }
+                        }}>Force</button>
+                        <button className="w-full text-left px-2 py-1 rounded hover:bg-white/10" onClick={() => {
+                          try {
+                            const entries = Array.isArray((r as any)?.payload?.__runLog) ? (r as any).payload.__runLog : []
+                            if (!entries.length) {
+                              window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'No run log yet for this rule', type: 'info' } }))
+                              return
+                            }
+                            setLogModal({ open: true, entries })
+                          } catch {
+                            window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'No run log available', type: 'info' } }))
+                          } finally { setActionsOpenId(null) }
+                        }}>View Log</button>
+                        <button className="w-full text-left px-2 py-1 rounded hover:bg-white/10" onClick={() => { doAction(r.id, 'run'); setActionsOpenId(null) }}>Run</button>
+                        <button className="w-full text-left px-2 py-1 rounded hover:bg-white/10 text-red-300" onClick={() => { doAction(r.id, 'delete'); setActionsOpenId(null) }}>Delete</button>
+                      </div>
                     )}
-                    <button className="px-2 py-1 rounded border border-white/10 hover:bg-white/10" onClick={async () => {
-                      try {
-                        const sim = await RecurringService.simulateNextRun(r.id)
-                        setPreviewModal({ open: true, json: sim })
-                        window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Preview simulated (dry‑run)', type: 'success' } }))
-                      } catch (e: any) {
-                        window.dispatchEvent(new CustomEvent('toast', { detail: { message: e?.message || 'Simulation failed', type: 'error' } }))
-                      }
-                    }}>Preview</button>
-                    <button className="px-2 py-1 rounded border border-white/10 hover:bg-white/10" onClick={() => {
-                      try {
-                        const entries = Array.isArray((r as any)?.payload?.__runLog) ? (r as any).payload.__runLog : []
-                        if (!entries.length) {
-                          window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'No run log yet for this rule', type: 'info' } }))
-                          return
-                        }
-                        setLogModal({ open: true, entries })
-                      } catch {
-                        window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'No run log available', type: 'info' } }))
-                      }
-                    }}>View Log</button>
-                    <button className="px-2 py-1 rounded border border-white/10 hover:bg-white/10" onClick={() => doAction(r.id, 'run')}>Run now</button>
-                    <button className="px-2 py-1 rounded border border-white/10 hover:bg-white/10" onClick={() => doAction(r.id, 'delete')}>Delete</button>
                   </div>
                 </td>
               </tr>
@@ -150,6 +188,7 @@ export default function RecurringManager() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {editor.open && (
@@ -223,6 +262,8 @@ function RuleEditor({ rule, onClose, onSaved }: { rule?: RecurringRule; onClose:
   const [saving, setSaving] = useState(false)
   const [pauseUntil, setPauseUntil] = useState<string>(String((((rule?.payload as any)?.__options || {})?.pauseUntil || '')))
   const [resumeOn, setResumeOn] = useState<string>(String((((rule?.payload as any)?.__options || {})?.resumeOn || '')))
+  const [dueDays, setDueDays] = useState<string>(String((((rule?.payload as any)?.__options || {})?.dueDays ?? '')))
+  const [manualDueDate, setManualDueDate] = useState<string>(String(((rule?.payload as any)?.dueDate || '')))
   const [nextRunAt, setNextRunAt] = useState<string>((rule?.nextRunAt ? String(rule.nextRunAt).slice(0,10) : startDate))
 
   useEffect(() => {
@@ -264,8 +305,10 @@ function RuleEditor({ rule, onClose, onSaved }: { rule?: RecurringRule; onClose:
         nthWeek: nthWeek === '' ? undefined : Number(nthWeek),
         nthWeekday: nthWeekday === '' ? undefined : Number(nthWeekday),
         pauseUntil: pauseUntil || undefined,
-        resumeOn: resumeOn || undefined
+        resumeOn: resumeOn || undefined,
+        dueDays: dueDays === '' ? undefined : Math.max(0, Math.min(365, Number(dueDays) || 0))
       }
+      if (manualDueDate) payload.dueDate = manualDueDate
 
       if (rule) await RecurringService.updateRecurring(rule.id, base)
       else await RecurringService.createRecurring(base)
@@ -354,20 +397,20 @@ function RuleEditor({ rule, onClose, onSaved }: { rule?: RecurringRule; onClose:
               {cadence === 'MONTHLY' && (
                 <>
                   <label className="flex flex-col gap-1">
-                    <span className="text-secondary-contrast">Day of month</span>
+                    <InfoHint label="Day of month">Runs on this calendar day each month (1–31). If the month has fewer days, we clamp to the month end.</InfoHint>
                     <input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" type="number" min={1} max={31} value={dayOfMonth === '' ? '' : String(dayOfMonth)} onChange={(e) => setDayOfMonth(e.target.value === '' ? '' : Number(e.target.value))} placeholder="1..31" />
                   </label>
                   <label className="flex items-center gap-2 mt-7">
                     <input type="checkbox" checked={endOfMonth} onChange={(e) => setEndOfMonth(e.target.checked)} />
-                    <span className="text-sm">Run on end of month</span>
+                    <InfoHint label="Run on end of month">Always schedule on the last day of each month, accounting for variable month lengths.</InfoHint>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-secondary-contrast">Nth week (1..5, 5=last)</span>
+                    <InfoHint label="Nth week (1..5, 5=last)">Choose which week of the month (1st to 4th; 5th = last occurrence) to use with the weekday below.</InfoHint>
                     <input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" type="number" min={1} max={5} value={nthWeek === '' ? '' : String(nthWeek)} onChange={(e) => setNthWeek(e.target.value === '' ? '' : Number(e.target.value))} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-secondary-contrast">Nth weekday</span>
-                    <select className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={nthWeekday === '' ? '' : String(nthWeekday)} onChange={(e) => setNthWeekday(e.target.value === '' ? '' : Number(e.target.value))}>
+                    <InfoHint label="Nth weekday">Paired with Nth week. For example, 3rd Tuesday of each month.</InfoHint>
+                    <ThemedSelect value={nthWeekday === '' ? '' : String(nthWeekday)} onChange={(e) => setNthWeekday((e.target as HTMLSelectElement).value === '' ? '' : Number((e.target as HTMLSelectElement).value))}>
                       <option value="">—</option>
                       <option value="0">Sunday</option>
                       <option value="1">Monday</option>
@@ -376,10 +419,31 @@ function RuleEditor({ rule, onClose, onSaved }: { rule?: RecurringRule; onClose:
                       <option value="4">Thursday</option>
                       <option value="5">Friday</option>
                       <option value="6">Saturday</option>
-                    </select>
+                    </ThemedSelect>
                   </label>
                 </>
               )}
+
+              {/* Terms */}
+              <label className="flex flex-col gap-1">
+                <InfoHint label="Due Terms">Pick a preset or enter custom days (0–365). Computed from Start date per run.</InfoHint>
+                <div className="flex gap-2">
+                  <ThemedSelect value={["0","14","30","45","60","90"].includes(dueDays) ? dueDays : ''} onChange={(e) => setDueDays((e.target as HTMLSelectElement).value || dueDays)}>
+                    <option value="">Custom</option>
+                    <option value="0">Net 0</option>
+                    <option value="14">Net 14</option>
+                    <option value="30">Net 30</option>
+                    <option value="45">Net 45</option>
+                    <option value="60">Net 60</option>
+                    <option value="90">Net 90</option>
+                  </ThemedSelect>
+                  <input type="number" min={0} max={365} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 w-24" value={dueDays} onChange={(e) => setDueDays(e.target.value)} placeholder="days" />
+                </div>
+              </label>
+              <label className="flex flex-col gap-1">
+                <InfoHint label="Manual Due Date (optional)">If set, overrides Due Terms for each occurrence.</InfoHint>
+                <input type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={manualDueDate} onChange={(e) => setManualDueDate(e.target.value)} />
+              </label>
 
               {/* Pause/Resume windows */}
               <label className="flex flex-col gap-1">

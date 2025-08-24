@@ -4,9 +4,11 @@ import { useTheme } from '../../theme/ThemeProvider'
 import { ModalPortal } from '../layout/ModalPortal'
 import { cn } from '../../lib/utils'
 import { FileText, Search, Plus, Printer, Download, X, CheckCircle2, Clock3, RefreshCcw, Wallet, Paperclip } from 'lucide-react'
+import ThemedSelect from '../themed/ThemedSelect'
 import { TransactionsService } from '../../services/transactionsService'
 import ExpensesService from '../../services/expensesService'
 import RecurringModal from '../recurring/RecurringModal'
+import InfoHint from '../themed/InfoHint'
 
 type InvoiceStatus = 'PAID' | 'UNPAID' | 'OVERDUE' | 'PARTIAL' | 'CREDIT' | 'RECURRING' | 'PROFORMA'
 
@@ -886,7 +888,8 @@ function InvoiceForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [customer, setCustomer] = useState('')
   const [number, setNumber] = useState('')
   const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0,10))
-  const [dueDate, setDueDate] = useState<string>(() => new Date(new Date().setDate(new Date().getDate()+14)).toISOString().slice(0,10))
+  const [dueDate, setDueDate] = useState<string>(() => new Date().toISOString().slice(0,10))
+  const [dueDays, setDueDays] = useState<string>('0')
   const [amount, setAmount] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -901,7 +904,9 @@ function InvoiceForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
         date,
         description: `Invoice for ${customer}`,
         invoiceNumber: number || undefined,
-        paymentStatus: 'paid' as const
+        paymentStatus: 'paid' as const,
+        dueDate: dueDate || undefined,
+        dueDays: dueDays === '' ? undefined : Math.max(0, Math.min(365, Number(dueDays) || 0))
       }
       const res = await TransactionsService.postInvoice(payload)
       const inv: Invoice = {
@@ -937,8 +942,23 @@ function InvoiceForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
           <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-secondary-contrast">Due Date</span>
+          <InfoHint label="Due Date">Optional override of terms. If blank, computed from Due Terms.</InfoHint>
           <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" />
+        </label>
+        <label className="flex flex-col gap-1">
+          <InfoHint label="Due Terms">Choose a preset or set custom days (0–365).</InfoHint>
+          <div className="flex gap-2">
+            <ThemedSelect value={['0','14','30','45','60','90'].includes(dueDays) ? dueDays : ''} onChange={e=> setDueDays((e.target as HTMLSelectElement).value || dueDays)}>
+              <option value="">Custom</option>
+              <option value="0">Net 0</option>
+              <option value="14">Net 14</option>
+              <option value="30">Net 30</option>
+              <option value="45">Net 45</option>
+              <option value="60">Net 60</option>
+              <option value="90">Net 90</option>
+            </ThemedSelect>
+            <input type="number" min={0} max={365} value={dueDays} onChange={e=>setDueDays(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md w-24" placeholder="days" />
+          </div>
         </label>
         <label className="flex flex-col gap-1 sm:col-span-2">
           <span className="text-secondary-contrast">Amount</span>

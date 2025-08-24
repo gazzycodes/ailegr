@@ -37,6 +37,8 @@ export type PostInvoicePayload = {
   paymentStatus?: 'paid' | 'invoice' | 'partial' | 'overpaid'
   amountPaid?: number | string
   balanceDue?: number | string
+  dueDate?: string
+  dueDays?: number | string
 }
 
 export async function postInvoice(payload: PostInvoicePayload) {
@@ -47,6 +49,8 @@ export async function postInvoice(payload: PostInvoicePayload) {
     description: payload.description || `Invoice for ${payload.customerName}`,
     paymentStatus: payload.paymentStatus || 'paid',
     invoiceNumber: payload.invoiceNumber,
+    dueDate: payload.dueDate,
+    dueDays: payload.dueDays != null ? (typeof payload.dueDays === 'string' ? parseInt(payload.dueDays, 10) : payload.dueDays) : undefined,
     // Optional fields to help server determine paid/partial/overpaid accurately
     amountPaid: payload.amountPaid != null
       ? (typeof payload.amountPaid === 'string' ? parseFloat(payload.amountPaid) : payload.amountPaid)

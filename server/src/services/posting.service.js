@@ -118,14 +118,24 @@ class PostingService {
         });
         
         // Create Expense record linked to transaction
-        // For recurring expenses with no vendorInvoiceNo provided, generate a stable bill number per occurrence
+        // Generate friendly bill number when not provided
         let effectiveVendorInvoiceNo = expenseData.vendorInvoiceNo || null;
-        try {
-          if (!effectiveVendorInvoiceNo && expenseData.recurring && expenseData.recurringRuleId) {
-            const ymd = new Date(accountResolution.dateUsed).toISOString().slice(0,10).replace(/-/g, '');
-            effectiveVendorInvoiceNo = `BILL-${expenseData.recurringRuleId}-${ymd}`;
+        async function generateBillNumber(prefix) {
+          const pad = (n) => String(n).padStart(3, '0');
+          let seq = await tx.expense.count({ where: { vendorInvoiceNo: { startsWith: prefix } } }) + 1;
+          for (let i = 0; i < 10; i++) {
+            const candidate = `${prefix}${pad(seq)}`;
+            const clash = await tx.expense.findFirst({ where: { vendor: expenseData.vendorName, vendorInvoiceNo: candidate }, select: { id: true } });
+            if (!clash) return candidate;
+            seq += 1;
           }
-        } catch {}
+          // Fallback unique-ish tail
+          return `${prefix}${String(Date.now()).slice(-6)}`;
+        }
+        if (!effectiveVendorInvoiceNo) {
+          const prefix = expenseData.recurring ? 'BILL-R' : 'BILL-';
+          try { effectiveVendorInvoiceNo = await generateBillNumber(prefix) } catch { effectiveVendorInvoiceNo = null }
+        }
         const expense = await tx.expense.create({
           data: {
             transactionId: transaction.id,
@@ -615,6 +625,27 @@ class PostingService {
     }
     
     // Normalize and return clean data
+    // Compute due date: manual dueDate wins; else use dueDays relative to date (default Net-0)
+    let computedDueDate = requestBody.dueDate || null
+    if (!computedDueDate) {
+      try {
+        const base = requestBody.date
+        if (base) {
+          const d = new Date(base)
+          if (!isNaN(d.getTime())) {
+            let dd = parseInt(String(requestBody.dueDays ?? '0'), 10)
+            if (!Number.isFinite(dd)) dd = 0
+            if (dd < 0) dd = 0
+            if (dd > 365) dd = 365
+            d.setDate(d.getDate() + dd)
+            const y = d.getFullYear()
+            const m = String(d.getMonth() + 1).padStart(2, '0')
+            const da = String(d.getDate()).padStart(2, '0')
+            computedDueDate = `${y}-${m}-${da}`
+          }
+        }
+      } catch {}
+    }
     const normalizedData = {
       vendorName: requestBody.vendorName.trim(),
       vendorInvoiceNo: (requestBody.vendorInvoiceNo && String(requestBody.vendorInvoiceNo).trim()) || null,
@@ -631,7 +662,8 @@ class PostingService {
       amountPaid: requestBody.amountPaid ? parseFloat(requestBody.amountPaid).toFixed(2) : null,
       balanceDue: requestBody.balanceDue ? parseFloat(requestBody.balanceDue).toFixed(2) : null,
       invoiceNumber: requestBody.invoiceNumber || null,
-      dueDate: requestBody.dueDate || null,
+      dueDate: computedDueDate || null,
+      dueDays: (requestBody.dueDays != null ? Math.max(0, Math.min(365, parseInt(String(requestBody.dueDays), 10) || 0)) : null),
       recurring: requestBody.recurring || false,
       overdue: requestBody.overdue || false
     };
@@ -745,6 +777,8 @@ class PostingService {
               balanceDue: balanceDue,
               overpaidAmount: overpaidAmount,
               paymentStatus: invoiceData.paymentStatus,
+              dueDate: invoiceData.dueDate || null,
+              dueDays: (invoiceData.dueDays != null ? Math.max(0, Math.min(365, parseInt(String(invoiceData.dueDays), 10) || 0)) : null),
               source: 'PostingService'
             }
           }
@@ -1215,6 +1249,28 @@ class PostingService {
     }
     const subtotal = parseFloat(requestBody.subtotal || requestBody.amount || 0);
     
+    // Compute due date: manual dueDate wins; else use dueDays relative to invoice date (default Net-0)
+    let computedDueDate = requestBody.dueDate || null
+    if (!computedDueDate) {
+      try {
+        const base = requestBody.date
+        if (base) {
+          const d = new Date(base)
+          if (!isNaN(d.getTime())) {
+            let dd = parseInt(String(requestBody.dueDays ?? '0'), 10)
+            if (!Number.isFinite(dd)) dd = 0
+            if (dd < 0) dd = 0
+            if (dd > 365) dd = 365
+            d.setDate(d.getDate() + dd)
+            const y = d.getFullYear()
+            const m = String(d.getMonth() + 1).padStart(2, '0')
+            const da = String(d.getDate()).padStart(2, '0')
+            computedDueDate = `${y}-${m}-${da}`
+          }
+        }
+      } catch {}
+    }
+
     const normalizedData = {
       customerName: requestBody.customerName.trim(),
       amount: totalAmount.toFixed(2),
@@ -1226,7 +1282,8 @@ class PostingService {
       paymentStatus: paymentStatus,
       description: requestBody.description || requestBody.notes || `Invoice from ${requestBody.customerName}`,
       invoiceNumber: requestBody.invoiceNumber || null,
-      dueDate: requestBody.dueDate || null,
+      dueDate: computedDueDate || null,
+      dueDays: (requestBody.dueDays != null ? Math.max(0, Math.min(365, parseInt(String(requestBody.dueDays), 10) || 0)) : null),
       reference: requestBody.reference || null,
       lineItems: lineItems,
       taxSettings: taxSettings,
