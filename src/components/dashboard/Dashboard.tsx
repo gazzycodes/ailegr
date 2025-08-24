@@ -21,6 +21,7 @@ import PremiumLoader from '../themed/PremiumLoader'
 import ExpensesApi from '../../services/expensesService'
 import { listInvoices } from '../../services/transactionsService'
 import { FinancialDataService } from '../../services/financialDataService'
+import api from '../../services/api'
 
 interface DashboardProps {
   businessHealth: number
@@ -76,11 +77,13 @@ export function Dashboard({ businessHealth }: DashboardProps) {
     series: undefined as undefined | { labels?: string[]; revenue?: number[]; expenses?: number[]; profit?: number[] }
   }))
 
+  // Fetch a meaningful number of points even for short ranges to keep the chart informative.
+  // We slice client‑side when needed, but server returns at least 6 months so lines aren’t degenerate.
   const monthsForRange = (range: '1M' | '3M' | '6M' | '1Y') => {
     switch (range) {
-      case '1M': return 1
-      case '3M': return 3
-      case '6M': return 6
+      case '1M': return 6
+      case '3M': return 6
+      case '6M': return 12
       default: return 12
     }
   }
@@ -102,6 +105,19 @@ export function Dashboard({ businessHealth }: DashboardProps) {
         series: undefined,
         aiInsights: Array.isArray(result.aiInsights) ? result.aiInsights : []
       }
+    },
+    placeholderData: (prev) => prev,
+    staleTime: 15000,
+    refetchInterval: 30000,
+  })
+
+  // Time-series query (revenue/expenses/profit) — scoped by selected timeRange
+  const seriesQuery = useQuery({
+    queryKey: ['metrics-time-series', timeRange],
+    queryFn: async () => {
+      const months = monthsForRange(timeRange)
+      const { data } = await api.get('/api/metrics/time-series', { params: { months, metrics: 'revenue,expenses,profit' } })
+      return data as { labels?: string[]; revenue?: number[]; expenses?: number[]; profit?: number[] }
     },
     placeholderData: (prev) => prev,
     staleTime: 15000,
@@ -146,16 +162,25 @@ export function Dashboard({ businessHealth }: DashboardProps) {
 
   useEffect(() => {
     const d: any = dashboardQuery.data
-    if (d) {
-      setFinancialData({
-        revenue: d.revenue,
-        expenses: d.expenses,
-        profit: d.profit,
-        cashFlow: d.cashFlow,
-        series: d.series
-      } as any)
-    }
-  }, [dashboardQuery.data])
+    if (!d) return
+    // Align series so that the most recent data point is Month 1 (rightmost on chart),
+    // and the tooltip uses backend-provided labels when available.
+    const s = seriesQuery.data
+    const normalized = s ? {
+      labels: Array.isArray(s.labels) ? s.labels.slice() : undefined,
+      revenue: Array.isArray(s.revenue) ? s.revenue.slice() : undefined,
+      expenses: Array.isArray(s.expenses) ? s.expenses.slice() : undefined,
+      profit: Array.isArray(s.profit) ? s.profit.slice() : undefined,
+    } : undefined
+
+    setFinancialData({
+      revenue: d.revenue,
+      expenses: d.expenses,
+      profit: d.profit,
+      cashFlow: d.cashFlow,
+      series: normalized
+    } as any)
+  }, [dashboardQuery.data, seriesQuery.data])
 
   // Listen for global refresh events from posting flows
   useEffect(() => {

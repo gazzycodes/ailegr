@@ -7,6 +7,7 @@ import { TransactionUniverse } from './components/3d/TransactionUniverse'
 import { Invoices } from './components/transactions/Invoices'
 import Customers from './components/customers/Customers'
 import SettingsView from './components/settings/Settings'
+import AdminPanel from './components/settings/AdminPanel'
 import Reports from './components/reports/Reports'
 import Landing from './components/landing/Landing'
 import LoginView from './components/auth/LoginView'
@@ -18,6 +19,7 @@ import { ThemeSwitcher } from './components/ThemeSwitcher'
 import { FloatingParticles } from './components/effects/FloatingParticles'
 import { CollapsibleFloatingActionButton } from './components/layout/CollapsibleFloatingActionButton'
 import AiDocumentModal from './components/ai/AiDocumentModal'
+import RecurringModal from './components/recurring/RecurringModal'
 import ChatDrawer from './components/ai/ChatDrawer'
 import ChatFab from './components/layout/ChatFab'
 import {
@@ -27,9 +29,10 @@ import { useTheme } from './theme/ThemeProvider'
 import { cn } from './lib/utils'
 import ToastContainer from './components/themed/Toast'
 import useToast from './components/themed/useToast'
+import { useAuth } from './theme/AuthProvider'
 
 // Main application view states
-type AppView = 'landing' | 'login' | 'register' | 'reset-password' | 'dashboard' | 'universe' | 'transactions' | 'reports' | 'customers' | 'settings'
+type AppView = 'landing' | 'login' | 'register' | 'reset-password' | 'dashboard' | 'universe' | 'transactions' | 'reports' | 'customers' | 'settings' | 'admin'
 
 // Revolutionary App Component
 function App() {
@@ -37,10 +40,12 @@ function App() {
   const [isVoiceActive, setIsVoiceActive] = useState(false)
   const [showPredictiveAssistant, setShowPredictiveAssistant] = useState(false)
   const [openAiDocument, setOpenAiDocument] = useState(false)
+  const [openRecurring, setOpenRecurring] = useState(false)
   const [openChat, setOpenChat] = useState(false)
   const { currentTheme, isDark } = useTheme()
   const [fabExpanded, setFabExpanded] = useState(false)
   const { toasts, push, remove } = useToast()
+  const { session, loading } = useAuth()
 
   // Listen for global toast events from deep components (error cases)
   useEffect(() => {
@@ -118,6 +123,7 @@ function App() {
       case '/register': return 'register'
       case '/reset-password': return 'reset-password'
       case '/dashboard': return 'dashboard'
+      case '/admin': return 'admin'
       case '/universe': return 'universe'
       case '/transactions': return 'transactions'
       case '/reports': return 'reports'
@@ -134,6 +140,7 @@ function App() {
       case 'register': return '/register'
       case 'reset-password': return '/reset-password'
       case 'dashboard': return '/dashboard'
+      case 'admin': return '/admin'
       case 'universe': return '/universe'
       case 'transactions': return '/transactions'
       case 'reports': return '/reports'
@@ -168,8 +175,25 @@ function App() {
     } catch {}
   }, [currentView])
 
+  // If user is already authenticated and navigates to a public route (/, /login, /register, /reset-password),
+  // redirect them to the dashboard automatically.
+  useEffect(() => {
+    if (loading) return
+    const isPublic = currentView === 'landing' || currentView === 'login' || currentView === 'register' || currentView === 'reset-password'
+    if (session && isPublic) {
+      setCurrentView('dashboard')
+      try { window.history.replaceState({ view: 'dashboard' }, '', '/dashboard') } catch {}
+    }
+  }, [session, loading, currentView])
+
   // Render the current view
   const renderCurrentView = () => {
+    // Auth route guard: only allow app views when logged in
+    const isPublic = currentView === 'landing' || currentView === 'login' || currentView === 'register' || currentView === 'reset-password'
+    if (!loading && !session && !isPublic) {
+      setCurrentView('login')
+      return <LoginView onRegister={() => setCurrentView('register')} />
+    }
     switch (currentView) {
       case 'landing':
         return <Landing onGetStarted={() => setCurrentView('register')} onSignIn={() => setCurrentView('login')} />
@@ -191,6 +215,8 @@ function App() {
         return <Customers />
       case 'settings':
         return <SettingsView />
+      case 'admin':
+        return <AdminPanel onBack={() => setCurrentView('dashboard')} />
       default:
         return <Landing onGetStarted={() => setCurrentView('register')} onSignIn={() => setCurrentView('login')} />
     }
@@ -311,6 +337,7 @@ function App() {
         <CollapsibleFloatingActionButton
           actions={[
             { icon: "📄", label: "AI Document", action: () => setOpenAiDocument(true) },
+            { icon: "🔁", label: "Recurring", action: () => setOpenRecurring(true) },
           ]}
           onExpandedChange={setFabExpanded}
         />
@@ -323,6 +350,7 @@ function App() {
 
       {/* AI Modals & Chat Drawer */}
       <AiDocumentModal open={openAiDocument} onClose={() => { setOpenAiDocument(false) }} />
+      <RecurringModal open={openRecurring} onClose={() => setOpenRecurring(false)} />
       <ToastContainer toasts={toasts} onClose={remove} />
       {!(currentView === 'landing' || currentView === 'login' || currentView === 'register' || currentView === 'reset-password') && (
         <ChatDrawer open={openChat} onClose={() => setOpenChat(false)} onOpenAiDocument={() => { setOpenChat(false); setOpenAiDocument(true) }} />

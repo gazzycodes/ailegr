@@ -29,6 +29,40 @@ export async function listExpenses() {
   return Array.isArray(data) ? data : []
 }
 
-export default { uploadOcr, previewExpense, postExpense, attachReceipt, listExpenses }
+export async function checkDuplicate(vendor: string, vendorInvoiceNo: string) {
+  const params = new URLSearchParams()
+  if (vendor) params.set('vendor', vendor)
+  if (vendorInvoiceNo) params.set('vendorInvoiceNo', vendorInvoiceNo)
+  const { data } = await api.get(`/api/expenses/check-duplicate?${params.toString()}`)
+  return data as { duplicate: boolean; expense?: any }
+}
+
+export async function markExpensePaid(id: string) {
+  const { data } = await api.post(`/api/expenses/${encodeURIComponent(id)}/mark-paid`, {})
+  return data
+}
+
+export async function recordExpensePayment(id: string, payload: { amount: number | string; date?: string }) {
+  const body = { amount: typeof payload.amount === 'string' ? parseFloat(payload.amount) : payload.amount, date: payload.date }
+  const { data } = await api.post(`/api/expenses/${encodeURIComponent(id)}/record-payment`, body)
+  return data
+}
+
+export async function markExpenseUnpaid(id: string) {
+  const { data } = await api.post(`/api/expenses/${encodeURIComponent(id)}/mark-unpaid`, {})
+  return data
+}
+
+export default { uploadOcr, previewExpense, postExpense, attachReceipt, listExpenses, checkDuplicate, markExpensePaid, markExpenseUnpaid, recordExpensePayment, listExpensePayments, voidPayment }
+
+export async function listExpensePayments(id: string) {
+  const { data } = await api.get(`/api/expenses/${encodeURIComponent(id)}/payments`)
+  return data?.payments || []
+}
+
+export async function voidPayment(paymentTransactionId: string) {
+  const { data } = await api.post(`/api/payments/${encodeURIComponent(paymentTransactionId)}/void`, {})
+  return data
+}
 
 

@@ -1,4 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
+import RecurringService from '../../services/recurringService'
+import RecurringModal from '../recurring/RecurringModal'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import { ModalPortal } from '../layout/ModalPortal'
@@ -18,6 +20,7 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
   const CLASSIFY_THRESHOLD = 0.75
   const [stage, setStage] = useState<'picker' | 'form'>('picker')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [scanToastShown, setScanToastShown] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [ocrProgress, setOcrProgress] = useState(0)
@@ -26,12 +29,15 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
 
   // Expense form
   const [vendor, setVendor] = useState('')
+  const [vendorInvoiceNo, setVendorInvoiceNo] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState('')
   const [description, setDescription] = useState('')
   const [preview, setPreview] = useState<any | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [dupState, setDupState] = useState<{ checked: boolean; duplicate: boolean; info?: any } | null>(null)
+  const [checkingDup, setCheckingDup] = useState(false)
 
   // Mode: expense or invoice (auto-detected)
   const [mode, setMode] = useState<'expense' | 'invoice'>('expense')
@@ -47,6 +53,7 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
   const [showSuggest, setShowSuggest] = useState(false)
   const [loadingSuggest, setLoadingSuggest] = useState(false)
   const [attachedReceiptUrl, setAttachedReceiptUrl] = useState<string | null>(null)
+  const [recurringOpen, setRecurringOpen] = useState(false)
   const [classification, setClassification] = useState<{ docType: string; ourRole: string; policy?: string; confidence?: number } | null>(null)
   const [typeConfirmed, setTypeConfirmed] = useState<boolean>(false)
   const [normalizedAmounts, setNormalizedAmounts] = useState<{ subtotal?: number; taxAmount?: number; total?: number; amountPaid?: number; balanceDue?: number } | null>(null)
@@ -95,6 +102,7 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
     setMode('expense')
     setManualEdit(false)
     setVendor('')
+    setVendorInvoiceNo('')
     setAmount('')
     setDate('')
     setDescription('')
@@ -110,6 +118,8 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
     setAttachedReceiptUrl(null)
     setOcrProgress(0)
     setIsProcessing(false)
+    setDupState(null)
+    setCheckingDup(false)
     setError(null)
     onClose()
   }
@@ -189,6 +199,7 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
     setNormalizedAmounts(null)
     setRecognitionDate('')
     setVendor('')
+    setVendorInvoiceNo('')
     setAmount('')
     setDate('')
     setDescription('')
@@ -211,6 +222,7 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
       const lowerAll = text.toLowerCase()
       setExtractedText(text)
       setOcrProgress(60)
+      try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'AI scan complete. Review and edit fields before creating.', type: 'info', duration: 5000 } })) } catch {}
       // 2) Normalize and classify to decide invoice vs expense
       let structured: any = null
       try {
@@ -236,7 +248,7 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
           updateConf('amount', 0.8)
         }
         
-        // Prefer labels from normalizer for dates and invoice number
+        // Prefer labels from normalizer for dates (do not set invoice number here)
         const lbl = (structured && structured.labels) || {}
         const toISO = (raw: string): string => {
           if (!raw || typeof raw !== 'string') return ''
@@ -250,7 +262,7 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
           if (!isNaN(dt.getTime())) { const y = dt.getFullYear(); const m = String(dt.getMonth()+1).padStart(2,'0'); const d = String(dt.getDate()).padStart(2,'0'); return `${y}-${m}-${d}` }
           return ''
         }
-        if (lbl.invoiceNumber && !invoiceNumber) { setInvoiceNumber(String(lbl.invoiceNumber)); updateConf('invoiceNumber', 0.9) }
+        // Intentionally skip auto-setting invoiceNumber from OCR; we'll generate an internal suggestion later
         if (lbl.invoiceDate && !date) { const iso = toISO(String(lbl.invoiceDate)); if (iso) { setDate(iso); updateConf('date', 0.9) } }
         if (lbl.dueDate && !dueDate) { const iso = toISO(String(lbl.dueDate)); if (iso) { setDueDate(iso); updateConf('dueDate', 0.9) } }
         if ((structured as any)?.labels?.revenueRecognitionDate) {
@@ -352,24 +364,15 @@ TEXT:\n${text.slice(0, 12000)}`
             const isoDue = toISO(parsed.dueDate || '')
             if (isoDate && !date) { setDate(isoDate); updateConf('date', 0.75) }
             if (isoDue && !dueDate) { setDueDate(isoDue); updateConf('dueDate', 0.75) }
-            if (parsed.invoiceNumber && !invoiceNumber) { setInvoiceNumber(parsed.invoiceNumber); updateConf('invoiceNumber', 0.75) }
+            // Do NOT auto-set invoiceNumber from AI anymore; we'll suggest a unique pattern instead
             if (parsed.description && !notes) setNotes(parsed.description)
             if (parsed.paymentStatus) setStatus((parsed.paymentStatus as any) || 'invoice')
           }
         } catch (e) {}
         // Fallback: parse invoice number and dates directly from OCR text if still missing
         try {
+          // do not set invoice number here; we'll set it after the form loads
           if (extractedText) {
-            if (!invoiceNumber) {
-              let m = extractedText.match(/Invoice\s*(?:No\.?|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\.\/]*)/i)
-              if (!m) m = extractedText.match(/\b([A-Z]{3,}[\-][0-9]{4}[\-][0-9]{2,})\b/)
-              if (m) { setInvoiceNumber(m[1]); updateConf('invoiceNumber', 0.6) }
-            }
-            // Override generic INV-* with detected specific pattern
-            if (/^INV[-_]?/i.test(invoiceNumber || '') ) {
-              const m2 = extractedText.match(/\b([A-Z]{3,}[\-][0-9]{4}[\-][0-9]{2,})\b/)
-              if (m2) { setInvoiceNumber(m2[1]); updateConf('invoiceNumber', 0.6) }
-            }
             const toISO = (raw: string): string => {
               if (!raw || typeof raw !== 'string') return ''
               const s = raw.trim()
@@ -458,7 +461,12 @@ TEXT:\n${text.slice(0,12000)}`
                 }))
               }
             } catch {}
-            // Future: store confidences in UI state
+            // If AI extracted a plausible invoice number, use it as initial VIN (user can edit)
+            try {
+              if (j.invoiceNumber && typeof j.invoiceNumber === 'string' && !vendorInvoiceNo) {
+                setVendorInvoiceNo(String(j.invoiceNumber))
+              }
+            } catch {}
           }
         } catch (e) {}
         // Fallbacks if AI fails
@@ -517,6 +525,36 @@ TEXT:\n${text.slice(0,12000)}`
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, typeConfirmed, classification?.confidence])
 
+  // When entering form stage, ensure invoice number has a non-repeating suggestion (AR case)
+  useEffect(() => {
+    (async () => {
+      if (stage !== 'form') return
+      if (mode !== 'invoice') return
+      if (invoiceNumber && invoiceNumber.trim()) return
+      try {
+        // Prefer sequential AR number; fall back to unique random if needed
+        let suggestion = await TransactionsService.nextSequentialInvoiceNumber()
+        if (!suggestion) suggestion = await TransactionsService.suggestInvoiceNumber()
+        if (suggestion) setInvoiceNumber(suggestion)
+      } catch {}
+    })()
+  }, [stage, mode])
+
+  const checkDuplicate = async () => {
+    try {
+      setError(null)
+      setDupState(null)
+      if (!vendor.trim() || !vendorInvoiceNo.trim()) return
+      setCheckingDup(true)
+      const res = await ExpensesService.checkDuplicate(vendor.trim(), vendorInvoiceNo.trim())
+      setDupState({ checked: true, duplicate: !!res?.duplicate, info: res?.expense })
+    } catch (e) {
+      // non-blocking
+    } finally {
+      setCheckingDup(false)
+    }
+  }
+
   const doPreview = async () => {
     try {
       setError(null)
@@ -538,7 +576,7 @@ TEXT:\n${text.slice(0,12000)}`
         if (((!normalizedAmounts) || Object.values(normalizedAmounts || {}).every((v) => v == null)) && extractedText) {
           try {
             const raw = extractedText
-            const number = '([0-9]+(?:[, .\']*[0-9]{3})*(?:[.,][0-9]{1,2})?)'
+            const number = `([0-9]+(?:[, .']*[0-9]{3})*(?:[.,][0-9]{1,2})?)`
             const parseNum = (s: string | null) => {
               if (!s) return undefined
               let n = s
@@ -627,7 +665,7 @@ TEXT:\n${text.slice(0,12000)}`
         if (((!normalizedAmounts) || Object.values(normalizedAmounts || {}).every((v) => v == null)) && extractedText) {
           try {
             const raw = extractedText.replace(/\u00A0/g, ' ')
-            const number = '([0-9]+(?:[, .\']*[0-9]{3})*(?:[.,][0-9]{1,2})?)'
+            const number = `([0-9]+(?:[, .']*[0-9]{3})*(?:[.,][0-9]{1,2})?)`
             const parseNum = (s: string | null): number | undefined => {
               if (!s) return undefined
               let n = s
@@ -643,7 +681,7 @@ TEXT:\n${text.slice(0,12000)}`
             const mSubtotal = raw.match(new RegExp(`\\bSubtotal\\b[\\s:]*\\$?\\s*(-?${number})`, 'i'))
             const mTax = raw.match(new RegExp(`\\b(?:Tax|VAT)\\b[^\n$]*\\$?\\s*(-?${number})`, 'i'))
             const mTotal = raw.match(new RegExp(`\\bTotal\\b[\\s:]*\\$?\\s*(-?${number})`, 'i'))
-            const mPaid = raw.match(new RegExp(`\\b(?:Amount\\s*Paid|Payments?\\s*Made)\\b[\\s:\-]*\\$?\\s*(-?${number})`, 'i'))
+            const mPaid = raw.match(new RegExp(`\\b(?:Amount\\s*Paid|Payments?\\s*Made)\\b[\\s:\\-]*\\$?\\s*(-?${number})`, 'i'))
             const mBalance = raw.match(new RegExp(`\\bBalance\\s*Due\\b[\\s:]*\\$?\\s*(-?${number})`, 'i'))
             norm = {
               subtotal: parseNum(mSubtotal?.[1] || null),
@@ -677,7 +715,7 @@ TEXT:\n${text.slice(0,12000)}`
         else if (amountPaidVal > epsilon && balanceDueVal > epsilon) paymentStatusVal = 'partial'
         else paymentStatusVal = 'invoice'
 
-        const payload: any = { vendorName: vendor.trim(), amount: totalUsed, amountPaid: amountPaidVal, balanceDue: balanceDueVal, date, paymentStatus: paymentStatusVal, description }
+        const payload: any = { vendorName: vendor.trim(), amount: totalUsed, amountPaid: amountPaidVal, balanceDue: balanceDueVal, date, paymentStatus: paymentStatusVal, description, ocrText: extractedText }
         if (typeof (norm as any).taxAmount === 'number' && (norm as any).taxAmount > 0) {
           payload.taxSettings = { enabled: true, amount: (norm as any).taxAmount }
         }
@@ -695,7 +733,7 @@ TEXT:\n${text.slice(0,12000)}`
       setError(null)
       if (mode === 'invoice') {
         const amt = parseFloat(amount)
-        await TransactionsService.postInvoice({
+        const result = await TransactionsService.postInvoice({
           customerName: customer.trim(),
           amount: amt,
           date,
@@ -703,6 +741,15 @@ TEXT:\n${text.slice(0,12000)}`
           invoiceNumber: invoiceNumber || undefined,
           paymentStatus: status
         })
+        try {
+          if (result && result.isExisting) {
+            window.dispatchEvent(new CustomEvent('toast', { detail: { message: `Invoice #${invoiceNumber || ''} already exists. Opened existing record.`, type: 'info' } }))
+          } else {
+            window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Invoice created successfully', type: 'success' } }))
+          }
+        } catch {}
+        try { window.dispatchEvent(new CustomEvent('data:refresh')) } catch {}
+        onClose()
       } else {
       const amt = parseFloat(amount)
         // Derive totals, payments, and status at post time to capture tax and overpayments
@@ -710,7 +757,7 @@ TEXT:\n${text.slice(0,12000)}`
         if (((!normalizedAmounts) || Object.values(normalizedAmounts || {}).every((v) => v == null)) && extractedText) {
           try {
             const raw = extractedText.replace(/\u00A0/g, ' ')
-            const number = '([0-9]+(?:[, .\']*[0-9]{3})*(?:[.,][0-9]{1,2})?)'
+            const number = `([0-9]+(?:[, .']*[0-9]{3})*(?:[.,][0-9]{1,2})?)`
             const parseNum = (s: string | null): number | undefined => {
               if (!s) return undefined
               let n = s
@@ -726,7 +773,7 @@ TEXT:\n${text.slice(0,12000)}`
             const mSubtotal = raw.match(new RegExp(`\\bSubtotal\\b[\\s:]*\\$?\\s*(-?${number})`, 'i'))
             const mTax = raw.match(new RegExp(`\\b(?:Tax|VAT)\\b[^\n$]*\\$?\\s*(-?${number})`, 'i'))
             const mTotal = raw.match(new RegExp(`\\bTotal\\b[\\s:]*\\$?\\s*(-?${number})`, 'i'))
-            const mPaid = raw.match(new RegExp(`\\b(?:Amount\\s*Paid|Payments?\\s*Made)\\b[\\s:\-]*\\$?\\s*(-?${number})`, 'i'))
+            const mPaid = raw.match(new RegExp(`\\b(?:Amount\\s*Paid|Payments?\\s*Made)\\b[\\s:\\-]*\\$?\\s*(-?${number})`, 'i'))
             const mBalance = raw.match(new RegExp(`\\bBalance\\s*Due\\b[\\s:]*\\$?\\s*(-?${number})`, 'i'))
             norm = {
               subtotal: parseNum(mSubtotal?.[1] || null),
@@ -760,7 +807,22 @@ TEXT:\n${text.slice(0,12000)}`
         else if (amountPaidVal > epsilon && balanceDueVal > epsilon) paymentStatusVal = 'partial'
         else paymentStatusVal = 'invoice'
 
-        const res = await ExpensesService.postExpense({ vendorName: vendor.trim(), amount: totalWithTax, amountPaid: amountPaidVal, balanceDue: balanceDueVal, date, paymentStatus: paymentStatusVal, description: description || `Expense: ${vendor.trim()}` })
+        // Duplicate VIN guard if provided
+        if (vendorInvoiceNo.trim()) {
+          try {
+            const res = await ExpensesService.checkDuplicate(vendor.trim(), vendorInvoiceNo.trim())
+            if (res?.duplicate) {
+              const msg = `Duplicate bill detected for ${vendor} with Vendor Invoice No. "${vendorInvoiceNo}"`
+              setDupState({ checked: true, duplicate: true, info: res?.expense })
+              setError(msg)
+              try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } })) } catch {}
+              setSubmitting(false)
+              return
+            }
+          } catch {}
+        }
+
+        const res = await ExpensesService.postExpense({ vendorName: vendor.trim(), vendorInvoiceNo: vendorInvoiceNo.trim() || undefined, amount: totalWithTax, amountPaid: amountPaidVal, balanceDue: balanceDueVal, date, paymentStatus: paymentStatusVal, description: description || `Expense: ${vendor.trim()}` })
         try {
           const expenseId = (res as any)?.expenseId || (res as any)?.expense?.id
           if (expenseId && selectedFile) {
@@ -799,6 +861,7 @@ TEXT:\n${text.slice(0,12000)}`
   const applySuggestion = (c: any) => { setCustomer(c?.name || ''); setShowSuggest(false) }
 
   return (
+    <>
     <ModalPortal>
       <AnimatePresence>
         {open && (
@@ -969,7 +1032,7 @@ TEXT:\n${text.slice(0,12000)}`
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                         <label className="flex flex-col gap-1">
                           <span className="text-secondary-contrast">Vendor</span>
-                            <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="Adobe, Uber…" />
+                            <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={vendor} onChange={(e) => { setVendor(e.target.value); setDupState(null) }} placeholder="Adobe, Uber…" />
                         </label>
                         <label className="flex flex-col gap-1">
                           <span className="text-secondary-contrast">Amount</span>
@@ -978,6 +1041,14 @@ TEXT:\n${text.slice(0,12000)}`
                         <label className="flex flex-col gap-1">
                           <span className="text-secondary-contrast">Date</span>
                             <input disabled={!manualEdit} type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={date} onChange={(e) => setDate(e.target.value)} />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <span className="text-secondary-contrast">Vendor Invoice No. (optional)</span>
+                            <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={vendorInvoiceNo} onChange={(e) => { setVendorInvoiceNo(e.target.value); setDupState(null) }} onBlur={checkDuplicate} placeholder="#BILL-7002" />
+                            {dupState?.duplicate && (
+                              <div className="text-xs text-red-400 mt-1">Duplicate detected. A bill with this number already exists for this vendor.</div>
+                            )}
+                            {checkingDup && <div className="text-xs text-secondary-contrast mt-1">Checking duplicate...</div>}
                         </label>
                         <label className="flex flex-col gap-1 sm:col-span-2">
                           <span className="text-secondary-contrast">Description</span>
@@ -1018,8 +1089,8 @@ TEXT:\n${text.slice(0,12000)}`
                       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
                       <div className="mt-4 flex flex-wrap gap-2 justify-end">
                         <button className="px-3 py-1.5 text-sm rounded-lg border transition backdrop-blur-glass bg-white/10 hover:bg-white/15 border-white/10 text-foreground" onClick={() => setStage('picker')}>Back</button>
-                        <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10" onClick={doPreview}>Preview</button>
-                        <button disabled={submitting} className="px-3 py-1.5 text-sm rounded-lg bg-primary/20 text-primary border border-primary/30 disabled:opacity-60" onClick={doPost}>{submitting ? 'Posting…' : (mode === 'invoice' ? 'Create Invoice' : 'Post Expense')}</button>
+                        <button disabled={submitting || (!!dupState?.duplicate)} className="px-3 py-1.5 text-sm rounded-lg bg-primary/20 text-primary border border-primary/30 disabled:opacity-60" onClick={doPost}>{submitting ? 'Posting…' : (mode === 'invoice' ? 'Create Invoice' : 'Post Expense')}</button>
+                        <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10 hover:bg-white/15" onClick={() => setRecurringOpen(true)}>Save as Recurring</button>
                         <button className="px-3 py-1.5 text-sm rounded-lg bg-white/5 border border-white/10" onClick={() => setManualEdit(v => !v)}>{manualEdit ? 'Disable Manual Edit' : 'Edit Manually'}</button>
                       </div>
                     </div>
@@ -1031,6 +1102,14 @@ TEXT:\n${text.slice(0,12000)}`
         )}
       </AnimatePresence>
     </ModalPortal>
+    {recurringOpen && (
+      <RecurringModal
+        open={recurringOpen}
+        onClose={() => setRecurringOpen(false)}
+        seed={mode === 'invoice' ? { type: 'INVOICE', customerName: customer, amount: parseFloat(amount || '0'), description: notes || undefined } : { type: 'EXPENSE', vendorName: vendor, amount: parseFloat(amount || '0'), description: description || undefined }}
+      />
+    )}
+    </>
   )
 }
 

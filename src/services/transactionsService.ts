@@ -82,8 +82,23 @@ export async function listInvoices() {
   return Array.isArray(data) ? data : []
 }
 
+export async function suggestInvoiceNumber() {
+  const { data } = await api.get('/api/invoices/suggest-number')
+  return data?.suggestion as string
+}
+
+export async function nextSequentialInvoiceNumber() {
+  const { data } = await api.get('/api/invoices/next-seq')
+  return data?.suggestion as string
+}
+
 export async function markInvoicePaid(id: string) {
   const { data } = await api.post(`/api/invoices/${id}/mark-paid`, {})
+  return data
+}
+
+export async function markInvoiceUnpaid(id: string) {
+  const { data } = await api.post(`/api/invoices/${id}/mark-unpaid`, {})
   return data
 }
 
@@ -93,7 +108,17 @@ export async function recordInvoicePayment(id: string, payload: { amount: number
   return data
 }
 
-export const TransactionsService = { postRevenue, postInvoice, previewRevenue, postCapital, listInvoices, markInvoicePaid, recordInvoicePayment }
+export async function listInvoicePayments(id: string) {
+  const { data } = await api.get(`/api/invoices/${id}/payments`)
+  return data?.payments || []
+}
+
+export async function voidPayment(paymentTransactionId: string) {
+  const { data } = await api.post(`/api/payments/${paymentTransactionId}/void`, {})
+  return data
+}
+
+export const TransactionsService = { postRevenue, postInvoice, previewRevenue, postCapital, listInvoices, markInvoicePaid, markInvoiceUnpaid, recordInvoicePayment, listInvoicePayments, voidPayment, suggestInvoiceNumber, nextSequentialInvoiceNumber }
 export async function postCapital(payload: { contributor: string; amount: number | string; date: string; description: string; reference?: string }) {
   const body = {
     contributor: payload.contributor,
@@ -106,6 +131,6 @@ export async function postCapital(payload: { contributor: string; amount: number
   return data
 }
 
-export default { postRevenue, postInvoice, previewRevenue, postCapital, listInvoices, markInvoicePaid, recordInvoicePayment }
+export default { postRevenue, postInvoice, previewRevenue, postCapital, listInvoices, markInvoicePaid, markInvoiceUnpaid, recordInvoicePayment, listInvoicePayments, voidPayment }
 
 

@@ -60,7 +60,7 @@ model Transaction {
   tenantId     String   @default("dev")
   date         DateTime
   description  String
-  reference    String   @unique
+  reference    String
   amount       Decimal
   customFields Json?
   createdAt    DateTime @default(now())
@@ -72,6 +72,7 @@ model Transaction {
   invoice  Invoice?
 
   @@map("transactions")
+  @@unique([tenantId, reference])
 }
 
 model TransactionEntry {
@@ -96,6 +97,7 @@ model Expense {
   tenantId      String   @default("dev")
   transactionId String   @unique
   vendor        String
+  vendorInvoiceNo String?
   categoryId    String?
   categoryKey   String?
   date          DateTime
@@ -114,6 +116,7 @@ model Expense {
   pendingApproval PendingCategoryApproval?
 
   @@map("expenses")
+  @@unique([tenantId, vendor, vendorInvoiceNo])
 }
 
 model Category {
@@ -230,7 +233,7 @@ enum InvoiceStatus {
 
 model CompanyProfile {
   id                  String   @id @default(cuid())
-  workspaceId         String   @unique @default("default")
+  tenantId            String   @default("dev")
   legalName           String
   aliases             Json
   email               String?
@@ -239,12 +242,43 @@ model CompanyProfile {
   state               String?
   zipCode             String?
   country             String   @default("US")
+  timeZone            String?  // IANA tz (e.g., "America/New_York"); if null, use server time
   normalizedLegalName String
   normalizedAliases   Json
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
   @@map("company_profiles")
+  @@unique([tenantId])
+}
+
+
+model RecurringRule {
+  id          String   @id @default(cuid())
+  tenantId    String   @default("dev")
+  type        String   // EXPENSE | INVOICE
+  cadence     String   // DAILY | WEEKLY | MONTHLY | ANNUAL
+  startDate   DateTime
+  endDate     DateTime?
+  dayOfMonth  Int?
+  weekday     Int?     // 0-6, Sunday=0
+  nextRunAt   DateTime
+  lastRunAt   DateTime?
+  isActive    Boolean  @default(true)
+  payload     Json     // base posting payload (vendor/customer, amount, categoryKey, description, etc.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("recurring_rules")
+}
+
+
+// Optional: local cache of user emails for membership listings
+model UserProfile {
+  userId    String  @id
+  email     String  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 

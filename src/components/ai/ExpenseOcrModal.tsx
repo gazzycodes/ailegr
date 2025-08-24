@@ -12,12 +12,15 @@ interface ExpenseOcrModalProps {
 export default function ExpenseOcrModal({ open, onClose }: ExpenseOcrModalProps) {
 	const [file, setFile] = useState<File | null>(null)
 	const [vendor, setVendor] = useState('')
+	const [vendorInvoiceNo, setVendorInvoiceNo] = useState('')
 	const [amount, setAmount] = useState('')
 	const [date, setDate] = useState('')
 	const [preview, setPreview] = useState<any | null>(null)
 	const [submitting, setSubmitting] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [attachedReceiptUrl, setAttachedReceiptUrl] = useState<string | null>(null)
+	const [dupState, setDupState] = useState<{ checked: boolean; duplicate: boolean; info?: any } | null>(null)
+	const [checkingDup, setCheckingDup] = useState(false)
 
 	if (!open) return null
 
@@ -47,12 +50,40 @@ export default function ExpenseOcrModal({ open, onClose }: ExpenseOcrModalProps)
 		}
 	}
 
+	const checkDuplicate = async () => {
+		try {
+			setError(null)
+			setDupState(null)
+			if (!vendor.trim() || !vendorInvoiceNo.trim()) return
+			setCheckingDup(true)
+			const res = await ExpensesService.checkDuplicate(vendor.trim(), vendorInvoiceNo.trim())
+			setDupState({ checked: true, duplicate: !!res?.duplicate, info: res?.expense })
+		} catch (e: any) {
+			// ignore
+		} finally {
+			setCheckingDup(false)
+		}
+	}
+
 	const handlePost = async () => {
 		try {
 			setSubmitting(true)
 			setError(null)
 			const amt = parseFloat(amount)
-			const res = await ExpensesService.postExpense({ vendorName: vendor.trim(), amount: amt, date, paymentStatus: 'paid', description: `Expense: ${vendor.trim()}` })
+			// Block submission if duplicate detected
+			if (vendorInvoiceNo.trim()) {
+				try {
+					const res = await ExpensesService.checkDuplicate(vendor.trim(), vendorInvoiceNo.trim())
+					if (res?.duplicate) {
+						const msg = `Duplicate bill detected for ${vendor} with Vendor Invoice No. "${vendorInvoiceNo}"`
+						setDupState({ checked: true, duplicate: true, info: res?.expense })
+						setError(msg)
+						try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } })) } catch {}
+						return
+					}
+				} catch {}
+			}
+			const res = await ExpensesService.postExpense({ vendorName: vendor.trim(), vendorInvoiceNo: vendorInvoiceNo.trim() || undefined, amount: amt, date, paymentStatus: 'paid', description: `Expense: ${vendor.trim()}` })
 			// Attach receipt if available and we have the expense id
 			try {
 				const expenseId = (res as any)?.expenseId || (res as any)?.expense?.id
@@ -96,6 +127,14 @@ export default function ExpenseOcrModal({ open, onClose }: ExpenseOcrModalProps)
 							<label className="flex flex-col gap-1">
 								<span className="text-secondary-contrast">Vendor</span>
 								<input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="Adobe, Uber..." />
+							</label>
+							<label className="flex flex-col gap-1">
+								<span className="text-secondary-contrast">Vendor Invoice No. (optional)</span>
+								<input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={vendorInvoiceNo} onChange={(e) => { setVendorInvoiceNo(e.target.value); setDupState(null) }} onBlur={checkDuplicate} placeholder="INV-12345" />
+								{dupState?.duplicate && (
+									<div className="text-xs text-red-400 mt-1">Duplicate detected. A bill with this number already exists.</div>
+								)}
+								{checkingDup && <div className="text-xs text-secondary-contrast mt-1">Checking duplicate...</div>}
 							</label>
 							<label className="flex flex-col gap-1">
 								<span className="text-secondary-contrast">Amount</span>

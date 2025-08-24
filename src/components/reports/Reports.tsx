@@ -765,25 +765,20 @@ export function Reports() {
                       {compareMode && cols.coa.prev && <th scope="col" className="px-4 py-2 text-right">Prev</th>}
                     </tr>
                   </thead>
-                  <tbody ref={coaRef as any} style={useCoaVirtual ? { display: 'block', maxHeight: 360, overflowY: 'auto' } : undefined}>
-                    {useCoaVirtual && <tr style={{ height: computeRange(coaRef.current, coaData.length, coaScrollTop).padTop }} aria-hidden="true" />}
+                  <tbody>
                     <AnimatePresence initial={false}>
-                      {(useCoaVirtual ? (() => {
-                        const { start, end } = computeRange(coaRef.current, coaData.length, coaScrollTop)
-                        return coaData.slice(start, end).map((r, i) => ({ row: r, key: start + i }))
-                      })() : coaData.map((r, i) => ({ row: r, key: i }))).map(({ row: r, key }) => (
-                        <motion.tr key={key} className="border-t border-white/10 hover:bg-white/5 cursor-pointer"
+                      {coaData.map((r, i) => (
+                        <motion.tr key={i} className="border-t border-white/10 hover:bg-white/5 cursor-pointer"
                           onClick={() => setAccountModal(r)}
                           initial="hidden" animate="visible" exit="hidden" variants={rowVariants}>
-                          {cols.coa.code && <td className="py-2">{r.code}</td>}
+                          {cols.coa.code && <td className="py-2 whitespace-nowrap">{r.code}</td>}
                           {cols.coa.name && <td className="py-2">{r.name}</td>}
-                          {cols.coa.type && <td className="py-2 capitalize">{r.type.toLowerCase()}</td>}
-                          {cols.coa.balance && <td className={cn('py-2 text-right font-semibold', r.balance >= 0 ? 'text-financial-revenue' : 'text-financial-expense')}>{r.balance >= 0 ? formatMoney(r.balance) : `-${formatMoney(Math.abs(r.balance))}`}</td>}
-                          {compareMode && cols.coa.prev && <td className="py-2 text-right text-secondary-contrast">{formatMoney(Math.round((r.balance) * 0.92))}</td>}
+                          {cols.coa.type && <td className="py-2 capitalize whitespace-nowrap">{r.type.toLowerCase()}</td>}
+                          {cols.coa.balance && <td className={cn('py-2 text-right font-semibold whitespace-nowrap', r.balance >= 0 ? 'text-financial-revenue' : 'text-financial-expense')}>{r.balance >= 0 ? formatMoney(r.balance) : `-${formatMoney(Math.abs(r.balance))}`}</td>}
+                          {compareMode && cols.coa.prev && <td className="py-2 text-right text-secondary-contrast whitespace-nowrap">{formatMoney(Math.round((r.balance) * 0.92))}</td>}
                         </motion.tr>
                       ))}
                     </AnimatePresence>
-                    {useCoaVirtual && <tr style={{ height: computeRange(coaRef.current, coaData.length, coaScrollTop).padBot }} aria-hidden="true" />}
                   </tbody>
                 </table>
               </div>

@@ -1,10 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../tenancy.js';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { aiLimiter } from './ai-rate-limiter.js';
 
-const prisma = new PrismaClient();
 
 class AICategoryService {
   static DEFAULT_ACCOUNT_MAPPINGS = {
@@ -201,10 +200,17 @@ Return JSON:\n{\n  "bestMatch": "Category Name" or "NO_MATCH",\n  "confidence": 
     const fullPrompt = `${systemPrompt}\n\n---\n\nUser Request:\n${userPrompt}`;
     const base = process.env.GEMINI_ENDPOINT || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
     const url = `${base}?key=${process.env.GEMINI_API_KEY}`;
-    const { data } = await axios.post(url, { contents: [{ parts: [{ text: fullPrompt }] }] }, { headers: { 'Content-Type': 'application/json' } });
-    const content = data.candidates[0]?.content?.parts[0]?.text;
-    if (!content) throw new Error('No response from AI service');
-    return content.trim();
+    try {
+      const { data } = await axios.post(url, { contents: [{ parts: [{ text: fullPrompt }] }] }, { headers: { 'Content-Type': 'application/json' } });
+      const content = data.candidates[0]?.content?.parts[0]?.text;
+      if (!content) throw new Error('No response from AI service');
+      return content.trim();
+    } catch (e) {
+      // Normalize vendor‑neutral error for UI consumers
+      const err = new Error('AI request failed');
+      err.code = (e && (e.code || e.response?.status)) || 'AI_REQUEST_FAILED';
+      throw err;
+    }
   }
 
   static async createPendingApproval(expenseId, suggestion, expenseDetails) {

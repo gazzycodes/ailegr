@@ -9,6 +9,7 @@ export type CompanyProfileDTO = {
   state?: string
   zipCode?: string
   country?: string
+  timeZone?: string | null
 }
 
 export async function getCompanyProfile(): Promise<CompanyProfileDTO> {
@@ -22,12 +23,13 @@ export async function getCompanyProfile(): Promise<CompanyProfileDTO> {
       city: data?.city || '',
       state: data?.state || '',
       zipCode: data?.zipCode || '',
-      country: data?.country || 'US'
+      country: data?.country || 'US',
+      timeZone: data?.timeZone || null
     }
     return profile
   } catch (e) {
     // Graceful fallback (e.g., server not yet restarted with new route)
-    return { legalName: '', aliases: [], email: '', addressLines: [], city: '', state: '', zipCode: '', country: 'US' }
+    return { legalName: '', aliases: [], email: '', addressLines: [], city: '', state: '', zipCode: '', country: 'US', timeZone: null }
   }
 }
 

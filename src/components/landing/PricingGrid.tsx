@@ -19,7 +19,14 @@ const PLANS: Plan[] = [
 
 export default function PricingGrid() {
 	const [annual, setAnnual] = useState(true)
-	const plans = useMemo(() => PLANS, [])
+	const plans = useMemo(() => {
+		const enableFree = (import.meta as any).env?.VITE_AILEGR_ENABLE_FREE_PLAN === 'true'
+		if (!enableFree) return PLANS
+		return [
+			{ name: 'Free', tag: 'DEV ONLY', monthly: 0, annual: 0, features: ['1 user', 'Basic invoicing', 'OCR receipts (10/mo)', 'P&L preview'] },
+			...PLANS
+		]
+	}, [])
 	return (
 		<div className="w-full" id="pricing">
 			{/* Toggle */}
@@ -60,7 +67,16 @@ export default function PricingGrid() {
 								</li>
 							))}
 						</ul>
-						<button className="mt-auto px-3 py-2 rounded-lg bg-primary/20 text-primary border border-primary/30 hover:bg-primary/25 transition-colors text-sm">
+						<button
+							className="mt-auto px-3 py-2 rounded-lg bg-primary/20 text-primary border border-primary/30 hover:bg-primary/25 transition-colors text-sm"
+							onClick={() => {
+								if (p.monthly === 0) {
+									try { window.history.pushState({ view: 'register' }, '', '/register'); window.dispatchEvent(new PopStateEvent('popstate')) } catch {}
+								} else {
+									window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Checkout coming soon (Stripe)', type: 'info' } }))
+								}
+							}}
+						>
 							Select plan
 						</button>
 					</ThemedGlassSurface>

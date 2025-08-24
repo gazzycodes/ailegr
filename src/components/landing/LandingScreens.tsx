@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import FinancialDataService from '../../services/financialDataService'
+import { useAuth } from '../../theme/AuthProvider'
 
 /**
  * LandingScreens
@@ -17,12 +18,14 @@ export default memo(function LandingScreens() {
 	const [mrr, setMrr] = useState<number | null>(null)
 	const pRef = useRef(0)
 	const mouseRef = useRef({ x: 0, y: 0 })
+	const { session } = useAuth()
 
 	useEffect(() => {
 		setMounted(true)
 		// Try to fetch metrics for live KPI; ignore errors if server not running
 		;(async () => {
 			try {
+				if (!session?.access_token) return
 				const data = await FinancialDataService.getDashboardData()
 				const value = Number(data?.metrics?.totalRevenue)
 				if (!isNaN(value) && value > 0) setMrr(value)
@@ -81,7 +84,7 @@ export default memo(function LandingScreens() {
 			window.removeEventListener('scroll', onScroll)
 			window.removeEventListener('mousemove', onMouseMove)
 		}
-	}, [])
+	}, [session?.access_token])
 
 	return (
 		<div ref={rootRef} className="relative w-full h-[320px] sm:h-[360px] lg:h-[420px]" style={{ perspective: '1000px' }}>

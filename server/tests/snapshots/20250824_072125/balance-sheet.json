@@ -1,0 +1,65 @@
+﻿{
+    "asOf":  "2025-08-24",
+    "currentAssets":  [
+                          {
+                              "name":  "Cash and Cash Equivalents",
+                              "amount":  2608.75
+                          },
+                          {
+                              "name":  "Accounts Receivable",
+                              "amount":  98817.13
+                          }
+                      ],
+    "nonCurrentAssets":  [
+
+                         ],
+    "currentLiabilities":  [
+                               {
+                                   "name":  "Accounts Payable",
+                                   "amount":  -117.25
+                               }
+                           ],
+    "longTermLiabilities":  [
+
+                            ],
+    "equity":  [
+                   {
+                       "name":  "Retained Earnings",
+                       "amount":  82271.13
+                   }
+               ],
+    "assets":  [
+                   {
+                       "name":  "Cash and Cash Equivalents",
+                       "amount":  2608.75
+                   },
+                   {
+                       "name":  "Accounts Receivable",
+                       "amount":  98817.13
+                   }
+               ],
+    "liabilities":  [
+                        {
+                            "name":  "Accounts Payable",
+                            "amount":  -117.25
+                        }
+                    ],
+    "totals":  {
+                   "currentAssets":  101425.88,
+                   "nonCurrentAssets":  0,
+                   "totalAssets":  101425.88,
+                   "currentLiabilities":  -117.25,
+                   "longTermLiabilities":  0,
+                   "totalLiabilities":  -117.25,
+                   "totalEquity":  82271.13,
+                   "liabilitiesAndEquity":  82153.88,
+                   "workingCapital":  101543.13,
+                   "currentRatio":  0,
+                   "debtToEquityRatio":  0,
+                   "equationOK":  false,
+                   "equationDifference":  19272,
+                   "assets":  101425.88,
+                   "liabilities":  -117.25,
+                   "equity":  82271.13
+               }
+}

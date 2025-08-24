@@ -1,0 +1,77 @@
+﻿{
+    "asOf":  "2025-08-24",
+    "rows":  [
+                 {
+                     "accountCode":  "1010",
+                     "account":  "Cash and Cash Equivalents",
+                     "accountType":  "ASSET",
+                     "normalBalance":  "DEBIT",
+                     "debit":  2608.75,
+                     "credit":  0,
+                     "transactionCount":  59,
+                     "lastActivity":  "2025-08-24"
+                 },
+                 {
+                     "accountCode":  "1200",
+                     "account":  "Accounts Receivable",
+                     "accountType":  "ASSET",
+                     "normalBalance":  "DEBIT",
+                     "debit":  98817.13,
+                     "credit":  0,
+                     "transactionCount":  27,
+                     "lastActivity":  "2025-11-24"
+                 },
+                 {
+                     "accountCode":  "2010",
+                     "account":  "Accounts Payable",
+                     "accountType":  "LIABILITY",
+                     "normalBalance":  "CREDIT",
+                     "debit":  117.25,
+                     "credit":  0,
+                     "transactionCount":  37,
+                     "lastActivity":  "2025-08-24"
+                 },
+                 {
+                     "accountCode":  "4010",
+                     "account":  "Product Sales",
+                     "accountType":  "REVENUE",
+                     "normalBalance":  "CREDIT",
+                     "debit":  0,
+                     "credit":  101967.13,
+                     "transactionCount":  6,
+                     "lastActivity":  "2025-11-24"
+                 },
+                 {
+                     "accountCode":  "6080",
+                     "account":  "Utilities",
+                     "accountType":  "EXPENSE",
+                     "normalBalance":  "DEBIT",
+                     "debit":  424,
+                     "credit":  0,
+                     "transactionCount":  1,
+                     "lastActivity":  "2025-06-28"
+                 },
+                 {
+                     "accountCode":  "6999",
+                     "account":  "Other Business Expense",
+                     "accountType":  "EXPENSE",
+                     "normalBalance":  "DEBIT",
+                     "debit":  19272,
+                     "credit":  0,
+                     "transactionCount":  22,
+                     "lastActivity":  "2025-07-10"
+                 }
+             ],
+    "totals":  {
+                   "debit":  121239.13,
+                   "credit":  101967.13,
+                   "difference":  19272,
+                   "isBalanced":  false
+               },
+    "summary":  {
+                    "totalAccounts":  47,
+                    "activeAccounts":  6,
+                    "zeroBalanceAccounts":  41,
+                    "totalTransactions":  152
+                }
+}

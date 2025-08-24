@@ -1,6 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../tenancy.js';
 
-const prisma = new PrismaClient();
 
 /**
  * Expense Account Resolver - Unified Account Resolution Service
@@ -44,12 +43,13 @@ class ExpenseAccountResolver {
     paid: '1010',
     unpaid: '2010',
     overpaid: '1010',
-    partial: '2010'
+    partial: '2010',
+    refunded: '1010'
   };
 
   static async resolveExpenseAccounts(expenseData) {
     const debitResolution = await this.resolveDebitAccount(expenseData);
-    const creditResolution = await this.resolveCreditAccount(expenseData.paymentStatus);
+    const creditResolution = await this.resolveCreditAccount(expenseData.paymentStatus, expenseData.amount);
     const datePolicy = this.determineDatePolicy(expenseData);
     await this.validateAccountsExist([debitResolution.accountCode, creditResolution.accountCode]);
     return {
@@ -112,7 +112,9 @@ Chart of Accounts:\n${list}`
               const aiAcc = await this.getAccountByCode(aiCode)
               if (aiAcc) return { accountCode: aiAcc.code, accountName: aiAcc.name, source: 'AI' }
             }
-          } catch {}
+          } catch (e) {
+            // Normalize AI errors into silent fallback to keyword matching
+          }
         }
       }
     } catch {}
@@ -128,7 +130,9 @@ Chart of Accounts:\n${list}`
     return { accountCode: '6999', accountName: fallback.name, source: 'FALLBACK' };
   }
 
-  static async resolveCreditAccount(paymentStatus) {
+  static async resolveCreditAccount(paymentStatus, amount) {
+    // For refunds (negative amount), treat as cash movement regardless of status
+    try { if (parseFloat(amount) < 0) { const acc = await this.getAccountByCode('1010'); if (acc) return { accountCode: acc.code, accountName: acc.name, source: 'REFUND' } } } catch {}
     const accountCode = this.PAYMENT_ACCOUNT_MAPPING[paymentStatus] || this.PAYMENT_ACCOUNT_MAPPING['unpaid'];
     const account = await this.getAccountByCode(accountCode);
     if (!account) throw new Error(`Credit account ${accountCode} not found in Chart of Accounts`);
@@ -156,13 +160,13 @@ Chart of Accounts:\n${list}`
   }
 
   static async getAccountByCode(accountCode) {
-    const account = await prisma.account.findUnique({
+    const account = await prisma.account.findFirst({
       where: { code: accountCode },
       select: { id: true, code: true, name: true, type: true, normalBalance: true }
     });
     // Fallback: if code 6999 missing in demo databases, map to '6020 Office Supplies' to keep previews working
     if (!account && accountCode === '6999') {
-      const fallback = await prisma.account.findUnique({ where: { code: '6020' }, select: { id: true, code: true, name: true, type: true, normalBalance: true } })
+      const fallback = await prisma.account.findFirst({ where: { code: '6020' }, select: { id: true, code: true, name: true, type: true, normalBalance: true } })
       if (fallback) return fallback
     }
     return account;

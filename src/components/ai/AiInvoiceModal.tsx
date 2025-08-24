@@ -83,7 +83,7 @@ export function AiInvoiceModal({ open, onClose }: AiInvoiceModalProps) {
     }
     try {
       setSubmitting(true)
-      await TransactionsService.postInvoice({
+      const result = await TransactionsService.postInvoice({
         customerName: customer.trim(),
         amount: amt,
         date,
@@ -91,6 +91,14 @@ export function AiInvoiceModal({ open, onClose }: AiInvoiceModalProps) {
         invoiceNumber: invoiceNumber || undefined,
         paymentStatus: status
       })
+      // Inform user explicitly if this was an idempotent duplicate
+      try {
+        if (result && result.isExisting) {
+          window.dispatchEvent(new CustomEvent('toast', { detail: { message: `Invoice #${invoiceNumber || ''} already exists. Opened existing record.`, type: 'info' } }))
+        } else {
+          window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Invoice created successfully', type: 'success' } }))
+        }
+      } catch {}
       try { window.dispatchEvent(new CustomEvent('data:refresh')) } catch {}
       onCloseLocal()
     } catch (e: any) {

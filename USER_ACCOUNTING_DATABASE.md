@@ -1,3 +1,27 @@
+- AP Bills Posting & Payments (2025-08-23)
+  - Double-entry remains balanced across initial posting, partial payments, edits, and voids.
+  - Aggregates on parent transaction:
+    - amountPaid = initialAmountPaid + sum(payments) − sum(voids)
+    - balanceDue = max(0, total − amountPaid)
+    - paymentStatus ∈ { unpaid, partial, paid, overpaid } derived from amountPaid vs total.
+  - Synthetic "Initial payment at posting" appears in history; subsequent payments are separate lines.
+  - Edits: increases post the delta; decreases are implemented as void + new payment for the lower amount.
+  - Voids: create reversing journal and flag original payment customFields.voided; history excludes voided lines.
+
+Recurring transactions (planned)
+- Model: add `RecurringRule { id, tenantId, type: 'EXPENSE'|'INVOICE', cadence: 'monthly'|'weekly'|'annual'|'custom', startDate, endDate?, dayOfMonth?, weekday?, amount, vendor/customer, categoryKey, description, nextRunAt }`
+- Scheduler: daily job scans `nextRunAt <= now` and materializes transactions using PostingService (idempotent by rule id + period)
+- UI: toggle “Make recurring” in AI Document and Invoices; manage rules under Settings → Recurring with pause/resume and preview next run
+- Accounting: postings use normal double-entry; initialAmountPaid can be set from the rule (e.g., auto-charge) and shows as synthetic payment
+
+### Current status (2025-08-23)
+- Implemented advanced cadence (end-of-month, nth weekday), pauseUntil/resumeOn, occurrences preview endpoint, and run logs stored in `payload.__runLog`.
+- Dev-only surfaces (to hide in production): Simulate Next Run, Run Log viewer, Global Run Due Now.
+- Scheduler env: `AILEGR_RECURRING_CRON` toggles background runs.
+
+### Tenantization impact
+- All recurring rules will be scoped by `tenant_id` once auth/tenancy is enabled.
+- On first login, `/api/setup/bootstrap-tenant` should create tenant + seed core COA; subsequent recurring runs use `req.tenantId` enforced by Prisma middleware.
 # User Accounting Database — Tenancy and Migration Plan
 
 Goal: Keep Supabase strictly for auth; move/keep all accounting data in our own database (Postgres in prod). Support SaaS single‑tenant per user (one tenant per account), with strong isolation and simple ops.
@@ -38,6 +62,7 @@ Why not database‑per‑user? Operational burden (migrations/backups/conns) and
 
 4) Seeds
 - Move `ensure-core-accounts` to run per‑tenant when a tenant is created (or first sign‑in for that user).
+- Provide extended COA pack seeding via `POST /api/setup/seed-coa?preset=us-gaap` (idempotent, per tenant) using `server/data/us_gaap_coa.json`.
 
 ## Backend changes
 1) JWT verification middleware
@@ -161,10 +186,29 @@ model Invoice {
   5) npm run server (backend), npm run dev (frontend)
   6) POST /api/setup/bootstrap-tenant with { tenantName, userId }
 
-## Postgres credentials � 2025-08-22
+## Postgres credentials � 2025-08-22
 - Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
 - Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public
 
-## Postgres credentials � 2025-08-22
+## Postgres credentials � 2025-08-22
 - Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
 - Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public
+
+## Postgres credentials � 2025-08-22
+- Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
+- Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public
+
+### Implemented (Tenancy/Auth)
+- Backend verifies JWT via Supabase JWKS; derives tenant from Membership.
+- Request context provides tenantId to Prisma; all queries isolated by tenant.
+- Frontend sends Authorization and X-Tenant-Id; bootstraps tenant after login.
+- Reference uniqueness per tenant; recurring runs and postings now isolated.
+
+
+### Implemented (phase 2)
+- Per-tenant storage paths and guarded static serving.
+- WebSocket requires auth; tenant context bound.
+- RBAC coverage for categories/admin and COA ops.
+- Scheduler supports job key + per-tenant runs.
+- Set env: AILEGR_AUTH_ENFORCE=true, AILEGR_JOB_KEY, AILEGR_SUPABASE_URL.
+

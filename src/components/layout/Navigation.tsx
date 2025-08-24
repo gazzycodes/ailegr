@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   LayoutDashboard, 
@@ -15,6 +15,8 @@ import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import { cn } from '../../lib/utils'
 import { useTheme } from '../../theme/ThemeProvider'
 import supabase from '../../services/supabaseClient'
+import api from '../../services/api'
+import { getActiveTenantId, setActiveTenantId } from '../../services/tenantStore'
 
 interface NavigationProps {
   currentView: string
@@ -82,6 +84,34 @@ export function Navigation({
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   const [hoveredLogout, setHoveredLogout] = useState(false)
   const { currentTheme, isDark } = useTheme()
+  const [memberships, setMemberships] = useState<{ tenantId: string; tenantName: string; role: string }[]>([])
+  const [activeTenantId, setActiveTenant] = useState<string | null>(getActiveTenantId())
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data } = await api.get('/api/memberships')
+        if (!cancelled) setMemberships(Array.isArray(data?.memberships) ? data.memberships : [])
+      } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const activeTenantName = useMemo(() => memberships.find(m => m.tenantId === activeTenantId)?.tenantName || 'Workspace', [memberships, activeTenantId])
+
+  const switchTenant = async (tenantId: string) => {
+    try {
+      await api.post('/api/memberships/switch', { tenantId })
+      setActiveTenantId(tenantId)
+      setActiveTenant(tenantId)
+      window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Tenant switched', type: 'success' } }))
+      window.dispatchEvent(new Event('data:refresh'))
+    } catch (e: any) {
+      const msg = e?.message || 'Failed to switch tenant'
+      window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } }))
+    }
+  }
 
   // Get health status indicator
   const getHealthStatus = () => {
@@ -326,7 +356,7 @@ export function Navigation({
           })}
         </nav>
 
-        {/* Bottom Status */}
+        {/* Bottom Status + Tenant Switcher */}
         <div className="p-4 border-t border-border/20">
           <AnimatePresence>
             {isExpanded ? (
@@ -334,8 +364,16 @@ export function Navigation({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="space-y-2"
+                className="space-y-3"
               >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs text-muted-contrast">Tenant</div>
+                  <select value={activeTenantId || ''} onChange={(e)=>switchTenant(e.target.value)} className="text-xs bg-white/10 border border-white/10 rounded px-2 py-1">
+                    {(memberships.length ? memberships : [{ tenantId: activeTenantId || '', tenantName: activeTenantName, role: 'MEMBER' }]).map(m => (
+                      <option key={m.tenantId} value={m.tenantId}>{m.tenantName || m.tenantId}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="flex items-center gap-2 text-xs text-muted-contrast">
                   <Activity className="w-3 h-3" />
                   <span>Real-time sync active</span>
