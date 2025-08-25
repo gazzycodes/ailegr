@@ -21,6 +21,16 @@ export async function postExpense(payload: any) {
   return data
 }
 
+export async function getVendorDefaults(vendor: string) {
+  const { data } = await api.get(`/api/vendors/${encodeURIComponent(vendor)}/defaults`)
+  return data || {}
+}
+
+export async function saveVendorDefaults(vendor: string, defaults: { taxEnabled: boolean; taxMode?: 'percentage'|'amount'; taxRate?: number; taxAmount?: number }) {
+  const { data } = await api.put(`/api/vendors/${encodeURIComponent(vendor)}/defaults`, defaults)
+  return data || { ok: true }
+}
+
 export async function attachReceipt(expenseId: string, file: File) {
   const form = new FormData()
   form.append('file', file)

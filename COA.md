@@ -1,3 +1,46 @@
+## Chart of Accounts (COA) – Mapping & Seeding
+
+### Goals
+- Always post with valid accounts (never block).
+- Prefer precise mapping (AI or rules) with safe fallbacks.
+- Make it automatic for all tenants (core + extended COA).
+
+### Seeding
+- Core accounts auto-ensure on startup when `EZE_SEED_CORE_ACCOUNTS=true`.
+- Extended US GAAP set:
+  - One-time admin sweep: `POST /api/admin/seed-coa-all-tenants` (header `X-Job-Key`).
+  - Auto-ensure on startup when `EZE_SEED_EXTENDED_COA=true` (idempotent).
+  - New tenants: bootstrap seeds core + extended immediately (gated by `EZE_SEED_EXTENDED_COA`).
+
+### Mapping Precedence
+AP (Expenses):
+1. User/AI hint: `suggestedAccountCode` (if the code exists)
+2. Category mapping (resolver `CATEGORY_ACCOUNT_MAPPING`)
+3. Keyword/heuristics (telecom→6160, bank fees→6015, cloud hosting→6240, processor fees→6230, etc.)
+4. Fallback `6999` (with a resilience substitution to `6020` in demo if 6999 missing)
+
+AR (Invoices/Revenue):
+1. Per-line `accountCode` (from AI or user)
+2. Mapper `mapLineItemToRevenueAccount`:
+   - SEO/marketing→4030, support/maintenance→4040, subscription/SaaS→4050, license→4060, training→4070, otherwise 4020
+3. Fallback to default revenue (usually 4020)
+
+### AI – Single Call Strategy
+- OCR normalize/classify already runs; we piggyback mapping hints:
+  - Expenses: `/api/ocr/normalize` sets `labels.suggestedAccountCode` (heuristic). UI forwards as `suggestedAccountCode`.
+  - Invoices/Revenue: AI prompt can return `lineItems[{ description, amount, accountCode }]`.
+- Server validates codes and applies precedence. No extra AI calls.
+
+### Safety
+- All posting functions validate accounts; if a mapped account is missing, fallback to defaults and never block.
+- Seeding is idempotent; re-running does not duplicate.
+
+### Testing
+- Seed extended COA on dev.
+- Post AP bills covering categories: telecom, SaaS, cloud hosting, processor fees, rent, meals, insurance, training.
+- Post AR invoices with lines matching: marketing services, support/maintenance, subscriptions, license, training.
+- Verify balances and that entries credit/debit the expected codes.
+
 # Chart of Accounts (COA) — US Small-Business Baseline
 
 This document tracks COA presets, decisions, and changes over time.

@@ -5,6 +5,7 @@ import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import { ModalPortal } from '../layout/ModalPortal'
 import { cn } from '../../lib/utils'
 import { BarChart3, ListTree, Scale, Table as TableIcon, Search, ChevronDown, Paperclip } from 'lucide-react'
+import SegmentedControl from '../themed/SegmentedControl'
 import { motion, AnimatePresence } from 'framer-motion'
 import ReportsService from '../../services/reportsService'
 import ExpensesApi from '../../services/expensesService'
@@ -70,6 +71,7 @@ function AIInsightPanel({ tab }: { tab: string }) {
 
 export function Reports() {
   const [activeTab, setActiveTab] = useState<'pnl' | 'balance' | 'trial' | 'coa'>('pnl')
+  const [coaFilter, setCoaFilter] = useState<'active'|'all'>(() => (localStorage.getItem('coa.filter') as any) || 'active')
   const [periodType, setPeriodType] = useState<PeriodType>('Monthly')
   const [period, setPeriod] = useState<string>('Aug 2025')
   const [search, setSearch] = useState('')
@@ -376,7 +378,8 @@ export function Reports() {
   const balanceData = useMemo(() => sorted(filtered(balanceApi ?? [], ['name', 'section']), sortKey), [search, sortKey, sortDir, balanceApi])
   const trialData = useMemo(() => sorted(filtered(trialApi ?? [], ['code', 'name']), sortKey), [search, sortKey, sortDir, trialApi])
   const [coaApi, setCoaApi] = useState<AccountRow[] | null>(null)
-  const coaData = useMemo(() => sorted(filtered(coaApi ?? [], ['code', 'name', 'type']), sortKey), [search, sortKey, sortDir, coaApi])
+  const coaDataAll = useMemo(() => sorted(filtered(coaApi ?? [], ['code', 'name', 'type']), sortKey), [search, sortKey, sortDir, coaApi])
+  const coaData = useMemo(() => (coaFilter === 'all' ? coaDataAll : coaDataAll.filter(r => (r.balance !== 0 || r.transactionCount > 0))), [coaFilter, coaDataAll])
   const [recentExpense, setRecentExpense] = useState<any | null>(null)
   // Derived totals available if needed later
   // const coaTotals = useMemo(() => {
@@ -747,6 +750,14 @@ export function Reports() {
           {activeTab === 'coa' && (
             <ThemedGlassSurface variant="medium" glow className="p-4">
               <SectionHeader icon={ListTree} title="Chart of Accounts" subtitle="Click an account to drill in" />
+              {/* COA Filters */}
+              <div className="mb-3 relative z-20">
+                <SegmentedControl
+                  options={[{ value: 'active', label: 'Active COA' }, { value: 'all', label: 'All COA' }]}
+                  value={coaFilter as any}
+                  onChange={(v:any) => { setCoaFilter(v); localStorage.setItem('coa.filter', v) }}
+                />
+              </div>
               <div className="overflow-x-auto hidden sm:block">
                 <table role="table" aria-label="Chart of Accounts" className={cn('reports-table w-full text-sm min-w-[640px] table-fixed', compactDensity ? '[&_*]:py-1' : '')}>
                   <colgroup>

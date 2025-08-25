@@ -1,13 +1,13 @@
 import { useRef, useState, useEffect } from 'react'
-import RecurringService from '../../services/recurringService'
+// import RecurringService from '../../services/recurringService'
 import RecurringModal from '../recurring/RecurringModal'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import { ModalPortal } from '../layout/ModalPortal'
-import ExpensesService from '../../services/expensesService'
+import ExpensesService, { getVendorDefaults, saveVendorDefaults } from '../../services/expensesService'
 import CustomersService from '../../services/customersService'
-import { TransactionsService } from '../../services/transactionsService'
 import api from '../../services/api'
+import { TransactionsService } from '../../services/transactionsService'
 import ThemedSelect from '../themed/ThemedSelect'
 import InfoHint from '../themed/InfoHint'
 
@@ -22,7 +22,7 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
   const CLASSIFY_THRESHOLD = 0.75
   const [stage, setStage] = useState<'picker' | 'form'>('picker')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [scanToastShown, setScanToastShown] = useState(false)
+  // const [scanToastShown, setScanToastShown] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [ocrProgress, setOcrProgress] = useState(0)
@@ -34,12 +34,26 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
   const [vendorInvoiceNo, setVendorInvoiceNo] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState('')
+  const [dueDaysExp, setDueDaysExp] = useState('')
+  const [dueDateExp, setDueDateExp] = useState('')
+  const [taxEnabledExp, setTaxEnabledExp] = useState(false)
+  const [taxModeExp, setTaxModeExp] = useState<'percentage' | 'amount'>('percentage')
+  const [taxRateExp, setTaxRateExp] = useState('')
+  const [taxAmountExp, setTaxAmountExp] = useState('')
+  const [amountPaidExp, setAmountPaidExp] = useState('')
+  const [paidOnExp, setPaidOnExp] = useState('')
+  const [memo, setMemo] = useState('')
+  const [tags, setTags] = useState<string>('')
+  const [shipping, setShipping] = useState('')
+  const [discount, setDiscount] = useState('')
+  const [lineItems, setLineItems] = useState<Array<{ description: string; qty?: string; rate?: string; amount: string }>>([{ description: '', qty: '1', rate: '', amount: '' }])
   const [description, setDescription] = useState('')
   const [preview, setPreview] = useState<any | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dupState, setDupState] = useState<{ checked: boolean; duplicate: boolean; info?: any } | null>(null)
   const [checkingDup, setCheckingDup] = useState(false)
+  const [savingDefaults, setSavingDefaults] = useState(false)
 
   // Mode: expense or invoice (auto-detected)
   const [mode, setMode] = useState<'expense' | 'invoice'>('expense')
@@ -50,15 +64,23 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
   const [dueDate, setDueDate] = useState('')
   const [invoiceNumber, setInvoiceNumber] = useState('')
   const [status, setStatus] = useState<'paid' | 'invoice' | 'partial' | 'overpaid'>('invoice')
+  const [taxEnabledInv, setTaxEnabledInv] = useState(false)
+  const [taxModeInv, setTaxModeInv] = useState<'percentage' | 'amount'>('percentage')
+  const [taxRateInv, setTaxRateInv] = useState('')
+  const [taxAmountInv, setTaxAmountInv] = useState('')
+  const [discountInv, setDiscountInv] = useState('')
+  const [dueDaysInv, setDueDaysInv] = useState('')
   const [notes, setNotes] = useState('')
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [showSuggest, setShowSuggest] = useState(false)
   const [loadingSuggest, setLoadingSuggest] = useState(false)
-  const [attachedReceiptUrl, setAttachedReceiptUrl] = useState<string | null>(null)
+  const [, setAttachedReceiptUrl] = useState<string | null>(null)
   const [recurringOpen, setRecurringOpen] = useState(false)
   const [classification, setClassification] = useState<{ docType: string; ourRole: string; policy?: string; confidence?: number } | null>(null)
   const [typeConfirmed, setTypeConfirmed] = useState<boolean>(false)
   const [normalizedAmounts, setNormalizedAmounts] = useState<{ subtotal?: number; taxAmount?: number; total?: number; amountPaid?: number; balanceDue?: number } | null>(null)
+  // const [amountPaidInv, setAmountPaidInv] = useState('')
+  // const [paidOnInv, setPaidOnInv] = useState('')
   const [recognitionDate, setRecognitionDate] = useState<string>('')
   const [fieldConfidence, setFieldConfidence] = useState<{ amount?: number; date?: number; dueDate?: number; invoiceNumber?: number }>({})
   const updateConf = (k: keyof typeof fieldConfidence, v: number) => setFieldConfidence(prev => ({ ...prev, [k]: v }))
@@ -145,50 +167,7 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
 
   // Build a concise description from OCR line items (best-effort).
   // Attempts to capture up to two item rows with amounts to aid audit trails.
-  const deriveLineItemSummary = (raw: string): string | null => {
-    if (!raw) return null
-    try {
-      const lines = raw.split(/\r?\n/).map(l => (l || '').trim()).filter(Boolean)
-      const startIdx = (() => {
-        const idx = lines.findIndex(l => /line\s*items/i.test(l))
-        if (idx >= 0) return idx + 1
-        const hdr = lines.findIndex(l => /item\s+description/i.test(l))
-        return hdr >= 0 ? hdr + 1 : 0
-      })()
-      const stopWord = /^(payments\s*made|subtotal|total|tax|shipping|balance\s*due|terms|bill\s*date|due\s*date)/i
-      const items: string[] = []
-      for (let i = startIdx; i < Math.min(lines.length, startIdx + 12); i++) {
-        let line = lines[i]
-        if (!line || stopWord.test(line)) break
-        if (/item\s+description/i.test(line)) continue
-        // Capture last amount on the line
-        const amountMatches = line.match(/[\$€£₹]?\s*[0-9]+(?:[, .']*[0-9]{3})*(?:[.,][0-9]{1,2})?/g)
-        const amountStr = amountMatches && amountMatches.length ? amountMatches[amountMatches.length - 1].replace(/\s+/g, '') : null
-        // Remove obvious column headers and keep descriptive text
-        let desc = line.replace(/\b(item|description|qty|unit|amount)\b.*$/i, '').trim()
-        // If description still looks like a table row, strip trailing columns before the amount
-        if (amountStr) {
-          const idxAmt = desc.lastIndexOf(amountStr)
-          if (idxAmt > 0) desc = desc.slice(0, idxAmt).trim()
-        }
-        // Skip numeric-only or heading-like lines
-        if (!/[A-Za-z]/.test(desc) || desc.length < 4) continue
-        // Join with the next line if it continues the description and is not a totals row
-        if (i + 1 < lines.length && !stopWord.test(lines[i + 1]) && /[A-Za-z]/.test(lines[i + 1]) && !/[\$€£₹]/.test(lines[i + 1])) {
-          const next = lines[i + 1].trim()
-          if (next && next.length > 3 && !/^(qty|unit|amount)$/i.test(next)) {
-            desc = `${desc} ${next}`
-            i++
-          }
-        }
-        items.push(amountStr ? `${desc} (${amountStr})` : desc)
-        if (items.length >= 2) break
-      }
-      return items.length ? items.join(' + ') : null
-    } catch {
-      return null
-    }
-  }
+  // const deriveLineItemSummary = (raw: string): string | null => { return null }
 
   const processDocument = async () => {
     if (!selectedFile) return
@@ -252,6 +231,11 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
         
         // Prefer labels from normalizer for dates (do not set invoice number here)
         const lbl = (structured && structured.labels) || {}
+        // Capture AI-suggested expense account if present (forward as hint)
+        try {
+          const aiAcc = (structured && structured.labels && structured.labels.suggestedAccountCode) ? String(structured.labels.suggestedAccountCode) : ''
+          if (aiAcc) (window as any)._aiSuggestedExpenseAccount = aiAcc
+        } catch {}
         const toISO = (raw: string): string => {
           if (!raw || typeof raw !== 'string') return ''
           const s = raw.trim()
@@ -271,6 +255,16 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
           const iso = toISO(String((structured as any).labels.revenueRecognitionDate))
           if (iso) setRecognitionDate(iso)
         }
+        // Map tax hints from normalizer into Expense fields when present
+        try {
+          const tRate = (structured && structured.labels && typeof structured.labels.taxRatePercent === 'number') ? structured.labels.taxRatePercent : undefined
+          const tAmt = (structured && structured.amounts && typeof structured.amounts.taxAmount === 'number') ? structured.amounts.taxAmount : undefined
+          if ((tRate != null && tRate > 0) || (tAmt != null && tAmt > 0)) {
+            setTaxEnabledExp(true)
+            if (tRate != null && tRate > 0) { setTaxModeExp('percentage'); setTaxRateExp(String(tRate)) }
+            else if (tAmt != null && tAmt > 0) { setTaxModeExp('amount'); setTaxAmountExp(String(tAmt)) }
+          }
+        } catch {}
       } catch (e) {}
       let docType = 'expense'
       try {
@@ -371,6 +365,105 @@ TEXT:\n${text.slice(0, 12000)}`
             if (parsed.paymentStatus) setStatus((parsed.paymentStatus as any) || 'invoice')
           }
         } catch (e) {}
+        // Map tax hints from normalizer into Invoice fields when present
+        try {
+          const tRate = (structured && structured.labels && typeof structured.labels.taxRatePercent === 'number') ? structured.labels.taxRatePercent : undefined
+          const tAmt = (structured && structured.amounts && typeof structured.amounts.taxAmount === 'number') ? structured.amounts.taxAmount : undefined
+          if ((tRate != null && tRate > 0) || (tAmt != null && tAmt > 0)) {
+            setTaxEnabledInv(true)
+            if (tRate != null && tRate > 0) { setTaxModeInv('percentage'); setTaxRateInv(String(tRate)) }
+            else if (tAmt != null && tAmt > 0) { setTaxModeInv('amount'); setTaxAmountInv(String(tAmt)) }
+          }
+        } catch {}
+        // Detect Due Terms (Net N) for invoice from normalized labels or OCR text
+        try {
+          let detectedDays: number | undefined
+          let detectedDueISO: string | undefined
+          const lblTerms = (structured && ((structured.labels && (structured.labels.terms || structured.labels.paymentTerms)) as any)) ? String((structured.labels as any).terms || (structured.labels as any).paymentTerms) : ''
+          if (typeof (structured && (structured as any).labels?.netDays) === 'number') detectedDays = Number((structured as any).labels.netDays)
+          const corpus = `${lblTerms}\n${extractedText || ''}`
+          if (!detectedDays) {
+            const patterns = [
+              /\bnet\s*-?\s*(\d{1,3})\b/i,                 // Net 30, Net-30
+              /\bnet(\d{1,3})\b/i,                           // NET30 (no space)
+              /\bterms?\s*[:\-]?\s*net\s*(\d{1,3})\b/i,     // Terms: Net 30
+              /\bdue\s*in\s*(\d{1,3})\s*days?\b/i,          // due in 30 days
+              /\bdue\s*within\s*(\d{1,3})\s*days?\b/i,      // due within 30 days
+              /\bpay(?:ment)?\s*(?:due|within)\s*(\d{1,3})\s*days?\b/i, // payment due/within 30 days
+              /\bpayment\s*terms?\s*[:\-]?\s*(\d{1,3})\s*days?\b/i // Payment Terms: 30 days
+            ]
+            for (const re of patterns) {
+              const m = corpus.match(re)
+              if (m) { detectedDays = parseInt(m[1], 10); break }
+            }
+          }
+          // Due on receipt / COD → 0 days
+          if (detectedDays == null) {
+            if (/\b(due\s+(?:upon|on)\s+receipt|payable\s+upon\s+receipt|due\s+now|\bCOD\b)\b/i.test(corpus)) {
+              detectedDays = 0
+            }
+          }
+          // EOM and variations
+          const isoOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+          const endOfMonth = (d: Date) => { const dt = new Date(d.getFullYear(), d.getMonth()+1, 0); return dt }
+          if (detectedDays == null) {
+            const eomPlus = corpus.match(/\b(?:net\s*)?(?:eom|end\s+of\s+month)\s*(?:\+|plus)?\s*(\d{1,3})?\s*(?:days?)?\b/i)
+            if (eomPlus && date) {
+              const base = endOfMonth(new Date(date))
+              const add = eomPlus[1] ? parseInt(eomPlus[1], 10) : 0
+              const due = new Date(base)
+              if (add) due.setDate(due.getDate() + add)
+              detectedDueISO = isoOf(due)
+            }
+          }
+          // 15th of next month / next month EOM
+          if (!detectedDueISO && date) {
+            const nextMonth15 = corpus.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+of\s+next\s+month\b/i)
+            if (nextMonth15) {
+              const d = new Date(date)
+              const day = Math.max(1, Math.min(28, parseInt(nextMonth15[1], 10)))
+              const due = new Date(d.getFullYear(), d.getMonth()+1, day)
+              detectedDueISO = isoOf(due)
+            } else if (/\b(end\s+of\s+next\s+month|eom\s+next\s+month)\b/i.test(corpus)) {
+              const d = new Date(date)
+              const due = new Date(d.getFullYear(), d.getMonth()+2, 0)
+              detectedDueISO = isoOf(due)
+            }
+          }
+          // Try computing from normalized labels (invoiceDate/dueDate) if present, without relying on React state timing
+          if (detectedDays == null) {
+            const toISOInline = (raw: any): string => {
+              if (!raw || typeof raw !== 'string') return ''
+              const s = raw.trim()
+              const iso = s.match(/^\d{4}-\d{2}-\d{2}/)
+              if (iso) return iso[0]
+              const mdy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/)
+              if (mdy) { let m = +mdy[1], d = +mdy[2], y = +mdy[3]; if (y < 100) y = 2000 + y; return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}` }
+              const cleaned = s.replace(/(\d+)(st|nd|rd|th)/i, '$1')
+              const dt = new Date(cleaned)
+              if (!isNaN(dt.getTime())) { const y = dt.getFullYear(); const m = String(dt.getMonth()+1).padStart(2,'0'); const d = String(dt.getDate()).padStart(2,'0'); return `${y}-${m}-${d}` }
+              return ''
+            }
+            const invIso = toISOInline((structured as any)?.labels?.invoiceDate)
+            const dueIso = toISOInline((structured as any)?.labels?.dueDate)
+            if (invIso && dueIso) {
+              const d1 = new Date(invIso); const d2 = new Date(dueIso)
+              if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+                const diff = Math.round((d2.getTime() - d1.getTime()) / (24*60*60*1000))
+                if (diff >= 0 && diff <= 365) detectedDays = diff
+              }
+            }
+          }
+          if (!detectedDays && date && (detectedDueISO || dueDate)) {
+            const d1 = new Date(date); const d2 = new Date(detectedDueISO || dueDate)
+            if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+              const diff = Math.round((d2.getTime() - d1.getTime()) / (24*60*60*1000))
+              if (diff >= 0 && diff <= 365) detectedDays = diff
+            }
+          }
+          if (detectedDueISO && !dueDate) setDueDate(detectedDueISO)
+          if (detectedDays != null && !dueDaysInv) setDueDaysInv(String(Math.max(0, Math.min(365, detectedDays))))
+        } catch {}
         // Fallback: parse invoice number and dates directly from OCR text if still missing
         try {
           // do not set invoice number here; we'll set it after the form loads
@@ -411,7 +504,7 @@ TEXT:\n${text.slice(0, 12000)}`
             const aliases = Array.isArray(prof?.data?.aliases) ? prof.data.aliases.join(', ') : ''
             if (nm) companyHint = `\nMY COMPANY: ${nm}${aliases ? `\nALIASES: ${aliases}` : ''}`
           } catch (e) {}
-          const ePrompt = `Extract EXPENSE data with confidences. Return ONLY JSON with keys: {"vendorName","amount","date","invoiceNumber","description","tax":{"enabled":boolean,"name":"Sales Tax","rate":number,"amount":number},"payments":{"amountPaid":number,"balanceDue":number},"confidences":{"vendorName":0..1,"amount":0..1,"date":0..1}}.
+          const ePrompt = `Extract EXPENSE data with confidences. Return ONLY JSON with keys: {"vendorName","amount","date","invoiceNumber","description","dueDays":number,"dueDate":string,"tax":{"enabled":boolean,"name":"Sales Tax","rate":number,"amount":number},"payments":{"amountPaid":number,"balanceDue":number,"paidOn":string},"confidences":{"vendorName":0..1,"amount":0..1,"date":0..1}}.
 Rules for description:
 - Provide a short audit-ready summary of goods/services or line items (max 120 chars).
 - Prefer item names and service periods if present, e.g., "Business Internet 1Gbps — Service June 2025; Static IP /29".
@@ -448,11 +541,29 @@ TEXT:\n${text.slice(0,12000)}`
               if (iso) setDate(iso)
             }
             if (j.description && !description) setDescription(String(j.description))
+            if (typeof j.dueDays === 'number' && !dueDaysExp) setDueDaysExp(String(Math.max(0, Math.min(365, j.dueDays))))
+            if (j.dueDate && !dueDateExp) {
+              const toISOExp = (raw: string): string => {
+                if (!raw || typeof raw !== 'string') return ''
+                const s = raw.trim()
+                const iso = s.match(/^\d{4}-\d{2}-\d{2}/)
+                if (iso) return iso[0]
+                const mdy = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/)
+                if (mdy) { let m = +mdy[1], d = +mdy[2], y = +mdy[3]; if (y < 100) y = 2000 + y; return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}` }
+                const cleaned = s.replace(/(\d+)(st|nd|rd|th)/i, '$1')
+                const dt = new Date(cleaned)
+                if (!isNaN(dt.getTime())) { const y = dt.getFullYear(); const m = String(dt.getMonth()+1).padStart(2,'0'); const d = String(dt.getDate()).padStart(2,'0'); return `${y}-${m}-${d}` }
+                return ''
+              }
+              const iso = toISOExp(String(j.dueDate))
+              if (iso) setDueDateExp(iso)
+            }
             // Capture AI-provided payment/tax hints for later preview/post
             try {
               const taxAmt = (j?.tax?.amount != null) ? Number(j.tax.amount) : undefined
               const amtPaid = (j?.payments?.amountPaid != null) ? Number(j.payments.amountPaid) : undefined
               const balDue = (j?.payments?.balanceDue != null) ? Number(j.payments.balanceDue) : undefined
+              const paidOn = (j?.payments?.paidOn ? String(j.payments.paidOn) : undefined)
               if (typeof taxAmt === 'number' || typeof amtPaid === 'number' || typeof balDue === 'number') {
                 setNormalizedAmounts(prev => ({
                   subtotal: (prev?.subtotal != null ? prev?.subtotal : (typeof j.amount === 'number' ? j.amount : undefined)),
@@ -461,6 +572,11 @@ TEXT:\n${text.slice(0,12000)}`
                   amountPaid: (typeof amtPaid === 'number' ? amtPaid : prev?.amountPaid),
                   balanceDue: (typeof balDue === 'number' ? balDue : prev?.balanceDue)
                 }))
+              }
+              if (typeof amtPaid === 'number' && !amountPaidExp) setAmountPaidExp(String(amtPaid))
+              if (paidOn && !paidOnExp) {
+                const iso = paidOn.match(/^\d{4}-\d{2}-\d{2}/) ? paidOn : ''
+                if (iso) setPaidOnExp(iso)
               }
             } catch {}
             // If AI extracted a plausible invoice number, use it as initial VIN (user can edit)
@@ -516,6 +632,48 @@ TEXT:\n${text.slice(0,12000)}`
     }
   }
 
+  const computeExpensePreviewSummary = (p: any) => {
+    try {
+      const entries = Array.isArray(p?.entries) ? p.entries : []
+      const toNum = (v: any) => (typeof v === 'number' ? v : parseFloat(String(v || '0'))) || 0
+      const isDebit = (e: any) => (e?.type ? String(e.type).toLowerCase() === 'debit' : !!e?.debit)
+      const isCredit = (e: any) => (e?.type ? String(e.type).toLowerCase() === 'credit' : !!e?.credit)
+      const code = (e: any) => String(e?.accountCode || '')
+      const name = (e: any) => String(e?.accountName || '')
+
+      const sum = (f: (e: any) => boolean) => entries.filter(f).reduce((acc: number, e: any) => acc + toNum(e.amount), 0)
+
+      // Heuristics based on code first, then name
+      const taxDebit = sum((e) => isDebit(e) && (/^(6110|1360)$/.test(code(e)) || /(sales\s*tax\s*expense|vat|gst|receivable)/i.test(name(e))))
+      const expenseDebit = sum((e) => isDebit(e) && !(/^(6110|1360)$/.test(code(e)) || /(sales\s*tax\s*expense|vat|gst|receivable)/i.test(name(e))))
+      const cashCredit = sum((e) => isCredit(e) && (/^1010$/.test(code(e)) || /(cash|bank|checking)/i.test(name(e))))
+      const apCredit = sum((e) => isCredit(e) && (/^2010$/.test(code(e)) || /(accounts\s*payable)/i.test(name(e))))
+
+      return { expenseDebit, taxDebit, cashCredit, apCredit }
+    } catch {
+      return { expenseDebit: 0, taxDebit: 0, cashCredit: 0, apCredit: 0 }
+    }
+  }
+
+  const saveVendorTaxDefaults = async () => {
+    try {
+      if (!vendor.trim()) return
+      setSavingDefaults(true)
+      await saveVendorDefaults(vendor.trim(), {
+        taxEnabled: !!taxEnabledExp,
+        taxMode: taxEnabledExp ? (taxModeExp as any) : undefined,
+        taxRate: taxEnabledExp && taxModeExp === 'percentage' ? Number(taxRateExp || 0) : undefined,
+        taxAmount: taxEnabledExp && taxModeExp === 'amount' ? Number(taxAmountExp || 0) : undefined
+      })
+      try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Saved vendor tax defaults', type: 'success' } })) } catch {}
+    } catch (e: any) {
+      const msg = e?.message || 'Failed saving vendor defaults'
+      try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } })) } catch {}
+    } finally {
+      setSavingDefaults(false)
+    }
+  }
+
   // Auto-preview once we land on the form and fields are populated
   useEffect(() => {
     if (stage !== 'form') return
@@ -541,6 +699,28 @@ TEXT:\n${text.slice(0,12000)}`
       } catch {}
     })()
   }, [stage, mode])
+
+  // Fallback: detect invoice Due Terms after form mounts if still empty
+  useEffect(() => {
+    if (stage !== 'form') return
+    if (mode !== 'invoice') return
+    if (dueDaysInv && String(dueDaysInv).trim() !== '') return
+    try {
+      const corpus = `${extractedText || ''}`
+      const m = corpus.match(/\b(?:net\s*-?\s*(\d{1,3})|net(\d{1,3})|due\s*(?:in|within)\s*(\d{1,3})\s*days?|payment\s*terms?\s*[:\-]?\s*(\d{1,3})\s*days?)\b/i)
+      const dayCapture = m ? (m[1] || m[2] || m[3] || m[4]) : null
+      if (dayCapture) {
+        const dd = Math.max(0, Math.min(365, parseInt(dayCapture, 10)))
+        if (!Number.isNaN(dd)) setDueDaysInv(String(dd))
+      } else if (date && dueDate) {
+        const d1 = new Date(date); const d2 = new Date(dueDate)
+        if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+          const diff = Math.round((d2.getTime() - d1.getTime()) / (24*60*60*1000))
+          if (diff >= 0 && diff <= 365) setDueDaysInv(String(diff))
+        }
+      }
+    } catch {}
+  }, [stage, mode, dueDaysInv, extractedText, date, dueDate])
 
   const checkDuplicate = async () => {
     try {
@@ -636,7 +816,7 @@ TEXT:\n${text.slice(0,12000)}`
           const recOk = recognitionDate && date && (new Date(recognitionDate).getTime() > new Date(date).getTime())
           const mentionsDeferred = /deferred|billed\s*not\s*paid|unearned/i.test(extractedText || '')
           if ((recOk || mentionsDeferred) && amountPaidVal > 0) {
-            paymentStatusVal = 'prepaid'
+            // keep status as 'paid' for posting payload semantics; 'prepaid' is only informative
           }
         } catch (e) {}
         const payload: any = {
@@ -649,7 +829,14 @@ TEXT:\n${text.slice(0,12000)}`
           invoiceNumber,
           paymentStatus: paymentStatusVal,
           subtotal: typeof norm.subtotal === 'number' ? norm.subtotal : undefined,
-          taxSettings: (typeof norm.taxAmount === 'number') ? { enabled: true, amount: norm.taxAmount } : undefined,
+          // Prefer OCR tax; otherwise honor UI toggle
+          taxSettings: (typeof norm.taxAmount === 'number')
+            ? { enabled: true, amount: norm.taxAmount }
+            : (taxEnabledInv
+                ? (taxModeInv === 'percentage'
+                    ? { enabled: true, type: 'percentage', rate: Number(taxRateInv || 0) }
+                    : { enabled: true, type: 'amount', amount: Number(taxAmountInv || 0) })
+                : undefined),
           ocrText: extractedText,
           categoryKey: 'PROFESSIONAL_SERVICES'
         }
@@ -718,9 +905,28 @@ TEXT:\n${text.slice(0,12000)}`
         else paymentStatusVal = 'invoice'
 
         const payload: any = { vendorName: vendor.trim(), amount: totalUsed, amountPaid: amountPaidVal, balanceDue: balanceDueVal, date, paymentStatus: paymentStatusVal, description, ocrText: extractedText }
+        try { if ((window as any)._aiSuggestedExpenseAccount) payload.suggestedAccountCode = (window as any)._aiSuggestedExpenseAccount } catch {}
+        // Optional UI enrichments (server may ignore unknowns safely)
+        const cleanedLines = lineItems
+          .filter(li => (li.description && li.description.trim()) || (li.amount && !isNaN(parseFloat(li.amount))))
+          .map(li => ({
+            description: li.description || 'Line',
+            amount: parseFloat(li.amount || li.rate || '0'),
+            quantity: li.qty != null && li.qty !== '' ? parseFloat(li.qty) : undefined,
+            rate: li.rate != null && li.rate !== '' ? parseFloat(li.rate) : undefined
+          }))
+        if (cleanedLines.length) payload.lineItems = cleanedLines
+        if (discount && !isNaN(parseFloat(discount))) payload.discount = { enabled: true, amount: parseFloat(discount) }
+        if (shipping && !isNaN(parseFloat(shipping))) payload.shipping = parseFloat(shipping)
+        if (memo) payload.notes = memo
+        if (tags && tags.trim()) payload.tags = tags.split(',').map(t => t.trim()).filter(Boolean)
         if (typeof (norm as any).taxAmount === 'number' && (norm as any).taxAmount > 0) {
           payload.taxSettings = { enabled: true, amount: (norm as any).taxAmount }
         }
+        // Carry through optional Due Terms/Date and VIN when set or detected
+        if (dueDaysExp) payload.dueDays = Math.max(0, Math.min(365, Number(dueDaysExp) || 0))
+        if (dueDateExp) payload.dueDate = dueDateExp
+        if (vendorInvoiceNo.trim()) payload.vendorInvoiceNo = vendorInvoiceNo.trim()
         const res = await ExpensesService.previewExpense(payload)
         setPreview(res)
       }
@@ -735,13 +941,63 @@ TEXT:\n${text.slice(0,12000)}`
       setError(null)
       if (mode === 'invoice') {
         const amt = parseFloat(amount)
+        // Derive totals and payment status using OCR-normalized values when available
+        let norm = normalizedAmounts || {}
+        if (((!normalizedAmounts) || Object.values(normalizedAmounts || {}).every((v) => v == null)) && extractedText) {
+          try {
+            const raw = extractedText
+            const number = `([0-9]+(?:[, .']*[0-9]{3})*(?:[.,][0-9]{1,2})?)`
+            const parseNum = (s: string | null) => {
+              if (!s) return undefined
+              let n = s
+              if (n.includes(',') && n.includes('.')) n = n.replace(/,/g, '')
+              else if (n.includes(' ')) n = n.replace(/\s/g, '').replace(',', '.')
+              else if (n.includes(',') && !n.includes('.')) {
+                const parts = n.split(',')
+                n = parts[parts.length - 1].length <= 2 ? n.replace(',', '.') : n.replace(/,/g, '')
+              }
+              const v = parseFloat(n)
+              return Number.isFinite(v) ? parseFloat(v.toFixed(2)) : undefined
+            }
+            const mSubtotal = raw.match(new RegExp(`Subtotal[:\\s]*\\$?\\s*${number}`, 'i'))
+            const mTax = raw.match(new RegExp(`Tax[^\\n]*[:\\s]*\\$?\\s*${number}`, 'i'))
+            const mTotal = raw.match(new RegExp(`Total[:\\s]*\\$?\\s*${number}`, 'i'))
+            const mPaid = raw.match(new RegExp(`Amount\\s*Paid[:\\s]*\\$?\\s*${number}`, 'i'))
+            const mBalance = raw.match(new RegExp(`Balance\\s*Due[:\\s]*\\$?\\s*(-?${number})`, 'i'))
+            norm = {
+              subtotal: parseNum(mSubtotal?.[1] || null),
+              taxAmount: parseNum(mTax?.[1] || null),
+              total: parseNum(mTotal?.[1] || null),
+              amountPaid: parseNum(mPaid?.[1] || null),
+              balanceDue: parseNum(mBalance?.[1] || null)
+            }
+          } catch {}
+        }
+        const totalUsed = typeof (norm as any).total === 'number' ? (norm as any).total as number : amt
+        let amountPaidVal = typeof (norm as any).amountPaid === 'number' ? (norm as any).amountPaid as number : (status === 'paid' ? totalUsed : (status === 'partial' ? Math.max(0, Math.round(totalUsed * 0.5)) : 0))
+        let balanceDueVal = typeof (norm as any).balanceDue === 'number' ? (norm as any).balanceDue as number : (totalUsed - amountPaidVal)
+        // Honor UI tax toggle when OCR tax is not present
+        const taxPayload = (typeof (norm as any).taxAmount === 'number')
+          ? { enabled: true, type: 'amount', amount: (norm as any).taxAmount }
+          : (taxEnabledInv
+              ? (taxModeInv === 'percentage'
+                  ? { enabled: true, type: 'percentage', rate: Number(taxRateInv || 0) }
+                  : { enabled: true, type: 'amount', amount: Number(taxAmountInv || 0) })
+              : undefined)
         const result = await TransactionsService.postInvoice({
           customerName: customer.trim(),
           amount: amt,
           date,
           description: notes || `Invoice for ${customer.trim()}`,
           invoiceNumber: invoiceNumber || undefined,
-          paymentStatus: status
+          paymentStatus: status,
+          amountPaid: amountPaidVal,
+          balanceDue: balanceDueVal,
+          dueDays: dueDaysInv ? Math.max(0, Math.min(365, Number(dueDaysInv) || 0)) : undefined,
+          dueDate,
+          subtotal: typeof (norm as any).subtotal === 'number' ? (norm as any).subtotal : undefined,
+          taxSettings: taxPayload as any,
+          discount: (discountInv && !isNaN(parseFloat(discountInv))) ? { enabled: true, amount: parseFloat(discountInv) } : undefined
         })
         try {
           if (result && result.isExisting) {
@@ -824,7 +1080,17 @@ TEXT:\n${text.slice(0,12000)}`
           } catch {}
         }
 
-        const res = await ExpensesService.postExpense({ vendorName: vendor.trim(), vendorInvoiceNo: vendorInvoiceNo.trim() || undefined, amount: totalWithTax, amountPaid: amountPaidVal, balanceDue: balanceDueVal, date, paymentStatus: paymentStatusVal, description: description || `Expense: ${vendor.trim()}`, dueDays: undefined })
+        // Build tax payload robustly: prefer OCR-normalized amount; otherwise fall back to UI toggle
+        let taxPayload: any = undefined
+        if (typeof (norm as any).taxAmount === 'number' && (norm as any).taxAmount > 0) {
+          taxPayload = { enabled: true, type: 'amount', amount: (norm as any).taxAmount }
+        } else if (taxEnabledExp) {
+          const rateNum = Number(taxRateExp || 0)
+          const amtNum = Number(taxAmountExp || 0)
+          if (taxModeExp === 'percentage' && rateNum > 0) taxPayload = { enabled: true, type: 'percentage', rate: rateNum }
+          else if (taxModeExp === 'amount' && amtNum > 0) taxPayload = { enabled: true, type: 'amount', amount: amtNum }
+        }
+        const res = await ExpensesService.postExpense({ vendorName: vendor.trim(), vendorInvoiceNo: vendorInvoiceNo.trim() || undefined, amount: totalWithTax, amountPaid: amountPaidVal, balanceDue: balanceDueVal, date, paymentStatus: paymentStatusVal, description: description || `Expense: ${vendor.trim()}`, dueDays: (dueDaysExp ? Math.max(0, Math.min(365, Number(dueDaysExp) || 0)) : undefined), dueDate: (dueDateExp || undefined), taxSettings: taxPayload })
         try {
           const expenseId = (res as any)?.expenseId || (res as any)?.expense?.id
           if (expenseId && selectedFile) {
@@ -862,15 +1128,32 @@ TEXT:\n${text.slice(0,12000)}`
   }
   const applySuggestion = (c: any) => { setCustomer(c?.name || ''); setShowSuggest(false) }
 
+  // Load customer tax defaults on blur
+  useEffect(() => {
+    (async () => {
+      try {
+        const name = (customer || '').trim()
+        if (!name) return
+        const { data } = await api.get(`/api/customers/${encodeURIComponent(name)}/defaults`)
+        if (data && data.taxEnabled) {
+          setTaxEnabledInv(true)
+          if (data.taxMode === 'percentage') { setTaxModeInv('percentage'); if (typeof data.taxRate === 'number') setTaxRateInv(String(data.taxRate)) }
+          else if (data.taxMode === 'amount') { setTaxModeInv('amount'); if (typeof data.taxAmount === 'number') setTaxAmountInv(String(data.taxAmount)) }
+        }
+      } catch {}
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer])
+
   return (
     <>
     <ModalPortal>
       <AnimatePresence>
         {open && (
-          <motion.div className="fixed inset-0 z-[9999] flex items-center justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div className="fixed inset-0 z-[9999] flex items-center justify-center modal-scroll-container" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <motion.div className="modal-overlay absolute inset-0" onClick={resetAndClose} />
             <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} className="relative w-[96%] max-w-4xl" onClick={(e) => e.stopPropagation()}>
-              <ThemedGlassSurface variant="light" className="p-0 glass-modal liquid-glass overflow-hidden" hover={false}>
+              <ThemedGlassSurface variant="light" className="p-0 glass-modal liquid-glass" hover={false}>
                 <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
                   <div>
                     <div className="text-sm text-primary/80 font-semibold">AI Import</div>
@@ -1029,12 +1312,62 @@ TEXT:\n${text.slice(0,12000)}`
                             <span className="text-secondary-contrast">Description</span>
                             <textarea disabled={!manualEdit} rows={3} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Line items, payment terms, etc." />
                           </label>
+                          <label className="flex flex-col gap-1">
+                            <InfoHint label="Due Terms">Preset or custom days (0–365). Applies when Due Date is blank.</InfoHint>
+                            <div className="flex gap-2">
+                              <ThemedSelect value={["0","14","30","45","60","90"].includes(dueDaysInv) ? dueDaysInv : ''} onChange={(e)=>setDueDaysInv((e.target as HTMLSelectElement).value || dueDaysInv)}>
+                                <option value="">Custom</option>
+                                <option value="0">Net 0</option>
+                                <option value="14">Net 14</option>
+                                <option value="30">Net 30</option>
+                                <option value="45">Net 45</option>
+                                <option value="60">Net 60</option>
+                                <option value="90">Net 90</option>
+                              </ThemedSelect>
+                              <input type="number" min={0} max={365} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 w-24" value={dueDaysInv} onChange={(e)=>setDueDaysInv(e.target.value)} placeholder="days" />
+                            </div>
+                          </label>
+                          <label className="flex flex-col gap-1">
+                            <span className="text-secondary-contrast">Discount</span>
+                            <input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={discountInv} onChange={(e)=>setDiscountInv(e.target.value)} placeholder="0.00" />
+                          </label>
+                          <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                            <label className="flex items-center gap-2">
+                              <input disabled={!manualEdit} type="checkbox" checked={taxEnabledInv} onChange={(e)=>setTaxEnabledInv(e.target.checked)} />
+                              <span className="text-secondary-contrast text-sm">Tax</span>
+                            </label>
+                            {taxEnabledInv && (
+                              <>
+                                <label className="flex flex-col gap-1">
+                                  <span className="text-secondary-contrast">Mode</span>
+                                  <ThemedSelect disabled={!manualEdit} value={taxModeInv} onChange={(e)=>setTaxModeInv(((e.target as HTMLSelectElement).value as any))}>
+                                    <option value="percentage">Percent %</option>
+                                    <option value="amount">Amount</option>
+                                  </ThemedSelect>
+                                </label>
+                                {taxModeInv === 'percentage' ? (
+                                  <label className="flex flex-col gap-1">
+                                    <span className="text-secondary-contrast">Rate %</span>
+                                    <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={taxRateInv} onChange={(e)=>setTaxRateInv(e.target.value)} placeholder="9.5" />
+                                  </label>
+                                ) : (
+                                  <label className="flex flex-col gap-1">
+                                    <span className="text-secondary-contrast">Tax Amount</span>
+                                    <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={taxAmountInv} onChange={(e)=>setTaxAmountInv(e.target.value)} placeholder="76.00" />
+                                  </label>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </div>
                       ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                         <label className="flex flex-col gap-1">
                           <span className="text-secondary-contrast">Vendor</span>
-                            <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={vendor} onChange={(e) => { setVendor(e.target.value); setDupState(null) }} placeholder="Adobe, Uber…" />
+                            <div className="flex gap-2">
+                              <input disabled={!manualEdit} className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={vendor} onChange={(e) => { setVendor(e.target.value); setDupState(null) }} onBlur={async ()=>{ try { if (vendor.trim()) { const d = await getVendorDefaults(vendor.trim()); if (d && d.taxEnabled) { setTaxEnabledExp(true); if (d.taxMode === 'percentage') { setTaxModeExp('percentage'); if (typeof d.taxRate === 'number') setTaxRateExp(String(d.taxRate)) } else if (d.taxMode === 'amount') { setTaxModeExp('amount'); if (typeof d.taxAmount === 'number') setTaxAmountExp(String(d.taxAmount)) } } } } catch {} }} placeholder="Adobe, Uber…" />
+                              <button type="button" className="px-2 rounded border border-white/10 bg-white/10 hover:bg-white/15 text-xs" onClick={saveVendorTaxDefaults} disabled={!vendor.trim() || savingDefaults}>{savingDefaults ? 'Saving…' : 'Save Defaults'}</button>
+                            </div>
                         </label>
                         <label className="flex flex-col gap-1">
                           <span className="text-secondary-contrast">Amount</span>
@@ -1043,6 +1376,25 @@ TEXT:\n${text.slice(0,12000)}`
                         <label className="flex flex-col gap-1">
                           <span className="text-secondary-contrast">Date</span>
                             <input disabled={!manualEdit} type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={date} onChange={(e) => setDate(e.target.value)} />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <InfoHint label="Due Date">Optional override. If set, we ignore Due Terms.</InfoHint>
+                          <input disabled={!manualEdit} type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={dueDateExp} onChange={(e) => setDueDateExp(e.target.value)} />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <InfoHint label="Due Terms">Choose a preset or set custom days (0–365).</InfoHint>
+                          <div className="flex gap-2">
+                            <ThemedSelect value={["0","14","30","45","60","90"].includes(dueDaysExp) ? dueDaysExp : ''} onChange={(e) => setDueDaysExp((e.target as HTMLSelectElement).value || dueDaysExp)}>
+                              <option value="">Custom</option>
+                              <option value="0">Net 0</option>
+                              <option value="14">Net 14</option>
+                              <option value="30">Net 30</option>
+                              <option value="45">Net 45</option>
+                              <option value="60">Net 60</option>
+                              <option value="90">Net 90</option>
+                            </ThemedSelect>
+                            <input disabled={!manualEdit} type="number" min={0} max={365} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md w-24 disabled:opacity-60" value={dueDaysExp} onChange={(e) => setDueDaysExp(e.target.value)} placeholder="days" />
+                          </div>
                         </label>
                         <label className="flex flex-col gap-1">
                           <span className="text-secondary-contrast">Vendor Invoice No. (optional)</span>
@@ -1056,12 +1408,135 @@ TEXT:\n${text.slice(0,12000)}`
                           <span className="text-secondary-contrast">Description</span>
                             <textarea disabled={!manualEdit} rows={3} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Notes…" />
                         </label>
+                        {/* Line items + Discount/Shipping */}
+                        <div className="sm:col-span-2 space-y-2">
+                          <div className="text-secondary-contrast">Line items</div>
+                          <div className="rounded-lg border border-white/10 overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead className="bg-surface/60">
+                                <tr>
+                                  <th className="text-left px-3 py-2">Description</th>
+                                  <th className="text-right px-3 py-2">Qty</th>
+                                  <th className="text-right px-3 py-2">Rate</th>
+                                  <th className="text-right px-3 py-2">Amount</th>
+                                  <th className="px-3 py-2 w-16"></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {lineItems.map((li, idx) => (
+                                  <tr key={idx} className="border-t border-white/10">
+                                    <td className="px-3 py-2">
+                                      <input disabled={!manualEdit} className="w-full px-2 py-1 rounded bg-white/10 border border-white/10" value={li.description} onChange={(e) => setLineItems(prev => prev.map((x, i) => i === idx ? { ...x, description: e.target.value } : x))} placeholder={`Item ${idx + 1}`} />
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      <input disabled={!manualEdit} className="w-20 px-2 py-1 rounded bg-white/10 border border-white/10 text-right" value={li.qty || ''} onChange={(e) => setLineItems(prev => prev.map((x, i) => i === idx ? { ...x, qty: e.target.value, amount: (parseFloat(x.rate||'0') * parseFloat(e.target.value||'1') || 0).toString() } : x))} placeholder="1" />
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      <input disabled={!manualEdit} className="w-24 px-2 py-1 rounded bg-white/10 border border-white/10 text-right" value={li.rate || ''} onChange={(e) => setLineItems(prev => prev.map((x, i) => i === idx ? { ...x, rate: e.target.value, amount: (parseFloat(e.target.value||'0') * parseFloat(x.qty||'1') || 0).toString() } : x))} placeholder="0.00" />
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      <input disabled={!manualEdit} className="w-28 px-2 py-1 rounded bg-white/10 border border-white/10 text-right" value={li.amount} onChange={(e) => setLineItems(prev => prev.map((x, i) => i === idx ? { ...x, amount: e.target.value } : x))} placeholder="0.00" />
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      <button type="button" className="px-2 py-1 rounded bg-white/10 border border-white/10 disabled:opacity-60" disabled={!manualEdit || lineItems.length <= 1} onClick={() => setLineItems(prev => prev.filter((_, i) => i !== idx))}>Remove</button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="flex gap-2">
+                            <button type="button" className="px-3 py-1.5 rounded bg-white/10 border border-white/10 disabled:opacity-60" disabled={!manualEdit} onClick={() => setLineItems(prev => [...prev, { description: '', qty: '1', rate: '', amount: '' }])}>Add Line</button>
+                            <div className="flex items-center gap-2">
+                              <span className="text-secondary-contrast">Discount</span>
+                              <input disabled={!manualEdit} className="w-24 px-2 py-1 rounded bg-white/10 border border-white/10 text-right" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0.00" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-secondary-contrast">Shipping</span>
+                              <input disabled={!manualEdit} className="w-24 px-2 py-1 rounded bg-white/10 border border-white/10 text-right" value={shipping} onChange={(e) => setShipping(e.target.value)} placeholder="0.00" />
+                            </div>
+                          </div>
+                          {/* Items & Tax summary (parity with detail modals) */}
+                          <div className="mt-2 text-xs text-secondary-contrast" data-section="items-tax">
+                            <div className="font-medium text-foreground mb-1">Items & Tax</div>
+                            <div className="space-y-1">
+                              {(() => { try { const sub = lineItems.reduce((s, li) => s + (parseFloat(li.amount||'0')||0), 0); return <div>Subtotal: <span className="font-medium">${sub.toFixed(2)}</span></div> } catch { return null } })()}
+                              {discount && parseFloat(discount) > 0 && <div>Discount: <span className="font-medium">${(+parseFloat(discount)).toFixed(2)}</span></div>}
+                              {taxEnabledExp && (
+                                <div>Tax: <span className="font-medium">${(taxModeExp === 'percentage' ? ((Math.max(0, (lineItems.reduce((s, li) => s + (parseFloat(li.amount||'0')||0), 0) - (parseFloat(discount||'0')||0)))*(parseFloat(taxRateExp||'0')/100))) : parseFloat(taxAmountExp||'0') || 0).toFixed(2)}</span></div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {/* Memo & Tags */}
+                        <label className="flex flex-col gap-1">
+                          <span className="text-secondary-contrast">Memo</span>
+                          <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Internal memo" />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <span className="text-secondary-contrast">Tags</span>
+                          <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="comma,separated,tags" />
+                        </label>
+                        {/* Tax + Payment */}
+                        <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                          <label className="flex items-center gap-2">
+                            <input disabled={!manualEdit} type="checkbox" checked={taxEnabledExp} onChange={(e) => setTaxEnabledExp(e.target.checked)} />
+                            <span className="text-secondary-contrast text-sm">Tax</span>
+                          </label>
+                          {taxEnabledExp && (
+                            <>
+                              <label className="flex flex-col gap-1">
+                                <span className="text-secondary-contrast">Mode</span>
+                                <ThemedSelect value={taxModeExp} onChange={(e) => setTaxModeExp(((e.target as HTMLSelectElement).value as any))}>
+                                  <option value="percentage">Percent %</option>
+                                  <option value="amount">Amount</option>
+                                </ThemedSelect>
+                              </label>
+                              {taxModeExp === 'percentage' ? (
+                                <label className="flex flex-col gap-1">
+                                  <span className="text-secondary-contrast">Rate %</span>
+                                  <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={taxRateExp} onChange={(e) => { setTaxRateExp(e.target.value); setPreview(null); }} placeholder="9.5" />
+                                </label>
+                              ) : (
+                                <label className="flex flex-col gap-1">
+                                  <span className="text-secondary-contrast">Tax Amount</span>
+                                  <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={taxAmountExp} onChange={(e) => { setTaxAmountExp(e.target.value); setPreview(null); }} placeholder="76.00" />
+                                </label>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        <div className="sm:col-span-2 grid grid-cols-2 gap-3">
+                          <label className="flex flex-col gap-1">
+                            <span className="text-secondary-contrast">Amount Paid</span>
+                            <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={amountPaidExp} onChange={(e) => setAmountPaidExp(e.target.value)} placeholder="0.00" />
+                          </label>
+                          <label className="flex flex-col gap-1">
+                            <span className="text-secondary-contrast">Paid On</span>
+                            <input disabled={!manualEdit} type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={paidOnExp} onChange={(e) => setPaidOnExp(e.target.value)} />
+                          </label>
+                        </div>
                       </div>
                       )}
 
                       {preview && (
                         <div className="mt-4 text-sm">
                           <div className="font-semibold mb-2">Account Mapping</div>
+                          {mode === 'expense' && (
+                            <div className="mb-2 rounded-md border border-white/10 bg-surface/60 p-3 text-xs">
+                              {(() => { const b = computeExpensePreviewSummary(preview); const fmt = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; return (
+                                <div className="space-y-1">
+                                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                    <div className="text-emerald-300">DR Expense: <span className="text-foreground">{fmt(b.expenseDebit)}</span></div>
+                                    <div className="text-emerald-300">DR Tax (6110/1360): <span className="text-foreground">{fmt(b.taxDebit)}</span></div>
+                                    <div className="text-red-300">CR Cash (1010): <span className="text-foreground">{fmt(b.cashCredit)}</span></div>
+                                    <div className="text-red-300">CR A/P (2010): <span className="text-foreground">{fmt(b.apCredit)}</span></div>
+                                  </div>
+                                  <div className="text-secondary-contrast">Partial payment is indicated when both Cash and A/P credits are non‑zero.</div>
+                                </div>
+                              ) })()}
+                            </div>
+                          )}
                           <div className="rounded-lg border border-white/10 overflow-hidden">
                             <table className="w-full text-sm">
                               <thead className="bg-surface/60">
@@ -1091,7 +1566,8 @@ TEXT:\n${text.slice(0,12000)}`
                       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
                       <div className="mt-4 flex flex-wrap gap-2 justify-end">
                         <button className="px-3 py-1.5 text-sm rounded-lg border transition backdrop-blur-glass bg-white/10 hover:bg-white/15 border-white/10 text-foreground" onClick={() => setStage('picker')}>Back</button>
-                        <button disabled={submitting || (!!dupState?.duplicate)} className="px-3 py-1.5 text-sm rounded-lg bg-primary/20 text-primary border border-primary/30 disabled:opacity-60" onClick={doPost}>{submitting ? 'Posting…' : (mode === 'invoice' ? 'Create Invoice' : 'Post Expense')}</button>
+                        <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10 hover:bg-white/15" onClick={() => { setPreview(null); doPreview().catch(()=>{}) }}>Preview</button>
+                        <button disabled={submitting || (mode === 'invoice' ? (!customer.trim() || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0 || !date) : (!!dupState?.duplicate || !vendor.trim() || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0 || !date))} className="px-3 py-1.5 text-sm rounded-lg bg-primary/20 text-primary border border-primary/30 disabled:opacity-60" onClick={doPost}>{submitting ? 'Posting…' : (mode === 'invoice' ? 'Create Invoice' : 'Post Expense')}</button>
                         <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10 hover:bg-white/15" onClick={() => setRecurringOpen(true)}>Save as Recurring</button>
                         <button className="px-3 py-1.5 text-sm rounded-lg bg-white/5 border border-white/10" onClick={() => setManualEdit(v => !v)}>{manualEdit ? 'Disable Manual Edit' : 'Edit Manually'}</button>
                       </div>

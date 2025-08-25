@@ -46,6 +46,7 @@ function App() {
   const [fabExpanded, setFabExpanded] = useState(false)
   const { toasts, push, remove } = useToast()
   const { session, loading } = useAuth()
+  const [apiError, setApiError] = useState<{ message: string; status?: number } | null>(null)
 
   // Listen for global toast events from deep components (error cases)
   useEffect(() => {
@@ -58,6 +59,22 @@ function App() {
     window.addEventListener('toast', handler as any)
     return () => window.removeEventListener('toast', handler as any)
   }, [push])
+
+  // Global API error banner
+  useEffect(() => {
+    const onApiError = (e: any) => {
+      try {
+        const d = e?.detail || {}
+        const msg = d?.message || 'Something went wrong. Please try again.'
+        setApiError({ message: msg, status: d?.status })
+        // Auto-clear after a few seconds unless hovered
+        window.clearTimeout((onApiError as any)._t)
+        ;(onApiError as any)._t = window.setTimeout(() => setApiError(null), 6000)
+      } catch {}
+    }
+    try { window.addEventListener('api:error', onApiError as any) } catch {}
+    return () => { try { window.removeEventListener('api:error', onApiError as any) } catch {} }
+  }, [])
 
   // Simulate business health for emotional interface
   const [businessHealth, setBusinessHealth] = useState(78) // 0-100 scale
@@ -250,6 +267,22 @@ function App() {
 
       {/* Main Application Layout */}
       <div className="relative z-10 min-h-screen">
+        {/* Global API Error Banner */}
+        {apiError && (
+          <div className="fixed top-0 left-0 right-0 z-[10000] flex justify-center pointer-events-none">
+            <div
+              className="pointer-events-auto m-3 max-w-2xl w-[92%] rounded-lg border border-white/10 bg-red-500/10 text-red-200 backdrop-blur-xl shadow-lg"
+              onMouseEnter={() => { window.clearTimeout(((null as any) as any)); }}
+            >
+              <div className="px-4 py-2 text-sm flex items-center justify-between gap-3">
+                <div className="truncate">
+                  {apiError.status ? `[${apiError.status}] ` : ''}{apiError.message}
+                </div>
+                <button className="px-2 py-1 text-xs rounded bg-white/10 hover:bg-white/15 border border-white/10" onClick={() => setApiError(null)}>Dismiss</button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Main Content Area with Adaptive Layout - No sidebar padding for floating nav */}
         <main className="relative overflow-hidden transition-all duration-500 ease-out">
           <AdaptiveLayout

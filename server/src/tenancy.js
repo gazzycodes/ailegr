@@ -146,6 +146,13 @@ export const prisma = basePrisma.$extends({
   }
 })
 
+// Export a raw, unscoped Prisma for system-wide/admin operations that must bypass
+// per-request tenant scoping (e.g., global migrations touching all tenants).
+// Use this ONLY for maintenance tasks and never for user-scoped API handlers.
+export const systemPrisma = basePrisma
+
+// Note: requestContext is already exported above at definition.
+
 // Upsert a lightweight user profile (id/email) for UI display
 export async function upsertUserProfile(userId, email) {
   try {

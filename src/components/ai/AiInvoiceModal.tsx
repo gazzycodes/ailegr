@@ -147,10 +147,11 @@ export function AiInvoiceModal({ open, onClose }: AiInvoiceModalProps) {
       const text = res?.text || ''
       setExtractedText(text)
       setOcrProgress(60)
-      const prompt = `Extract INVOICE data from the text below. Return ONLY JSON with keys: {"customerName", "amount", "date", "dueDate", "invoiceNumber", "description", "paymentStatus"}.
+      const prompt = `Extract INVOICE data from the text below. Return ONLY JSON with keys: {"customerName", "amount", "date", "dueDate", "invoiceNumber", "description", "paymentStatus","lineItems":[{"description","amount","accountCode"}]}.
 Rules:
 - Dates MUST be formatted as YYYY-MM-DD (ISO 8601). If unknown, return an empty string.
 - If Amount Paid == Total or Balance Due == 0 → "paid"; if Amount Paid > Total → "overpaid"; if Amount Paid > 0 and Balance Due > 5 → "partial"; else "invoice".
+ - If you can infer revenue category (subscription, license, support, training, marketing services), choose accountCode from: 4020 (Services), 4030 (Marketing Services), 4040 (Support & Maintenance), 4050 (Subscription & SaaS), 4060 (License Revenue), 4070 (Training Revenue). Otherwise leave accountCode empty.
 TEXT:\n${text.slice(0, 12000)}`
       const { data } = await api.post('/api/ai/generate', { prompt })
       const match = (data?.content || '').match(/\{[\s\S]*\}/)
@@ -215,6 +216,7 @@ TEXT:\n${text.slice(0, 12000)}`
       setInvoiceNumber(parsed.invoiceNumber || '')
       setNotes(parsed.description || '')
       setStatus((parsed.paymentStatus as any) || 'invoice')
+      try { (window as any)._aiInvoiceLines = Array.isArray(parsed.lineItems) ? parsed.lineItems : null } catch {}
       setOcrProgress(100)
       setStage('form')
     } catch (e: any) {

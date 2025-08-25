@@ -105,6 +105,21 @@
     overflow: hidden;
   }
 
+  /* Universal modal sizing: prevent viewport overflow */
+  .glass-modal {
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Allow modal stacks to scroll when content grows */
+  .modal-scroll-container {
+    overflow-y: auto;
+    max-height: 100vh;
+    padding: 0.75rem;
+  }
+
   .liquid-flow::before {
     content: '';
     position: absolute;

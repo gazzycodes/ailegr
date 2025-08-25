@@ -1,3 +1,21 @@
+2025-08-25 — COA + QTY checkpoint (UI)
+- Added QTY/RATE inputs to AR Invoices, AP Bills, and AI Document modal; totals auto-compute from line items when Subtotal is blank.
+- Reports COA tab: SegmentedControl toggle for Active COA vs All COA; Active filters to non-zero balance or accounts with transactions.
+- Landing: AI Extract restyle, anomaly panel enriched, NL posting preview refined with CTA; gradient flow fixed without flash; glass hover blur removed.
+- Added 100- and 150-case COA smoke suites (runner auto-starts server); reports saved under `tests/COA_AI/`.
+- Added QTY and Rate fields to line items across New Invoice and New Bill modals in `src/components/transactions/Invoices.tsx`. Line item grids now include Description, Qty, Rate, and Amount, with auto-calculation of amount from qty×rate.
+- Enhanced `AiDocumentModal` line items to support Qty/Rate and adjusted preview/post payload construction accordingly.
+- Invoice form parity in `AiDocumentModal.tsx`:
+  - Auto-prefill tax for invoices from OCR normalization; falls back to UI toggle (percent/amount).
+  - Preview sends proper tax settings so `/api/posting/preview` shows 2150 — Sales Tax Payable when enabled.
+  - Post derives amountPaid/balanceDue from OCR when present; otherwise from selected status; sends tax payload.
+  - Added DR/CR preview table parity for invoices with per-line revenue scaling net of discount and tax.
+  - Customer tax defaults load automatically on customer selection.
+
+  QA: Added `ui-tests/smoke-ui.spec.ts` test “Invoice form parity” to verify Sales Tax Payable appears on preview when tax is enabled.
+
+- Fix: Create Invoice button gating in `AiDocumentModal.tsx` now checks `customer` when in invoice mode (and not `vendor`). Required fields: Customer, Amount > 0, Date.
+
 - Add Due Terms (dueDays) + Manual Due Date fields to `Settings/RecurringManager` and `RecurringModal`.
 - New Invoice modal now supports entering Due Terms; we default to Net-0 unless provided, with manual Due Date overriding.
 - AI Invoice/Expense modals: added Due Terms field (invoice + expense) with clear labels; minor tooltip-style labels via consistent label text.
@@ -5,6 +23,12 @@
 - Added compact actions menu (⋯) in `RecurringManager` to keep list dense and avoid overflow; auto-close on outside click and after action.
 - Auto-refresh in `RecurringManager` after Force/Run Due Now and on tab visibility change; light 30s polling while visible.
 2025-08-24 — Auth & Dashboard polish
+2025-08-25 — Items & Tax panels + validations + attachments
+- New Invoice and New Bill forms now block submission when both Subtotal and Line Items are provided but do not reconcile within $0.01; toast shows exact difference.
+- AR and AP detail modals include an “Items & Tax” panel showing Subtotal, Discount, Tax, Total, Terms/Due, and line items when available.
+- AP Bills detail: shows “View Attachment” when `receiptUrl` exists and supports “Replace Attachment” to re-upload.
+- Payment rows now include a “View Source” action that re-opens the parent detail modal and scrolls to “Items & Tax”.
+- Settings → Company Information modal adds an Accounting section with a local toggle “Split AP postings by line items (multi‑account)”. This persists in localStorage and is honored by posting.
 - Auto-redirect authenticated users from /, /login, /register, /reset-password → /dashboard.
 - Liquid Cash Flow visualization hardened (labels from backend, better grid alignment, hover stability, thicker line). 1M/3M request at least 6 months to preserve curve shape.
 2025-08-24 — Auth toggle UX
@@ -16,6 +40,14 @@
   - Void payment: removes the row immediately, recalculates totals, and updates status labels smoothly (no flicker).
   - Overpaid tag clears correctly after reductions/voids; status chip re-evaluates in real time.
   - Debounced refresh + list-driven totals remove header flicker; vendor-neutral AI toasts on failures.
+2025-08-24 — AR Invoices payment guards + status chip cleanup
+- AR detail modal now prevents editing or voiding the initial posting payment and shows an info toast: "Initial posting payment cannot be edited here." Behavior matches AP Bills.
+- Removed duplicate "Partial" pill in AR list and mobile card; primary status chip is the single source of truth.
+ - Fixed status desync after recording/editing/voiding AR payments: UI now uses `paymentStatus` from server (`partial`, `paid`, `overpaid`) to derive chips, preventing Unpaid flips.
+2025-08-24 — Invoices/Bills toolbar unification + New Bill modal
+- Added shared actions in `Invoices.tsx` header: both tabs (AR, AP) now show `+ New Invoice`, `+ New Bill`, and `+ New Recurring`. The Recurring modal seeds type by active tab (AR→INVOICE, AP→EXPENSE).
+- Implemented `New Bill` modal (manual AP bill): Vendor, Vendor Invoice No, Date, Due Terms (Net presets + custom), Manual Due Date, Tax (toggle, % or amount) with live Total, Amount Paid + Paid On. Posts via `expensesService.postExpense` and emits `data:refresh`.
+- Keeps UI parity and reduces duplication for adding these buttons elsewhere.
  - Discovery: UI architecture mapped (stack/theme/routes); no UI edits.
 ### Auth UI polish (2025-08-21)
 - Login and Registration upgraded with token-driven focus rings, soft glass surfaces, and micro‑motion using Framer Motion. Success overlays added; inline error messages animate in/out.
@@ -1124,7 +1156,7 @@ We have successfully transformed the financial dashboard from "good" to "absolut
 ### ✅ FAB Suite — AI Invoice, AI Revenue, AI Chat (100%)
 - **Status**: ✅ DEPLOYED (2025-08-19)
 - **What Added**:
-  - New FAB action in the collapsible menu: ~~AI Invoice~~, ~~AI Revenue~~ → AI Document (single document upload; opens a liquid-glass modal; UI-only).
+  - New FAB action in the collapsible menu: ~~AI Invoice~~, ~~AI Revenue~~ → AI Document (single document upload; opens a liquid-glass modal; UI-only). Expense flow extended with Due Terms, Manual Due Date, Tax toggle (percent/amount) with vendor defaults auto‑prefill and inline "Save Defaults". Duplicate VIN guard. Preview shows DR/CR summary (DR 6020, DR 6110/1360, CR 1010, CR 2010), including partial payment detection. Post carries terms/due date/tax. Added line items, discount, shipping, memo/tags; Post disabled until Vendor/Amount/Date valid.
   - A fixed "AI Chat" button under the FAB with animated "New" tooltip; opens a slide-in chat drawer.
   - Chat Drawer: localStorage threads, send/receive demo, quick-call CTA for ~~AI Invoice/Revenue~~ AI Document.
 - **UX**: Nav auto-collapses; FAB collapses after action; Chat FAB mirrors scroll-aware behavior (hide on scroll down, show on scroll up/top); all overlays use theme tokens with liquid-glass effects.
@@ -5003,7 +5035,7 @@ We have successfully transformed the financial dashboard from "good" to "absolut
 - Local Docker: POSTGRES_PASSWORD=, DB=ailegr_dev, port 5432.
 - Connection: postgresql://postgres:postgres@localhost:5432/ailegr_dev?schema=public
 
-- 2025-08-23T10:53:17.0270498+05:30 - Recurring UI modal added; Transactions + AI Document wired; Settings Recurring Manager implemented; cadence helpers + previews included.
+- 2025-08-23T10:53:17.0270498+05:30 - Recurring UI modal added; Transactions + AI Document wired; Settings Recurring Manager implemented; cadence helpers + previews included. Compact actions added; auto-refresh on actions and tab visibility; horizontal scroll for wide tables; non-wrapping dates.
 
 ## Discovery Snapshot � 2025-08-23
 - UI reviewed: universal theme system in use; zero hardcoded values.
@@ -5015,7 +5047,7 @@ We have successfully transformed the financial dashboard from "good" to "absolut
 
 ## Recurring � UI updates (2025-08-23)
 - Recurring modal now shows payload validation preview and Simulate Next Run button.
-- Settings  Recurring Manager: added Simulate Due (dry-run) and per-rule Preview.
+- Settings  Recurring Manager: added Simulate Due (dry-run) and per-rule Preview. ThemedSelect for cadence and due terms; InfoHint tooltips for Day of Month, End of Month, Nth week/weekday, Due Terms, Manual Due Date.
 - Added Recurring quick action  to floating actions on dashboard.
 
 
@@ -5040,4 +5072,8 @@ We have successfully transformed the financial dashboard from "good" to "absolut
 ## Settings � Tenant members (2025-08-24T02:03:13.7336803+05:30)
 - Added TenantMembers panel to manage users and roles.
 - Uses new membershipService; OWNERs can add/remove and change roles.
+
+## COA filters & smoke verification (2025-08-25)
+- COA Active/All segmented control implemented; ensured z-index above table interactions.
+- End-to-end COA mapping validated via admin smoke runner; see `smoke-coa-report.json` for details.
 

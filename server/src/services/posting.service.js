@@ -112,7 +112,39 @@ class PostingService {
               policy: accountResolution.policy,
               source: 'PostingService',
               isRecurring: !!expenseData.recurring,
-              recurringRuleId: expenseData.recurringRuleId || null
+              recurringRuleId: expenseData.recurringRuleId || null,
+              // Items & Tax panel fields
+              subtotal: (() => { try {
+                // Compute subtotal from gross and tax if not provided
+                const gross = parseFloat(expenseData.amount) || 0
+                let taxAmt = 0
+                if (expenseData?.taxSettings?.enabled) {
+                  if (expenseData.taxSettings.type === 'percentage') {
+                    const rate = parseFloat(expenseData.taxSettings.rate || 0) || 0
+                    taxAmt = +(gross * rate / 100).toFixed(2)
+                  } else {
+                    taxAmt = Math.max(0, parseFloat(expenseData.taxSettings.amount || 0) || 0)
+                  }
+                }
+                const manualSubtotal = expenseData.subtotal != null ? parseFloat(expenseData.subtotal) : null
+                return (manualSubtotal != null && !isNaN(manualSubtotal)) ? +manualSubtotal.toFixed(2) : +(gross - taxAmt).toFixed(2)
+              } catch { return null } })(),
+              discountAmount: (() => { try { return expenseData?.discount?.enabled ? +(parseFloat(expenseData.discount.amount || 0).toFixed(2)) : 0 } catch { return 0 } })(),
+              taxAmount: (() => { try {
+                if (expenseData?.taxSettings?.enabled) {
+                  if (expenseData.taxSettings.type === 'percentage') {
+                    const gross = parseFloat(expenseData.amount) || 0
+                    const rate = parseFloat(expenseData.taxSettings.rate || 0) || 0
+                    return +(gross * rate / 100).toFixed(2)
+                  } else {
+                    return +(Math.max(0, parseFloat(expenseData.taxSettings.amount || 0) || 0).toFixed(2))
+                  }
+                }
+                return 0
+              } catch { return 0 } })(),
+              dueDate: expenseData?.dueDate || null,
+              dueDays: expenseData?.dueDays ?? null,
+              lineItems: Array.isArray(expenseData?.lineItems) ? expenseData.lineItems.map(li => ({ description: li.description, amount: +(parseFloat(li.amount || 0).toFixed(2)), quantity: (li.quantity!=null? Number(li.quantity): undefined), rate: (li.rate!=null? +parseFloat(String(li.rate)).toFixed(2): undefined) })) : []
             }
           }
         });
@@ -186,51 +218,67 @@ class PostingService {
         let entries;
         
         if (isOverpaid) {
-          // 🔥 OVERPAID: Create 3-line posting manually
-          console.log(`💎 Creating overpaid expense posting: $${overpaidAmount.toFixed(2)} overpaid`);
-          
-          // US practice: represent overpayment as vendor credit (Accounts Payable debit)
+          // 🔥 OVERPAID: Create posting with proper tax split
+          console.log(`💎 Creating overpaid expense posting (with tax split): $${overpaidAmount.toFixed(2)} overpaid`);
           const apAccount = await tx.account.findFirst({ where: { code: '2010' } });
           if (!apAccount) {
             throw new Error('Accounts Payable account (2010) not found - required for vendor overpayments');
           }
-          
+
           entries = [];
-          
-          // Entry 1: DEBIT expense account (invoice amount)
-          const debitEntry = await tx.transactionEntry.create({
-            data: {
-              transactionId: transaction.id,
-              debitAccountId: accounts.debit.id,
-              creditAccountId: null,
-              amount: totalExpense,
-              description: `${accountResolution.debit.accountName} - ${expenseData.vendorName}`
+
+          // Compute tax like standard path
+          let taxAmount = 0;
+          try {
+            if (expenseData?.taxSettings?.enabled) {
+              if (expenseData.taxSettings.type === 'percentage') {
+                const rate = parseFloat(expenseData.taxSettings.rate || 0) || 0;
+                taxAmount = parseFloat((totalExpense * rate / 100).toFixed(2));
+              } else {
+                taxAmount = Math.max(0, parseFloat(expenseData.taxSettings.amount || 0) || 0);
+                if (taxAmount > totalExpense) taxAmount = totalExpense;
+              }
+              if (expenseData.taxSettings.taxExempt === true) taxAmount = 0;
             }
-          });
-          entries.push(debitEntry);
-          
-          // Entry 2: CREDIT cash (amount paid)
-          const cashCreditEntry = await tx.transactionEntry.create({
-            data: {
-              transactionId: transaction.id,
-              debitAccountId: null,
-              creditAccountId: accounts.credit.id,
-              amount: amountPaid,
-              description: `Cash paid to ${expenseData.vendorName}`
-            }
-          });
+          } catch {}
+          const subtotal = Math.max(0, +(totalExpense - taxAmount).toFixed(2));
+
+          // Debit subtotal to expense account
+          if (subtotal > 0) {
+            const debitEntry = await tx.transactionEntry.create({
+              data: { transactionId: transaction.id, debitAccountId: accounts.debit.id, creditAccountId: null, amount: subtotal, description: `${accountResolution.debit.accountName} - ${expenseData.vendorName}` }
+            });
+            entries.push(debitEntry);
+          }
+
+          // Debit tax to appropriate account
+          if (taxAmount > 0) {
+            let taxAccountCode = '6110';
+            let resolvedRegime = 'US_SALES_TAX';
+            try {
+              const txHeader = await tx.transaction.findUnique({ where: { id: transaction.id }, select: { tenantId: true } })
+              const tenantId = txHeader?.tenantId || 'dev'
+              const prof = await tx.companyProfile.findFirst({ where: { tenantId }, select: { taxRegime: true, taxAccounts: true } })
+              if (prof) {
+                const overrides = (prof.taxAccounts || {})
+                resolvedRegime = String(prof.taxRegime || '').toUpperCase() || 'US_SALES_TAX'
+                if (resolvedRegime === 'VAT') taxAccountCode = (overrides.receivable || '1360')
+                else taxAccountCode = (overrides.expense || '6110')
+              }
+            } catch {}
+            let taxAccount = await tx.account.findFirst({ where: { code: taxAccountCode } });
+            if (!taxAccount) taxAccount = await tx.account.findFirst({ where: { code: '6110' } });
+            if (!taxAccount) throw new Error('Tax account not found in Chart of Accounts');
+            const taxDebit = await tx.transactionEntry.create({ data: { transactionId: transaction.id, debitAccountId: taxAccount.id, creditAccountId: null, amount: taxAmount, description: `Tax on expense - ${expenseData.vendorName}` } });
+            entries.push(taxDebit);
+          }
+
+          // Credit cash for the amount paid
+          const cashCreditEntry = await tx.transactionEntry.create({ data: { transactionId: transaction.id, debitAccountId: null, creditAccountId: accounts.credit.id, amount: amountPaid, description: `Cash paid to ${expenseData.vendorName}` } });
           entries.push(cashCreditEntry);
-          
-          // Entry 3: DEBIT accounts payable (vendor credit)
-          const vendorCreditEntry = await tx.transactionEntry.create({
-            data: {
-              transactionId: transaction.id,
-              debitAccountId: apAccount.id,
-              creditAccountId: null,
-              amount: overpaidAmount,
-              description: `Vendor credit - ${expenseData.vendorName} overpayment of $${overpaidAmount.toFixed(2)}`
-            }
-          });
+
+          // Debit Accounts Payable for the overpaid amount (vendor credit)
+          const vendorCreditEntry = await tx.transactionEntry.create({ data: { transactionId: transaction.id, debitAccountId: apAccount.id, creditAccountId: null, amount: overpaidAmount, description: `Vendor credit - ${expenseData.vendorName} overpayment of $${overpaidAmount.toFixed(2)}` } });
           entries.push(vendorCreditEntry);
           
         } else if (expenseData.paymentStatus === 'partial' && expenseData.amountPaid && parseFloat(expenseData.amountPaid) > 0) {
@@ -249,17 +297,49 @@ class PostingService {
 
           entries = [];
 
-          // Entry 1: DEBIT expense account (full expense amount)
-          const debitEntry = await tx.transactionEntry.create({
-            data: {
-              transactionId: transaction.id,
-              debitAccountId: accounts.debit.id,
-              creditAccountId: null,
-              amount: totalExpense,
-              description: `${accountResolution.debit.accountName} - ${expenseData.vendorName}`
+          // Split gross into subtotal + tax like standard path
+          let taxAmount = 0;
+          try {
+            if (expenseData?.taxSettings?.enabled) {
+              if (expenseData.taxSettings.type === 'percentage') {
+                const rate = parseFloat(expenseData.taxSettings.rate || 0) || 0;
+                taxAmount = parseFloat((totalExpense * rate / 100).toFixed(2));
+              } else {
+                taxAmount = Math.max(0, parseFloat(expenseData.taxSettings.amount || 0) || 0);
+                if (taxAmount > totalExpense) taxAmount = totalExpense;
+              }
+              if (expenseData.taxSettings.taxExempt === true) taxAmount = 0;
             }
-          });
-          entries.push(debitEntry);
+          } catch {}
+          const subtotal = Math.max(0, +(totalExpense - taxAmount).toFixed(2));
+
+          // Debit subtotal to expense account
+          if (subtotal > 0) {
+            const debitEntry = await tx.transactionEntry.create({ data: { transactionId: transaction.id, debitAccountId: accounts.debit.id, creditAccountId: null, amount: subtotal, description: `${accountResolution.debit.accountName} - ${expenseData.vendorName}` } });
+            entries.push(debitEntry);
+          }
+
+          // Debit tax portion
+          if (taxAmount > 0) {
+            let taxAccountCode = '6110';
+            let resolvedRegime = 'US_SALES_TAX';
+            try {
+              const txHeader = await tx.transaction.findUnique({ where: { id: transaction.id }, select: { tenantId: true } })
+              const tenantId = txHeader?.tenantId || 'dev'
+              const prof = await tx.companyProfile.findFirst({ where: { tenantId }, select: { taxRegime: true, taxAccounts: true } })
+              if (prof) {
+                const overrides = (prof.taxAccounts || {})
+                resolvedRegime = String(prof.taxRegime || '').toUpperCase() || 'US_SALES_TAX'
+                if (resolvedRegime === 'VAT') taxAccountCode = (overrides.receivable || '1360')
+                else taxAccountCode = (overrides.expense || '6110')
+              }
+            } catch {}
+            let taxAccount = await tx.account.findFirst({ where: { code: taxAccountCode } });
+            if (!taxAccount) taxAccount = await tx.account.findFirst({ where: { code: '6110' } });
+            if (!taxAccount) throw new Error('Tax account not found in Chart of Accounts');
+            const taxDebit = await tx.transactionEntry.create({ data: { transactionId: transaction.id, debitAccountId: taxAccount.id, creditAccountId: null, amount: taxAmount, description: `Tax on expense - ${expenseData.vendorName}` } });
+            entries.push(taxDebit);
+          }
 
           // Entry 2: CREDIT cash (amount paid)
           const cashCreditEntry = await tx.transactionEntry.create({
@@ -286,15 +366,33 @@ class PostingService {
           entries.push(apCreditEntry);
 
         } else {
-          // 🔥 STANDARD: Use normal 2-line posting
+          // 🔥 STANDARD: Use normal posting (with optional AP split by line items)
           console.log(`💸 Creating standard expense posting`);
-          entries = await this.createDoubleEntryRecords(
-            tx,
-            transaction.id,
-            accounts,
-            accountResolution,
-            expenseData
-          );
+          // Check tenant accounting setting for AP split
+          let splitAp = false
+          try {
+            const txHeader = await tx.transaction.findUnique({ where: { id: transaction.id }, select: { tenantId: true } })
+            const tenantId = txHeader?.tenantId || 'dev'
+            const prof = await tx.companyProfile.findFirst({ where: { tenantId }, select: { taxRegime: true, taxAccounts: true } })
+            // Temporary storage: allow request body to override via flag until UI setting lands
+            splitAp = !!expenseData.splitByLineItems
+            if (!splitAp) {
+              try { splitAp = !!(prof && prof.taxAccounts && (prof.taxAccounts.apSplitByLineItems === true)) } catch {}
+              try { splitAp = !!(process.env.AP_SPLIT_BY_LINES === '1') } catch {}
+            }
+          } catch {}
+
+          if (splitAp && Array.isArray(expenseData?.lineItems) && expenseData.lineItems.length > 0) {
+            entries = await this.createDoubleEntryRecordsSplit(tx, transaction.id, accounts, accountResolution, expenseData)
+          } else {
+            entries = await this.createDoubleEntryRecords(
+              tx,
+              transaction.id,
+              accounts,
+              accountResolution,
+              expenseData
+            );
+          }
         }
         
         // Validate double-entry balance (critical accounting invariant)
@@ -380,24 +478,76 @@ class PostingService {
 
       console.log(`📊 Refund entries created: Dr ${accountResolution.credit.accountCode} $${absAmount} | Cr ${accountResolution.debit.accountCode} $${absAmount}`);
     } else {
-      // Normal expense logic
-      // Entry 1: DEBIT the expense account
-      const debitEntry = await tx.transactionEntry.create({
-        data: {
-          transactionId: transactionId,
-          debitAccountId: accounts.debit.id,
-          creditAccountId: null, // Only debit side for this entry
-          amount: absAmount,
-          description: `${accountResolution.debit.accountName} - ${expenseData.vendorName}`
+      // Normal expense logic with optional tax split
+      let taxAmount = 0;
+      try {
+        if (expenseData?.taxSettings?.enabled) {
+          if (expenseData.taxSettings.type === 'percentage') {
+            const rate = parseFloat(expenseData.taxSettings.rate || 0) || 0;
+            taxAmount = parseFloat((absAmount * rate / 100).toFixed(2));
+          } else {
+            taxAmount = Math.max(0, parseFloat(expenseData.taxSettings.amount || 0) || 0);
+            if (taxAmount > absAmount) taxAmount = absAmount;
+          }
+          if (expenseData.taxSettings.taxExempt === true) taxAmount = 0;
         }
-      });
-      entries.push(debitEntry);
+      } catch {}
+      const subtotal = Math.max(0, +(absAmount - taxAmount).toFixed(2));
 
-      // Entry 2: CREDIT cash or accounts payable based on payment status
+      // Debit subtotal to expense account
+      if (subtotal > 0) {
+        const debitEntry = await tx.transactionEntry.create({
+          data: {
+            transactionId: transactionId,
+            debitAccountId: accounts.debit.id,
+            creditAccountId: null,
+            amount: subtotal,
+            description: `${accountResolution.debit.accountName} - ${expenseData.vendorName}`
+          }
+        });
+        entries.push(debitEntry);
+      }
+
+      // Debit tax amount to Tax Expense/Receivable based on company tax regime
+      if (taxAmount > 0) {
+        // Resolve account codes from CompanyProfile overrides, explicitly scoping by the transaction's tenantId
+        let taxAccountCode = '6110'; // default US Sales Tax Expense
+        let resolvedRegime = 'US_SALES_TAX'
+        try {
+          const txHeader = await tx.transaction.findUnique({ where: { id: transactionId }, select: { tenantId: true } })
+          const tenantId = txHeader?.tenantId || 'dev'
+          const prof = await tx.companyProfile.findFirst({ where: { tenantId }, select: { taxRegime: true, taxAccounts: true } })
+          if (prof) {
+            const overrides = (prof.taxAccounts || {})
+            resolvedRegime = String(prof.taxRegime || '').toUpperCase() || 'US_SALES_TAX'
+            if (resolvedRegime === 'VAT') {
+              taxAccountCode = (overrides.receivable || '1360')
+            } else {
+              taxAccountCode = (overrides.expense || '6110')
+            }
+          }
+        } catch {}
+        let taxAccount = await tx.account.findFirst({ where: { code: taxAccountCode } });
+        if (!taxAccount) taxAccount = await tx.account.findFirst({ where: { code: '6110' } }); // fallback to expense
+        if (!taxAccount) throw new Error('Tax account not found in Chart of Accounts');
+        const taxDebit = await tx.transactionEntry.create({
+          data: {
+            transactionId: transactionId,
+            debitAccountId: taxAccount.id,
+            creditAccountId: null,
+            amount: taxAmount,
+            description: `Tax on expense - ${expenseData.vendorName}`
+          }
+        });
+        try { if (process.env.DEBUG_TAX === '1') console.log('[TAX_MAP]', { transactionId, taxAccountCode, resolvedRegime, taxAmount }) } catch {}
+        entries.push(taxDebit);
+      }
+
+      // Credit cash/AP for the full gross amount
       const creditEntry = await tx.transactionEntry.create({
         data: {
           transactionId: transactionId,
-          debitAccountId: null, // Only credit side for this entry
+          debitAccountId: null,
           creditAccountId: accounts.credit.id,
           amount: absAmount,
           description: this.buildCreditDescription(expenseData, accountResolution.credit.accountName)
@@ -405,8 +555,99 @@ class PostingService {
       });
       entries.push(creditEntry);
 
-      console.log(`📊 Double-entry created: Dr ${accountResolution.debit.accountCode} $${absAmount} | Cr ${accountResolution.credit.accountCode} $${absAmount}`);
+      console.log(`📊 Double-entry created: Dr ${accountResolution.debit.accountCode} $${subtotal}${taxAmount>0?` + Dr 6110 $${taxAmount}`:''} | Cr ${accountResolution.credit.accountCode} $${absAmount}`);
     }
+
+    return entries;
+  }
+
+  /**
+   * Split-by-line-items variant: debit per line to mapped expense accounts,
+   * debit tax to tax account (if any), and credit full gross to cash/AP.
+   */
+  static async createDoubleEntryRecordsSplit(tx, transactionId, accounts, accountResolution, expenseData) {
+    const amount = parseFloat(expenseData.amount);
+    const entries = [];
+    const isRefund = amount < 0;
+    const absAmount = Math.abs(amount);
+    if (isRefund) {
+      // For simplicity, fallback to standard logic for refunds
+      return this.createDoubleEntryRecords(tx, transactionId, accounts, accountResolution, expenseData)
+    }
+
+    // Compute tax amount from settings
+    let taxAmount = 0;
+    try {
+      if (expenseData?.taxSettings?.enabled) {
+        if (expenseData.taxSettings.type === 'percentage') {
+          const rate = parseFloat(expenseData.taxSettings.rate || 0) || 0;
+          taxAmount = parseFloat((absAmount * rate / 100).toFixed(2));
+        } else {
+          taxAmount = Math.max(0, parseFloat(expenseData.taxSettings.amount || 0) || 0);
+          if (taxAmount > absAmount) taxAmount = absAmount;
+        }
+        if (expenseData.taxSettings.taxExempt === true) taxAmount = 0;
+      }
+    } catch {}
+    const subtotal = Math.max(0, +(absAmount - taxAmount).toFixed(2));
+
+    // Create per-line debits scaled to subtotal
+    const lines = Array.isArray(expenseData.lineItems) ? expenseData.lineItems : []
+    const originalSum = lines.reduce((s, li) => s + (parseFloat(li.amount) || 0), 0)
+    const scale = originalSum > 0 ? (subtotal / originalSum) : 1
+    let running = 0
+    for (let i = 0; i < lines.length; i++) {
+      const li = lines[i]
+      const raw = parseFloat(li.amount) || 0
+      let lineAmount = +(raw * scale).toFixed(2)
+      if (i === lines.length - 1) lineAmount = +(subtotal - running).toFixed(2)
+      // Map line item to expense account via resolver keywords/category mapping
+      let debitAccount = accounts.debit
+      try {
+        // Use resolver to pick best matching expense account for the line
+        const { ExpenseAccountResolver } = await import('./expense-account-resolver.service.js')
+        const res = await ExpenseAccountResolver.resolveDebitAccount({ categoryKey: null, vendorName: expenseData.vendorName, description: li.description || '' })
+        if (res && res.accountCode) {
+          const acc = await prisma.account.findFirst({ where: { code: res.accountCode } })
+          if (acc) debitAccount = acc
+        }
+      } catch {}
+      if (lineAmount > 0) {
+        const debitEntry = await tx.transactionEntry.create({
+          data: { transactionId, debitAccountId: debitAccount.id, creditAccountId: null, amount: lineAmount, description: `${debitAccount.name} - ${expenseData.vendorName}${li.description ? ` (${li.description})` : ''}` }
+        })
+        entries.push(debitEntry)
+        running += lineAmount
+      }
+    }
+
+    // Debit tax amount to Tax Expense/Receivable based on regime
+    if (taxAmount > 0) {
+      let taxAccountCode = '6110';
+      let resolvedRegime = 'US_SALES_TAX'
+      try {
+        const txHeader = await tx.transaction.findUnique({ where: { id: transactionId }, select: { tenantId: true } })
+        const tenantId = txHeader?.tenantId || 'dev'
+        const prof = await tx.companyProfile.findFirst({ where: { tenantId }, select: { taxRegime: true, taxAccounts: true } })
+        if (prof) {
+          const overrides = (prof.taxAccounts || {})
+          resolvedRegime = String(prof.taxRegime || '').toUpperCase() || 'US_SALES_TAX'
+          if (resolvedRegime === 'VAT') taxAccountCode = (overrides.receivable || '1360')
+          else taxAccountCode = (overrides.expense || '6110')
+        }
+      } catch {}
+      let taxAccount = await tx.account.findFirst({ where: { code: taxAccountCode } });
+      if (!taxAccount) taxAccount = await tx.account.findFirst({ where: { code: '6110' } });
+      if (!taxAccount) throw new Error('Tax account not found in Chart of Accounts');
+      const taxDebit = await tx.transactionEntry.create({ data: { transactionId, debitAccountId: taxAccount.id, creditAccountId: null, amount: taxAmount, description: `Tax on expense - ${expenseData.vendorName}` } });
+      entries.push(taxDebit);
+    }
+
+    // Credit cash/AP for the full gross amount
+    const creditEntry = await tx.transactionEntry.create({
+      data: { transactionId, debitAccountId: null, creditAccountId: accounts.credit.id, amount: absAmount, description: this.buildCreditDescription(expenseData, accountResolution.credit.accountName) }
+    });
+    entries.push(creditEntry);
 
     return entries;
   }
@@ -625,6 +866,20 @@ class PostingService {
     }
     
     // Normalize and return clean data
+    // Tax settings normalization (optional)
+    let taxSettings = { enabled: false };
+    try {
+      if (requestBody.taxSettings && (requestBody.taxSettings.enabled === true || requestBody.taxSettings.enabled === 'true')) {
+        taxSettings = {
+          enabled: true,
+          type: (requestBody.taxSettings.type === 'amount' ? 'amount' : 'percentage'),
+          name: requestBody.taxSettings.name || 'Tax',
+          rate: requestBody.taxSettings.type === 'percentage' ? (parseFloat(requestBody.taxSettings.rate || 0) || 0) : 0,
+          amount: requestBody.taxSettings.type === 'amount' ? (parseFloat(requestBody.taxSettings.amount || 0) || 0) : 0,
+          taxExempt: !!requestBody.taxSettings.taxExempt
+        };
+      }
+    } catch {}
     // Compute due date: manual dueDate wins; else use dueDays relative to date (default Net-0)
     let computedDueDate = requestBody.dueDate || null
     if (!computedDueDate) {
@@ -646,6 +901,21 @@ class PostingService {
         }
       } catch {}
     }
+    // Normalize line items (optional) with qty/rate support
+    let lineItems = []
+    try {
+      if (Array.isArray(requestBody.lineItems)) {
+        lineItems = requestBody.lineItems.map((item, index) => ({
+          description: (item && item.description) ? String(item.description) : `Line Item ${index + 1}`,
+          amount: (item && item.amount != null) ? +parseFloat(String(item.amount)).toFixed(2) : 0,
+          quantity: (item && item.quantity != null) ? parseFloat(String(item.quantity)) : undefined,
+          rate: (item && item.rate != null) ? +parseFloat(String(item.rate)).toFixed(2) : undefined,
+          category: (item && item.category) ? String(item.category) : undefined
+        })
+        ).filter(li => (li.description && li.description.trim()) || (li.amount && !isNaN(li.amount)))
+      }
+    } catch {}
+
     const normalizedData = {
       vendorName: requestBody.vendorName.trim(),
       vendorInvoiceNo: (requestBody.vendorInvoiceNo && String(requestBody.vendorInvoiceNo).trim()) || null,
@@ -664,8 +934,10 @@ class PostingService {
       invoiceNumber: requestBody.invoiceNumber || null,
       dueDate: computedDueDate || null,
       dueDays: (requestBody.dueDays != null ? Math.max(0, Math.min(365, parseInt(String(requestBody.dueDays), 10) || 0)) : null),
+      taxSettings: taxSettings,
       recurring: requestBody.recurring || false,
-      overdue: requestBody.overdue || false
+      overdue: requestBody.overdue || false,
+      lineItems
     };
     
     return {
@@ -779,7 +1051,36 @@ class PostingService {
               paymentStatus: invoiceData.paymentStatus,
               dueDate: invoiceData.dueDate || null,
               dueDays: (invoiceData.dueDays != null ? Math.max(0, Math.min(365, parseInt(String(invoiceData.dueDays), 10) || 0)) : null),
-              source: 'PostingService'
+              source: 'PostingService',
+              // Items & Tax panel fields for AR detail
+              subtotal: (() => { try {
+                let taxAmount = 0
+                if (invoiceData.taxSettings?.enabled) {
+                  if (invoiceData.taxSettings.type === 'percentage' && invoiceData.taxSettings.rate) {
+                    const afterDiscount = parseFloat(invoiceData.subtotal || totalInvoice) - parseFloat(invoiceData.discount?.amount || 0)
+                    taxAmount = afterDiscount * (parseFloat(invoiceData.taxSettings.rate) / 100)
+                  } else {
+                    taxAmount = parseFloat(invoiceData.taxSettings.amount || 0)
+                  }
+                  taxAmount = Math.max(0, Math.min(totalInvoice, +parseFloat(String(taxAmount)).toFixed(2)))
+                }
+                const discountAmount = invoiceData.discount?.enabled ? parseFloat(invoiceData.discount.amount || 0) : 0
+                if (invoiceData.subtotal && parseFloat(invoiceData.subtotal) > 0) return +parseFloat(invoiceData.subtotal).toFixed(2)
+                return +(totalInvoice - taxAmount - discountAmount).toFixed(2)
+              } catch { return null } })(),
+              discountAmount: (() => { try { return invoiceData.discount?.enabled ? +(parseFloat(invoiceData.discount.amount || 0).toFixed(2)) : 0 } catch { return 0 } })(),
+              taxAmount: (() => { try {
+                if (invoiceData.taxSettings?.enabled) {
+                  if (invoiceData.taxSettings.type === 'percentage' && invoiceData.taxSettings.rate) {
+                    const afterDiscount = parseFloat(invoiceData.subtotal || totalInvoice) - parseFloat(invoiceData.discount?.amount || 0)
+                    return +(afterDiscount * (parseFloat(invoiceData.taxSettings.rate) / 100)).toFixed(2)
+                  } else {
+                    return +(parseFloat(invoiceData.taxSettings.amount || 0).toFixed(2))
+                  }
+                }
+                return 0
+              } catch { return 0 } })(),
+              lineItems: Array.isArray(invoiceData?.lineItems) ? invoiceData.lineItems.map(li => ({ description: li.description, amount: +(parseFloat(li.amount || 0).toFixed(2)), quantity: (li.quantity!=null? Number(li.quantity): undefined), rate: (li.rate!=null? +parseFloat(String(li.rate)).toFixed(2): undefined) })) : []
             }
           }
         });
@@ -887,27 +1188,50 @@ class PostingService {
       } else {
         taxAmount = parseFloat(invoiceData.taxSettings.amount || 0);
       }
+      // Normalize to currency cents to avoid balancing drift (e.g., 279.2514 → 279.25)
+      taxAmount = Math.max(0, Math.min(totalInvoice, +parseFloat(String(taxAmount)).toFixed(2)));
     }
     
     const discountAmount = invoiceData.discount?.enabled ? parseFloat(invoiceData.discount.amount || 0) : 0;
     
     let subtotalAmount;
     if (invoiceData.subtotal && parseFloat(invoiceData.subtotal) > 0) {
-      subtotalAmount = parseFloat(invoiceData.subtotal);
+      subtotalAmount = +parseFloat(invoiceData.subtotal).toFixed(2);
     } else {
-      subtotalAmount = totalInvoice - taxAmount - discountAmount;
+      subtotalAmount = +(totalInvoice - taxAmount - discountAmount).toFixed(2);
     }
     
     const hasLineItems = invoiceData.lineItems && invoiceData.lineItems.length > 0;
     
+    let sumLineRevenue = 0;
     if (hasLineItems) {
-      let totalRevenueCredits = 0;
-      for (const lineItem of invoiceData.lineItems) {
-        const lineAmount = parseFloat(lineItem.amount);
-        const revenueAccountCode = this.mapLineItemToRevenueAccount(lineItem);
-        const revenueAccount = await this.getAccountByCode(revenueAccountCode);
+      // Target revenue must equal (total - tax). Scale line amounts proportionally if needed
+      const targetRevenue = Math.max(totalInvoice - taxAmount, 0)
+      const originalSum = invoiceData.lineItems.reduce((s, li) => s + (parseFloat(li.amount) || 0), 0)
+      const scale = originalSum > 0 ? (targetRevenue / originalSum) : 1
+      let running = 0
+      for (let i = 0; i < invoiceData.lineItems.length; i++) {
+        const lineItem = invoiceData.lineItems[i]
+        const raw = parseFloat(lineItem.amount) || 0
+        let lineAmount = +(raw * scale).toFixed(2)
+        // Adjust last line to fix rounding drift
+        if (i === invoiceData.lineItems.length - 1) lineAmount = +(targetRevenue - running).toFixed(2)
+        // Prefer explicit line item accountCode suggested by AI or user; fallback to mapper
+        const explicitCode = String(lineItem.accountCode || '').trim()
+        const revenueAccountCode = explicitCode || this.mapLineItemToRevenueAccount(lineItem);
+        let revenueAccount = await this.getAccountByCode(revenueAccountCode);
+        // Graceful fallback when mapped revenue account is not present in the tenant COA
         if (!revenueAccount) {
-          throw new Error(`Revenue account ${revenueAccountCode} not found for line item: ${lineItem.description}`);
+          // Prefer resolved default revenue from accounts (4020 by default)
+          if (accounts && accounts.revenue) {
+            revenueAccount = accounts.revenue;
+          } else {
+            // Fallback to 4020 Services Revenue if exists
+            revenueAccount = await this.getAccountByCode('4020');
+          }
+          if (!revenueAccount) {
+            throw new Error(`Required revenue account not found (missing ${revenueAccountCode} and fallback 4020). Run /api/setup/seed-coa or /api/setup/ensure-core-accounts.`);
+          }
         }
         const revenueEntry = await tx.transactionEntry.create({
           data: {
@@ -917,10 +1241,11 @@ class PostingService {
             amount: lineAmount,
             description: `${lineItem.description} - ${invoiceData.customerName} (Invoice ${invoiceData.invoiceNumber || 'N/A'})`
           }
-        });
-        entries.push(revenueEntry);
-        totalRevenueCredits += lineAmount;
+        })
+        entries.push(revenueEntry)
+        running += lineAmount
       }
+      sumLineRevenue = +(running.toFixed(2))
     } else {
       // Determine consistency: subtotal - discount + tax should equal total amount
       const authoritativeTotal = totalInvoice;
@@ -930,9 +1255,10 @@ class PostingService {
       // Choose revenue credit amount
       // - If consistent, credit revenue at subtotal, and post discount as separate debit
       // - If inconsistent, credit revenue at (total - tax), and do NOT post a separate discount
-      const revenueCreditAmount = isConsistent
+      let revenueCreditAmount = isConsistent
         ? subtotalAmount
         : Math.max(authoritativeTotal - taxAmount, 0);
+      revenueCreditAmount = +parseFloat(String(revenueCreditAmount)).toFixed(2);
 
       const revenueEntry = await tx.transactionEntry.create({
         data: {
@@ -966,6 +1292,7 @@ class PostingService {
         });
         entries.push(discountEntry);
       }
+      sumLineRevenue = revenueCreditAmount;
     }
     
     // CREDIT: Sales Tax Payable (if tax is applied)
@@ -992,7 +1319,7 @@ class PostingService {
     
     // Note: Sales Discounts entry handled above only when inputs are consistent
     
-    // Compute FINAL TOTAL for invoice: use authoritative amount
+    // Compute FINAL TOTAL: authoritative invoice total
     const finalTotal = totalInvoice;
 
     // DEBIT: Cash for amount actually received (if any)
@@ -1096,12 +1423,20 @@ class PostingService {
   static mapLineItemToRevenueAccount(lineItem) {
     const description = (lineItem.description || '').toLowerCase();
     const category = (lineItem.category || '').toLowerCase();
+    // Services clusters
     if (description.includes('web development') || description.includes('website') || category.includes('development')) return '4020';
-    if (description.includes('seo') || description.includes('marketing') || category.includes('marketing')) return '4030';
     if (description.includes('design') || description.includes('ui/ux') || category.includes('design')) return '4020';
     if (description.includes('consulting') || description.includes('consultation') || category.includes('consulting')) return '4020';
-    if (description.includes('training') || description.includes('documentation') || category.includes('support')) return '4040';
-    if (description.includes('hosting') || description.includes('maintenance') || category.includes('support')) return '4040';
+    // Marketing
+    if (description.includes('seo') || description.includes('marketing') || category.includes('marketing')) return '4030';
+    // Support & maintenance
+    if (description.includes('support') || description.includes('maintenance') || description.includes('helpdesk')) return '4040';
+    // Subscriptions / SaaS
+    if (description.includes('subscription') || description.includes('saas') || category.includes('subscription')) return '4050';
+    // Licensing
+    if (description.includes('license') || description.includes('licence') || category.includes('license')) return '4060';
+    // Training
+    if (description.includes('training') || description.includes('workshop') || description.includes('course') || category.includes('training')) return '4070';
     return '4020';
   }
 

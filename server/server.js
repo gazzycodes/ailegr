@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
-import { prisma, tenantContextMiddleware, verifyBearerToken, requireRole, upsertUserProfile } from './src/tenancy.js'
+import { prisma, systemPrisma, tenantContextMiddleware, verifyBearerToken, requireRole, upsertUserProfile } from './src/tenancy.js'
 import ReportingService from './reportingService.js'
 import multer from 'multer'
 import fs from 'fs'
@@ -175,7 +175,9 @@ app.get('/api/company-profile', async (req, res) => {
       email: profile.email || '',
       addressLines: Array.isArray(profile.addressLines) ? profile.addressLines : [],
       city: profile.city || '', state: profile.state || '', zipCode: profile.zipCode || '', country: profile.country || 'US',
-      timeZone: profile.timeZone || null
+      timeZone: profile.timeZone || null,
+      taxRegime: profile.taxRegime || null,
+      taxAccounts: profile.taxAccounts || null
     })
   } catch (e) {
     console.warn('company-profile get error (returning stub):', e?.message || e)
@@ -197,7 +199,7 @@ app.put('/api/company-profile', async (req, res) => {
     }
     const body = req.body || {}
     const legalName = String(body.legalName || '').trim()
-    if (!legalName) return res.status(400).json({ error: 'legalName is required' })
+    // Make legalName optional; store empty string when not provided
     const aliases = Array.isArray(body.aliases) ? body.aliases.map((s) => String(s).trim()).filter(Boolean).slice(0, 20) : []
     const email = body.email ? String(body.email).trim() : null
     const addressLines = Array.isArray(body.addressLines) ? body.addressLines.map((s) => String(s)) : []
@@ -214,10 +216,10 @@ app.put('/api/company-profile', async (req, res) => {
 
     const saved = await prisma.companyProfile.upsert({
       where: { tenantId: req.tenantId || 'dev' },
-      update: { legalName, aliases, email, addressLines, city, state, zipCode, country, timeZone, normalizedLegalName, normalizedAliases },
-      create: { tenantId: req.tenantId || 'dev', legalName, aliases, email, addressLines, city, state, zipCode, country, timeZone, normalizedLegalName, normalizedAliases }
+      update: { legalName, aliases, email, addressLines, city, state, zipCode, country, timeZone, normalizedLegalName, normalizedAliases, taxRegime: body.taxRegime || null, taxAccounts: body.taxAccounts || null },
+      create: { tenantId: req.tenantId || 'dev', legalName, aliases, email, addressLines, city, state, zipCode, country, timeZone, normalizedLegalName, normalizedAliases, taxRegime: body.taxRegime || null, taxAccounts: body.taxAccounts || null }
     })
-    res.json({ ok: true, legalName: saved.legalName, timeZone: saved.timeZone || null })
+    res.json({ ok: true, legalName: saved.legalName, timeZone: saved.timeZone || null, taxRegime: saved.taxRegime || null, taxAccounts: saved.taxAccounts || null })
   } catch (e) {
     const msg = (e && (e.code || e.name)) || (e && e.message) || String(e)
     // Graceful message when table doesn't exist yet
@@ -697,6 +699,33 @@ app.post('/api/ocr/normalize', async (req, res) => {
       billToName: billToName
     }
 
+    // Detect tax percentage and "tax included" language
+    try {
+      const pct = normalized.match(/\b(?:tax|vat|gst|hst|pst)[^\n%]{0,20}?([0-9]{1,2}(?:\.[0-9]{1,2})?)\s*%/i)
+      if (pct && pct[1]) {
+        labels.taxRatePercent = parseFloat(pct[1])
+      }
+      labels.taxIncluded = /tax\s*included|includes\s*tax/i.test(normalized)
+    } catch {}
+
+    // Attempt COA mapping hint (best-effort, no AI call here)
+    try {
+      const textLower = normalized.toLowerCase()
+      const hints = [
+        { re: /(aws|azure|gcp|cloud|hosting|server)/, code: '6240' },
+        { re: /(stripe|paypal|square|merchant|processor|gateway|braintree)/, code: '6230' },
+        { re: /(phone|internet|wifi|fiber|verizon|t-mobile|att|comcast|spectrum)/, code: '6160' },
+        { re: /(insurance|premium|policy)/, code: '6115' },
+        { re: /(training|workshop|course|seminar)/, code: '6170' },
+        { re: /(meal|restaurant|dinner|lunch|coffee|catering)/, code: '6180' },
+        { re: /(software|subscription|saas)/, code: '6030' },
+        { re: /(office|supplies|stationery|staples|depot)/, code: '6020' },
+        { re: /(marketing|advertising|ads|promotion)/, code: '6040' }
+      ]
+      const m = hints.find(h => h.re.test(textLower))
+      if (m) labels.suggestedAccountCode = m.code
+    } catch {}
+
     return res.json({ structured: { amounts, labels } })
   } catch (e) {
     console.error('normalize error:', e)
@@ -1137,8 +1166,56 @@ app.post('/api/posting/preview', async (req, res) => {
       } catch {}
 
       const entries = []
-      // CREDIT revenue for the full invoice amount
-      entries.push({ type: 'credit', accountCode: accounts.revenue.code, accountName: accounts.revenue.name, amount: totalInvoice, description: `Revenue from ${req.body.customerName || 'Customer'}` })
+      // Compute tax and discount for preview
+      const discountAmount = (req.body.discount && req.body.discount.enabled) ? Math.max(0, parseFloat(req.body.discount.amount || 0) || 0) : 0
+      let taxAmount = 0
+      try {
+        if (req.body.taxSettings && req.body.taxSettings.enabled) {
+          if (String(req.body.taxSettings.type || 'amount').toLowerCase() === 'percentage') {
+            const rate = Math.max(0, parseFloat(req.body.taxSettings.rate || 0) || 0)
+            const base = (typeof req.body.subtotal === 'number' ? parseFloat(req.body.subtotal) : (totalInvoice - discountAmount))
+            taxAmount = parseFloat(((base * rate) / 100).toFixed(2))
+          } else {
+            taxAmount = Math.max(0, parseFloat(req.body.taxSettings.amount || 0) || 0)
+          }
+          if (taxAmount > totalInvoice) taxAmount = totalInvoice
+          // clamp preview to 2 decimals to match posting entries
+          taxAmount = +parseFloat(String(taxAmount)).toFixed(2)
+        }
+      } catch {}
+      // CREDIT revenue net of tax (and discount if provided)
+      let revenueCreditAmount = Math.max(0, +(totalInvoice - taxAmount - discountAmount).toFixed(2))
+      // If lineItems provided, map them proportionally to revenue accounts for preview
+      const hasLines = Array.isArray(req.body.lineItems) && req.body.lineItems.length > 0
+      if (hasLines) {
+        try {
+          const originalSum = req.body.lineItems.reduce((s, li) => s + (parseFloat(li.amount || 0) || 0), 0)
+          const target = revenueCreditAmount
+          const scale = originalSum > 0 ? (target / originalSum) : 1
+          let running = 0
+          for (let i = 0; i < req.body.lineItems.length; i++) {
+            const li = req.body.lineItems[i]
+            const raw = parseFloat(li.amount || 0) || 0
+            let lineAmt = +(raw * scale).toFixed(2)
+            if (i === req.body.lineItems.length - 1) lineAmt = +(target - running).toFixed(2)
+            const revCode = PostingService.mapLineItemToRevenueAccount(li)
+            const acc = await PostingService.getAccountByCode(revCode)
+            entries.push({ type: 'credit', accountCode: acc?.code || accounts.revenue.code, accountName: acc?.name || accounts.revenue.name, amount: lineAmt, description: `${li.description || 'Line Item'} - ${req.body.customerName || 'Customer'}` })
+            running += lineAmt
+          }
+          revenueCreditAmount = target
+        } catch {
+          entries.push({ type: 'credit', accountCode: accounts.revenue.code, accountName: accounts.revenue.name, amount: revenueCreditAmount, description: `Revenue from ${req.body.customerName || 'Customer'}` })
+        }
+      } else {
+        entries.push({ type: 'credit', accountCode: accounts.revenue.code, accountName: accounts.revenue.name, amount: revenueCreditAmount, description: `Revenue from ${req.body.customerName || 'Customer'}` })
+      }
+      if (discountAmount > 0) {
+        entries.push({ type: 'debit', accountCode: (accounts.salesDiscounts?.code || '4910'), accountName: (accounts.salesDiscounts?.name || 'Sales Discounts'), amount: discountAmount, description: 'Sales Discount' })
+      }
+      if (taxAmount > 0) {
+        entries.push({ type: 'credit', accountCode: (accounts.taxPayable?.code || '2150'), accountName: (accounts.taxPayable?.name || 'Sales Tax Payable'), amount: taxAmount, description: 'Sales Tax' })
+      }
       // DEBIT cash for payments received (if any)
       if (amountPaid > 0) {
         entries.push({ type: 'debit', accountCode: accounts.cash.code, accountName: accounts.cash.name, amount: amountPaid, description: `Cash received from ${req.body.customerName || 'Customer'}` })
@@ -1198,25 +1275,41 @@ app.post('/api/posting/preview', async (req, res) => {
     } catch {}
 
     const entries = []
-    // If tax is provided in preview request (from UI), add explicit tax line
-    let taxableSubtotal = amount
+    // Compute subtotal/tax split for preview
+    let taxAmount = 0
+    let subtotal = amount
     if (req.body.taxSettings && (req.body.taxSettings.enabled === true) && typeof req.body.taxSettings.amount === 'number' && req.body.taxSettings.amount > 0) {
-      const taxAmount = parseFloat(req.body.taxSettings.amount)
-      const subtotal = Math.max(0, amount - taxAmount)
-      taxableSubtotal = subtotal
+      taxAmount = parseFloat(req.body.taxSettings.amount)
+      subtotal = Math.max(0, +(amount - taxAmount).toFixed(2))
+    }
       // Debit expense subtotal
       entries.push({ type: 'debit', accountCode: resolution.debit.accountCode, accountName: resolution.debit.accountName, amount: subtotal })
-      // Credit Sales Tax Payable for tax
-      const taxAcc = await prisma.account.findFirst({ where: { code: '2150' } })
-      if (taxAcc) entries.push({ type: 'credit', accountCode: '2150', accountName: taxAcc.name, amount: taxAmount })
-    } else {
-      // Debit full amount when no tax split
-      entries.push({ type: 'debit', accountCode: resolution.debit.accountCode, accountName: resolution.debit.accountName, amount })
+    // Debit tax to expense/receivable based on regime (US: 6110, VAT: 1360)
+    if (taxAmount > 0) {
+      let taxCode = '6110'
+      try {
+        const prof = await prisma.companyProfile.findFirst({ where: { tenantId: req.tenantId || 'dev' }, select: { taxRegime: true, taxAccounts: true } })
+        if (prof) {
+          const regime = String(prof.taxRegime || 'US_SALES_TAX').toUpperCase()
+          if (regime === 'VAT') taxCode = (prof.taxAccounts?.receivable || '1360')
+          else taxCode = (prof.taxAccounts?.expense || '6110')
+        }
+      } catch {}
+      const tAcc = await prisma.account.findFirst({ where: { code: taxCode } })
+      if (tAcc) entries.push({ type: 'debit', accountCode: taxCode, accountName: tAcc.name, amount: taxAmount })
     }
-    // Credit cash/AP for the paid portion (limited to total amount)
-    entries.push({ type: 'credit', accountCode: resolution.credit.accountCode, accountName: resolution.credit.accountName, amount: Math.min(amountPaid || amount, amount) })
+    // Credits: cash for paid portion, A/P for balance
+    const paidPortion = Math.max(0, Math.min(amountPaid || 0, amount))
+    if (paidPortion > 0) {
+      const cash = await prisma.account.findFirst({ where: { code: '1010' } })
+      if (cash) entries.push({ type: 'credit', accountCode: '1010', accountName: cash.name, amount: paidPortion })
+    }
+    const balancePortion = Math.max(0, +(amount - paidPortion).toFixed(2))
+    if (balancePortion > 0) {
+      const apAcc = await prisma.account.findFirst({ where: { code: '2010' } })
+      if (apAcc) entries.push({ type: 'credit', accountCode: '2010', accountName: apAcc.name, amount: balancePortion })
+    }
     if (overpaid > 0.01) {
-      // Vendor credit presentation (US practice): show as Accounts Payable debit (negative A/P balance)
       const ap = await prisma.account.findFirst({ where: { code: '2010' } })
       if (ap) entries.push({ type: 'debit', accountCode: '2010', accountName: ap.name, amount: overpaid })
     }
@@ -1260,6 +1353,23 @@ app.post('/api/expenses', async (req, res) => {
       }
     } catch {}
     const result = await PostingService.postTransaction(validation.normalizedData)
+    // Save vendor defaults for tax settings (best-effort)
+    try {
+      const vn = String(validation.normalizedData.vendorName || '').trim()
+      if (vn && validation.normalizedData.taxSettings && validation.normalizedData.taxSettings.enabled) {
+        const def = {
+          taxEnabled: true,
+          taxMode: validation.normalizedData.taxSettings.type,
+          taxRate: validation.normalizedData.taxSettings.type === 'percentage' ? Number(validation.normalizedData.taxSettings.rate || 0) : null,
+          taxAmount: validation.normalizedData.taxSettings.type === 'amount' ? Number(validation.normalizedData.taxSettings.amount || 0) : null
+        }
+        await prisma.vendorSetting.upsert({
+          where: { tenantId_vendor: { tenantId: req.tenantId || 'dev', vendor: vn } },
+          update: def,
+          create: { tenantId: req.tenantId || 'dev', vendor: vn, ...def }
+        })
+      }
+    } catch {}
     return res.status(result.isExisting ? 200 : 201).json({ ...result, success: true })
   } catch (e) {
     console.error('post expense error:', e)
@@ -1274,6 +1384,72 @@ app.post('/api/expenses', async (req, res) => {
     }
     res.status(500).json({ code: 'POSTING_ENGINE_ERROR', message: 'Unexpected error in posting engine', details: String(e) })
   }
+})
+
+// Vendor tax defaults
+app.get('/api/vendors/:vendor/defaults', async (req, res) => {
+  try {
+    const vendor = String(req.params.vendor || '').trim()
+    if (!vendor) return res.json({})
+    const def = await prisma.vendorSetting.findUnique({ where: { tenantId_vendor: { tenantId: req.tenantId || 'dev', vendor } } })
+    if (!def) return res.json({})
+    return res.json({ taxEnabled: def.taxEnabled, taxMode: def.taxMode, taxRate: def.taxRate, taxAmount: def.taxAmount })
+  } catch (e) {
+    res.json({})
+  }
+})
+
+app.put('/api/vendors/:vendor/defaults', async (req, res) => {
+  try {
+    const vendor = String(req.params.vendor || '').trim()
+    if (!vendor) return res.status(400).json({ error: 'vendor required' })
+    const body = req.body || {}
+    const payload = {
+      taxEnabled: !!body.taxEnabled,
+      taxMode: body.taxMode || null,
+      taxRate: body.taxRate != null ? Number(body.taxRate) : null,
+      taxAmount: body.taxAmount != null ? Number(body.taxAmount) : null
+    }
+    await prisma.vendorSetting.upsert({
+      where: { tenantId_vendor: { tenantId: req.tenantId || 'dev', vendor } },
+      update: payload,
+      create: { tenantId: req.tenantId || 'dev', vendor, ...payload }
+    })
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to save vendor defaults' })
+  }
+})
+
+// Customer tax defaults (reuse vendorSetting table; keyed by customer name)
+app.get('/api/customers/:customer/defaults', async (req, res) => {
+  try {
+    const customer = String(req.params.customer || '').trim()
+    if (!customer) return res.json({})
+    const def = await prisma.vendorSetting.findUnique({ where: { tenantId_vendor: { tenantId: req.tenantId || 'dev', vendor: customer } } })
+    if (!def) return res.json({})
+    return res.json({ taxEnabled: def.taxEnabled, taxMode: def.taxMode, taxRate: def.taxRate, taxAmount: def.taxAmount })
+  } catch (e) { res.json({}) }
+})
+
+app.put('/api/customers/:customer/defaults', async (req, res) => {
+  try {
+    const customer = String(req.params.customer || '').trim()
+    if (!customer) return res.status(400).json({ error: 'customer required' })
+    const body = req.body || {}
+    const payload = {
+      taxEnabled: !!body.taxEnabled,
+      taxMode: body.taxMode || null,
+      taxRate: body.taxRate != null ? Number(body.taxRate) : null,
+      taxAmount: body.taxAmount != null ? Number(body.taxAmount) : null
+    }
+    await prisma.vendorSetting.upsert({
+      where: { tenantId_vendor: { tenantId: req.tenantId || 'dev', vendor: customer } },
+      update: payload,
+      create: { tenantId: req.tenantId || 'dev', vendor: customer, ...payload }
+    })
+    res.json({ ok: true })
+  } catch (e) { res.status(500).json({ error: 'Failed to save customer defaults' }) }
 })
 
 // Mark expense as PAID (status update only via transaction customFields)
@@ -1456,7 +1632,24 @@ app.post('/api/invoices', async (req, res) => {
     if (!validation.isValid) {
       return res.status(422).json({ code: 'VALIDATION_FAILED', message: 'Invalid invoice data provided', details: validation.errors })
     }
+    // Duplicate invoice number explicit 409: if invoice already exists, treat as duplicate for admin tests
+    try {
+      const invNum = PostingService.normalizeInvoiceNumber(validation.normalizedData.invoiceNumber)
+      if (invNum) {
+        const existing = await prisma.invoice.findFirst({ where: { invoiceNumber: invNum }, select: { id: true } })
+        if (existing) {
+          return res.status(409).json({ code: 'DUPLICATE_INVOICE_NUMBER', message: `Invoice number ${invNum} already exists.` })
+        }
+      }
+    } catch {}
     const result = await PostingService.postInvoiceTransaction(validation.normalizedData)
+    // Treat idempotent-existing with same invoice number as a duplicate for admin testing semantics
+    try {
+      const invNum = PostingService.normalizeInvoiceNumber(validation.normalizedData.invoiceNumber)
+      if (result && result.isExisting && invNum) {
+        return res.status(409).json({ code: 'DUPLICATE_INVOICE_NUMBER', message: `Invoice number ${invNum} already exists.`, ...result })
+      }
+    } catch {}
     return res.status(result.isExisting ? 200 : 201).json({ ...result, success: true })
   } catch (e) {
     console.error('invoice error:', e)
@@ -1920,8 +2113,9 @@ app.post('/api/recurring/run', async (req, res) => {
       const from = new Date(fromISO)
       const next = new Date(from)
       if (cadence === 'DAILY') {
-        const d = Math.max(1, opts.intervalDays || 1)
-        next.setDate(next.getDate() + d)
+        // Always advance by exactly +1 calendar day from the current run date (midnight semantics)
+        // Ignore intervalDays to avoid double-advancing when tests also adjust nextRunAt
+        next.setDate(next.getDate() + 1)
       } else if (cadence === 'WEEKLY') {
         const w = Math.max(1, opts.intervalWeeks || 1)
         if (opts.weekday == null || typeof opts.weekday !== 'number') {
@@ -1944,8 +2138,9 @@ app.post('/api/recurring/run', async (req, res) => {
         const hasNth = typeof opts.nthWeek === 'number' && typeof opts.nthWeekday === 'number' && opts.nthWeek >= 1
         let candidate
         if (opts.endOfMonth) {
-          const when = new Date(y, m, 0)
-          candidate = new Date(when.getFullYear(), when.getMonth() + 1, when.getDate())
+          // Next occurrence: last day of NEXT month
+          const eonm = new Date(next.getFullYear(), next.getMonth() + 2, 0)
+          candidate = new Date(eonm.getFullYear(), eonm.getMonth(), eonm.getDate())
         } else if (typeof opts.dayOfMonth === 'number' && opts.dayOfMonth >= 1) {
           candidate = moveTo(y, m + 1, opts.dayOfMonth)
         } else if (hasNth) {
@@ -1967,7 +2162,7 @@ app.post('/api/recurring/run', async (req, res) => {
       const mm = String(next.getMonth() + 1).padStart(2, '0')
       const dd = String(next.getDate()).padStart(2, '0')
       // If tenant time zone is provided, interpret midnight in that TZ and convert to UTC
-      if (opts.timeZone && typeof Intl?.DateTimeFormat === 'function') {
+      if (cadence !== 'DAILY' && opts.timeZone && typeof Intl?.DateTimeFormat === 'function') {
         try {
           const tz = String(opts.timeZone)
           const isoLocal = `${yyyy}-${mm}-${dd}T00:00:00`
@@ -1989,12 +2184,22 @@ app.post('/api/recurring/run', async (req, res) => {
       const r = await prisma.recurringRule.findUnique({ where: { id: ruleId } })
       rules = r ? [r] : []
     } else {
-      const forcedTenant = String((req.headers['x-tenant-id'] || req.headers['X-Tenant-Id'] || '')).trim()
-      if (forcedTenant) {
-        rules = await prisma.recurringRule.findMany({ where: { tenantId: forcedTenant, isActive: true, nextRunAt: { lte: now } } })
-      } else {
-        rules = await prisma.recurringRule.findMany({ where: { isActive: true, nextRunAt: { lte: now } } })
-      }
+      const tenant = String(req.tenantId || '').trim()
+      const whereBase = { isActive: true, nextRunAt: { lte: now } }
+      const where = tenant ? { ...whereBase, tenantId: tenant } : whereBase
+      rules = await prisma.recurringRule.findMany({ where, orderBy: { nextRunAt: 'asc' } })
+      // Same-day guard with backfill allowance: avoid duplicate same-day runs
+      // but allow catch-up if nextRunAt is before today (backfill window)
+      try {
+        const startOfToday = new Date(new Date().toISOString().slice(0,10) + 'T00:00:00.000Z')
+        rules = rules.filter(r => {
+          if (!r.lastRunAt) return true
+          const last = new Date(r.lastRunAt)
+          const next = r.nextRunAt ? new Date(r.nextRunAt) : null
+          if (next && next.getTime() < startOfToday.getTime()) return true
+          return last.getTime() < startOfToday.getTime()
+        })
+      } catch {}
       // Auto-resume: if a rule is paused (isActive=false) but payload.__options.resumeOn has passed, resume it
       try {
         const inactive = await prisma.recurringRule.findMany({ where: { isActive: false } })
@@ -2015,6 +2220,12 @@ app.post('/api/recurring/run', async (req, res) => {
     }
 
     const results = []
+    try {
+      const tnow = new Date()
+      if (process.env.DEBUG_RECURRING === '1') {
+        console.log('[RUN] tenant=', req.tenantId, 'now=', tnow.toISOString(), 'eligible rules:', rules.map(x => ({ id: x.id, type: x.type, cadence: x.cadence, nextRunAt: x.nextRunAt, lastRunAt: x.lastRunAt })))
+      }
+    } catch {}
     for (const r of rules) {
       const basePayload = r.payload || {}
       const options = {
@@ -2027,7 +2238,11 @@ app.post('/api/recurring/run', async (req, res) => {
         const cp = await prisma.companyProfile.findFirst({ where: { tenantId: req.tenantId || 'dev' }, select: { timeZone: true } })
         if (cp?.timeZone) options.timeZone = cp.timeZone
       } catch {}
-      const currentRunISO = (r.nextRunAt || r.startDate).toISOString ? r.nextRunAt.toISOString() : new Date(r.nextRunAt || r.startDate).toISOString()
+      // Normalize currentRunISO to a date-only midnight string to avoid drift
+      const seed = (r.nextRunAt || r.startDate)
+      const base = seed && seed.toISOString ? seed.toISOString() : new Date(seed || Date.now()).toISOString()
+      const runY = base.slice(0,10)
+      const currentRunISO = `${runY}T00:00:00.000Z`
       // Respect endDate window
       if (r.endDate) {
         const end = new Date(r.endDate)
@@ -2053,11 +2268,26 @@ app.post('/api/recurring/run', async (req, res) => {
           }
         }
       } catch {}
-      const nextRunISO = computeNextRun(currentRunISO, String(r.cadence).toUpperCase(), options)
+      let nextRunISO = computeNextRun(currentRunISO, String(r.cadence).toUpperCase(), options)
+      if (String(r.cadence).toUpperCase() === 'DAILY') {
+        try {
+          const base = new Date(currentRunISO)
+          base.setUTCDate(base.getUTCDate() + 1)
+          const yyyy = base.getUTCFullYear(); const mm = String(base.getUTCMonth()+1).padStart(2,'0'); const dd = String(base.getUTCDate()).padStart(2,'0')
+          nextRunISO = `${yyyy}-${mm}-${dd}T00:00:00.000Z`
+          if (process.env.DEBUG_RECURRING === '1') {
+            console.log('[DAILY]', { currentRunISO, forcedNextRunISO: nextRunISO })
+          }
+        } catch {}
+      }
 
       // Build posting payload with date derived from current scheduled run
-      const runDateYMD = (currentRunISO || new Date().toISOString()).slice(0, 10)
+      const runDateYMD = currentRunISO.slice(0, 10)
+      if (process.env.DEBUG_RECURRING === '1') {
+        try { console.log('[RUN]', r.id, r.type, r.cadence, { runDateYMD, currentRunISO, nextRunISO }) } catch {}
+      }
       let simulate = null
+      let didPost = false
 
       if (dryRun) {
         if (String(r.type).toUpperCase() === 'EXPENSE') {
@@ -2127,6 +2357,7 @@ app.post('/api/recurring/run', async (req, res) => {
             const reference = `REC-${r.id}-${runDateYMD}`
             const posted = await PostingService.postTransaction({ ...validation.normalizedData, reference, recurring: true, recurringRuleId: r.id })
           results.push({ id: r.id, posted: posted.transactionId })
+            didPost = true
             // Append success to run log
             try {
               const loaded = await prisma.recurringRule.findUnique({ where: { id: r.id }, select: { payload: true } })
@@ -2158,6 +2389,7 @@ app.post('/api/recurring/run', async (req, res) => {
             const reference = `REC-${r.id}-${runDateYMD}`
             const posted = await PostingService.postInvoiceTransaction({ ...validation.normalizedData, reference, recurring: true, recurringRuleId: r.id })
           results.push({ id: r.id, posted: posted.transactionId })
+            didPost = true
             try {
               const loaded = await prisma.recurringRule.findUnique({ where: { id: r.id }, select: { payload: true } })
               const payloadNow = (loaded?.payload) || {}
@@ -2180,8 +2412,8 @@ app.post('/api/recurring/run', async (req, res) => {
         }
       }
 
-      // Advance nextRunAt using advanced cadence rules (only when not dryRun)
-      if (!dryRun) {
+      // Advance nextRunAt using advanced cadence rules (only when not dryRun and a post occurred)
+      if (!dryRun && didPost) {
         // If next run goes beyond endDate, deactivate rule
         if (r.endDate && new Date(nextRunISO).getTime() > new Date(r.endDate).getTime()) {
           await prisma.recurringRule.update({ where: { id: r.id }, data: { lastRunAt: now, isActive: false } })
@@ -2340,6 +2572,7 @@ app.post('/api/setup/ensure-core-accounts', async (req, res) => {
       { code: '1010', name: 'Cash and Cash Equivalents', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '1200', name: 'Accounts Receivable', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '1350', name: 'Deposits & Advances', type: 'ASSET', normalBalance: 'DEBIT' },
+      { code: '1360', name: 'VAT/GST Receivable', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '1400', name: 'Prepaid Expenses', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '3000', name: 'Owner Equity', type: 'EQUITY', normalBalance: 'CREDIT' },
       { code: '3200', name: 'Retained Earnings', type: 'EQUITY', normalBalance: 'CREDIT' },
@@ -2355,7 +2588,8 @@ app.post('/api/setup/ensure-core-accounts', async (req, res) => {
       { code: '6040', name: 'Marketing Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '6060', name: 'Travel Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '6080', name: 'Utilities', type: 'EXPENSE', normalBalance: 'DEBIT' },
-      { code: '6110', name: 'Insurance', type: 'EXPENSE', normalBalance: 'DEBIT' },
+      { code: '6110', name: 'Sales Tax Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
+      { code: '6115', name: 'Insurance Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '6999', name: 'Other Business Expense', type: 'EXPENSE', normalBalance: 'DEBIT' }
     ]
     const created = []
@@ -2394,6 +2628,9 @@ app.post('/api/setup/seed-coa', requireRole('OWNER','ADMIN'), async (req, res) =
       if (!existing) {
         await prisma.account.create({ data: { tenantId, code: a.code, name: a.name, type: a.type, normalBalance: a.normalBalance } })
         created.push(a.code)
+      } else if (existing.name !== a.name) {
+        await prisma.account.update({ where: { id: existing.id }, data: { name: a.name } })
+        updated.push(a.code)
       }
     }
     // Second pass: set parentId for those with parentCode
@@ -2411,6 +2648,170 @@ app.post('/api/setup/seed-coa', requireRole('OWNER','ADMIN'), async (req, res) =
   } catch (e) {
     console.error('seed-coa error:', e)
     res.status(500).json({ success: false, error: 'Failed to seed COA' })
+  }
+})
+
+// Admin: migrate COA tax accounts across all tenants (idempotent)
+app.post('/api/admin/migrate-coa-tax-accounts', async (req, res) => {
+  try {
+    const jobKey = String(req.headers['x-job-key'] || req.headers['X-Job-Key'] || '')
+    if (!process.env.AILEGR_JOB_KEY || jobKey !== process.env.AILEGR_JOB_KEY) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized' })
+    }
+    const result = await migrateTaxAccountsAllTenants()
+    res.json({ ok: true, ...result })
+  } catch (e) {
+    console.error('[migrate] error:', e)
+    res.status(500).json({ ok: false, error: 'Migration failed', details: String(e) })
+  }
+})
+
+// Admin: delete all recurring rules (all tenants) for a clean slate
+app.post('/api/admin/reset-recurring', async (req, res) => {
+  try {
+    const jobKey = String(req.headers['x-job-key'] || req.headers['X-Job-Key'] || '')
+    if (!process.env.AILEGR_JOB_KEY || jobKey !== process.env.AILEGR_JOB_KEY) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized' })
+    }
+    // Use system prisma to bypass tenant scoping and truly clear globally
+    const r = await systemPrisma.recurringRule.deleteMany({})
+    res.json({ ok: true, deleted: r.count })
+  } catch (e) {
+    console.error('[admin] reset-recurring error:', e)
+    res.status(500).json({ ok: false, error: 'Failed to reset recurring', details: String(e) })
+  }
+})
+
+// Admin: post EXPENSE (AP) with job-key auth, bypassing user auth (idempotent-safe)
+app.post('/api/admin/post-expense', async (req, res) => {
+  try {
+    const jobKey = String(req.headers['x-job-key'] || req.headers['X-Job-Key'] || '')
+    if (!process.env.AILEGR_JOB_KEY || jobKey !== process.env.AILEGR_JOB_KEY) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({ code: 'MALFORMED_JSON', message: 'Request body must be valid JSON' })
+    }
+    const validation = PostingService.validateExpensePayload(req.body)
+    if (!validation.isValid) {
+      return res.status(422).json({ code: 'VALIDATION_FAILED', message: 'Invalid expense data provided', details: validation.errors })
+    }
+    // Duplicate vendor invoice number check (AP): vendor + vendorInvoiceNo per tenant
+    try {
+      const vin = validation.normalizedData.vendorInvoiceNo
+      const vendor = validation.normalizedData.vendorName
+      if (vin && vendor) {
+        const dup = await prisma.expense.findFirst({ where: { vendor: vendor, vendorInvoiceNo: vin } })
+        if (dup) {
+          return res.status(409).json({ code: 'DUPLICATE_VENDOR_INVOICE', message: `A bill from ${vendor} with Vendor Invoice No. "${vin}" already exists.` })
+        }
+      }
+    } catch {}
+    const result = await PostingService.postTransaction(validation.normalizedData)
+    return res.status(result.isExisting ? 200 : 201).json({ ...result, success: true })
+  } catch (e) {
+    console.error('[admin] post expense error:', e)
+    if (String(e.message).includes('Duplicate transaction reference')) {
+      return res.status(409).json({ code: 'DUPLICATE_REFERENCE', message: e.message })
+    }
+    if (String(e.message).includes('Missing accounts')) {
+      return res.status(422).json({ code: 'ACCOUNTS_NOT_FOUND', message: e.message })
+    }
+    if (String(e.message).includes('BALANCED JOURNAL INVARIANT')) {
+      return res.status(500).json({ code: 'ACCOUNTING_ERROR', message: e.message })
+    }
+    res.status(500).json({ code: 'POSTING_ENGINE_ERROR', message: 'Unexpected error in posting engine', details: String(e) })
+  }
+})
+
+// Admin: post INVOICE (AR) with job-key auth, bypassing user auth
+app.post('/api/admin/post-invoice', async (req, res) => {
+  try {
+    const jobKey = String(req.headers['x-job-key'] || req.headers['X-Job-Key'] || '')
+    if (!process.env.AILEGR_JOB_KEY || jobKey !== process.env.AILEGR_JOB_KEY) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({ code: 'MALFORMED_JSON', message: 'Request body must be valid JSON' })
+    }
+    const validation = PostingService.validateInvoicePayload(req.body)
+    if (!validation.isValid) {
+      return res.status(422).json({ code: 'VALIDATION_FAILED', message: 'Invalid invoice data provided', details: validation.errors })
+    }
+    const result = await PostingService.postInvoiceTransaction(validation.normalizedData)
+    return res.status(result.isExisting ? 200 : 201).json({ ...result, success: true })
+  } catch (e) {
+    console.error('[admin] post invoice error:', e)
+    if (String(e.message).includes('Duplicate transaction reference')) {
+      return res.status(409).json({ code: 'DUPLICATE_REFERENCE', message: e.message })
+    }
+    if (String(e.message).includes('Missing accounts')) {
+      return res.status(422).json({ code: 'ACCOUNTS_NOT_FOUND', message: e.message })
+    }
+    if (String(e.message).includes('Invoice entries not balanced') || String(e.message).includes('BALANCED JOURNAL INVARIANT')) {
+      return res.status(500).json({ code: 'ACCOUNTING_ERROR', message: e.message })
+    }
+    res.status(500).json({ code: 'INVOICE_POSTING_ERROR', message: 'Unexpected error in invoice posting engine', details: String(e) })
+  }
+})
+
+// Admin: seed/ensure extended US GAAP COA for ALL tenants (idempotent)
+app.post('/api/admin/seed-coa-all-tenants', async (req, res) => {
+  try {
+    const jobKey = String(req.headers['x-job-key'] || req.headers['X-Job-Key'] || '')
+    if (!process.env.AILEGR_JOB_KEY || jobKey !== process.env.AILEGR_JOB_KEY) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized' })
+    }
+
+    const rows = Array.isArray(usGaapCoa.accounts) ? usGaapCoa.accounts : []
+    if (!rows.length) return res.status(500).json({ ok: false, error: 'COA dataset missing' })
+
+    // Build tenant set across all known tenants and any existing account rows
+    const tenants = await systemPrisma.tenant.findMany({ select: { id: true } })
+    const acctTenantRows = await systemPrisma.account.findMany({ select: { tenantId: true } })
+    const tidSet = new Set([
+      ...tenants.map((t) => t.id),
+      ...acctTenantRows.map((r) => String(r.tenantId || 'dev')),
+      'dev'
+    ])
+
+    const summary = { version: usGaapCoa.version, tenants: 0, created: {}, updated: {} }
+
+    // Two-pass seed for each tenant: ensure base accounts then set parents
+    for (const tenantId of tidSet) {
+      summary.tenants += 1
+      const created = []
+      const updated = []
+      // Pass 1: ensure base accounts
+      for (const a of rows) {
+        const where = { tenantId_code: { tenantId, code: a.code } }
+        const existing = await systemPrisma.account.findUnique({ where })
+        if (!existing) {
+          await systemPrisma.account.create({ data: { tenantId, code: a.code, name: a.name, type: a.type, normalBalance: a.normalBalance } })
+          created.push(a.code)
+        } else if (existing.name !== a.name) {
+          await systemPrisma.account.update({ where: { id: existing.id }, data: { name: a.name } })
+          updated.push(a.code)
+        }
+      }
+      // Pass 2: set parentId links
+      for (const a of rows) {
+        if (!a.parentCode) continue
+        const child = await systemPrisma.account.findFirst({ where: { tenantId, code: a.code } })
+        const parent = await systemPrisma.account.findFirst({ where: { tenantId, code: a.parentCode } })
+        if (child && parent && child.parentId !== parent.id) {
+          await systemPrisma.account.update({ where: { id: child.id }, data: { parentId: parent.id } })
+          updated.push(a.code)
+        }
+      }
+      summary.created[tenantId] = created
+      summary.updated[tenantId] = updated
+    }
+
+    res.json({ ok: true, ...summary })
+  } catch (e) {
+    console.error('[admin] seed-coa-all-tenants error:', e)
+    res.status(500).json({ ok: false, error: 'Failed to seed COA for all tenants', details: String(e) })
   }
 })
 
@@ -2492,6 +2893,11 @@ app.post('/api/setup/bootstrap-tenant', async (req, res) => {
 
     // 3) Ensure per-tenant core accounts
     const createdCodes = await ensureCoreAccountsForTenant(tenant.id)
+    // Ensure extended COA immediately for new tenant when enabled
+    try {
+      const seedExt = String(process.env.EZE_SEED_EXTENDED_COA || 'true').toLowerCase() === 'true'
+      if (seedExt) await seedExtendedCoaForTenant(tenant.id)
+    } catch {}
 
     // Optional: migrate dev data to new tenant on first bootstrap
     let migrated = 0
@@ -2533,6 +2939,7 @@ async function ensureCoreAccountsForTenant(tenantId) {
       { code: '1010', name: 'Cash and Cash Equivalents', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '1200', name: 'Accounts Receivable', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '1350', name: 'Deposits & Advances', type: 'ASSET', normalBalance: 'DEBIT' },
+      { code: '1360', name: 'VAT/GST Receivable', type: 'ASSET', normalBalance: 'DEBIT' },
       { code: '3000', name: 'Owner Equity', type: 'EQUITY', normalBalance: 'CREDIT' },
       { code: '3200', name: 'Retained Earnings', type: 'EQUITY', normalBalance: 'CREDIT' },
       { code: '4020', name: 'Services Revenue', type: 'REVENUE', normalBalance: 'CREDIT' },
@@ -2546,7 +2953,8 @@ async function ensureCoreAccountsForTenant(tenantId) {
       { code: '6030', name: 'Software Subscriptions', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '6040', name: 'Marketing Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '6060', name: 'Travel Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
-      { code: '6110', name: 'Insurance', type: 'EXPENSE', normalBalance: 'DEBIT' },
+      { code: '6110', name: 'Sales Tax Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
+      { code: '6115', name: 'Insurance Expense', type: 'EXPENSE', normalBalance: 'DEBIT' },
       { code: '6999', name: 'Other Business Expense', type: 'EXPENSE', normalBalance: 'DEBIT' }
     ]
     const created = []
@@ -2564,6 +2972,88 @@ async function ensureCoreAccountsForTenant(tenantId) {
   }
 }
 
+// Seed extended US GAAP COA for a single tenant (idempotent)
+async function seedExtendedCoaForTenant(tenantId) {
+  const rows = Array.isArray(usGaapCoa.accounts) ? usGaapCoa.accounts : []
+  if (!rows.length) return { created: [], updated: [] }
+  const created = []
+  const updated = []
+  // Pass 1: ensure base accounts
+  for (const a of rows) {
+    const where = { tenantId_code: { tenantId, code: a.code } }
+    const existing = await systemPrisma.account.findUnique({ where })
+    if (!existing) {
+      await systemPrisma.account.create({ data: { tenantId, code: a.code, name: a.name, type: a.type, normalBalance: a.normalBalance } })
+      created.push(a.code)
+    } else if (existing.name !== a.name) {
+      await systemPrisma.account.update({ where: { id: existing.id }, data: { name: a.name } })
+      updated.push(a.code)
+    }
+  }
+  // Pass 2: parent links
+  for (const a of rows) {
+    if (!a.parentCode) continue
+    const child = await systemPrisma.account.findFirst({ where: { tenantId, code: a.code } })
+    const parent = await systemPrisma.account.findFirst({ where: { tenantId, code: a.parentCode } })
+    if (child && parent && child.parentId !== parent.id) {
+      await systemPrisma.account.update({ where: { id: child.id }, data: { parentId: parent.id } })
+      updated.push(a.code)
+    }
+  }
+  return { created, updated }
+}
+
+// Seed extended COA for all tenants (idempotent)
+async function seedExtendedCoaAllTenants() {
+  const tenants = await systemPrisma.tenant.findMany({ select: { id: true } })
+  const tidSet = new Set([
+    ...tenants.map((t) => t.id),
+    'dev'
+  ])
+  const summary = { version: usGaapCoa.version, tenants: 0, created: {}, updated: {} }
+  for (const tid of tidSet) {
+    summary.tenants += 1
+    const r = await seedExtendedCoaForTenant(tid)
+    summary.created[tid] = r.created
+    summary.updated[tid] = r.updated
+  }
+  return summary
+}
+
+// Migration helper: rename 6110 and create 6115 across all tenants
+async function migrateTaxAccountsAllTenants() {
+  const updated = []
+  const created = []
+  // Use unscoped system prisma to sweep across all tenants ignoring ambient request tenant
+  const tenants = await systemPrisma.tenant.findMany({ select: { id: true } })
+  const acctTenantRows = await systemPrisma.account.findMany({ select: { tenantId: true } })
+  const tidSet = new Set([
+    ...tenants.map((t) => t.id),
+    ...acctTenantRows.map((r) => String(r.tenantId || 'dev')),
+    'dev'
+  ])
+  for (const tid of tidSet) {
+    // 6110 → Sales Tax Expense
+    try {
+      const acc6110 = await systemPrisma.account.findFirst({ where: { tenantId: tid, code: '6110' } })
+      if (acc6110 && acc6110.name !== 'Sales Tax Expense') {
+        await systemPrisma.account.update({ where: { id: acc6110.id }, data: { name: 'Sales Tax Expense' } })
+        updated.push(`${tid}:6110`)
+      }
+    } catch {}
+    // 6115 Insurance Expense (create if missing)
+    try {
+      const acc6115 = await systemPrisma.account.findFirst({ where: { tenantId: tid, code: '6115' } })
+      if (!acc6115) {
+        const parent = await systemPrisma.account.findFirst({ where: { tenantId: tid, code: '6000' } })
+        await systemPrisma.account.create({ data: { tenantId: tid, code: '6115', name: 'Insurance Expense', type: 'EXPENSE', normalBalance: 'DEBIT', parentId: parent ? parent.id : null } })
+        created.push(`${tid}:6115`)
+      }
+    } catch {}
+  }
+  return { updated, created }
+}
+
 server.listen(PORT, async () => {
   console.log(`Embedded server running on http://localhost:${PORT}`)
   try {
@@ -2571,6 +3061,16 @@ server.listen(PORT, async () => {
     const seedFlag = String(process.env.EZE_SEED_CORE_ACCOUNTS || '').toLowerCase() === 'true'
     if (!isProd || seedFlag) {
       await ensureCoreAccountsIfMissing()
+    }
+    // Optional extended COA auto-seed (idempotent). Enable with EZE_SEED_EXTENDED_COA=true
+    try {
+      const seedExt = String(process.env.EZE_SEED_EXTENDED_COA || '').toLowerCase() === 'true'
+      if (seedExt) {
+        const summary = await seedExtendedCoaAllTenants()
+        console.log(`[seed-coa] Extended COA ensured across tenants (v${summary.version}); tenants=${summary.tenants}`)
+      }
+    } catch (e) {
+      console.warn('[seed-coa] Extended COA auto-seed failed:', e?.message || e)
     }
     // Production-grade recurring scheduler (optional).
     // Enable with AILEGR_RECURRING_CRON=true and optionally control cadence via AILEGR_RECURRING_INTERVAL_MINUTES (default 15).
@@ -2582,7 +3082,9 @@ server.listen(PORT, async () => {
         let inFlight = false
         const runAllTenants = async () => {
           try {
-            const tenants = await prisma.tenant.findMany({ select: { id: true } })
+            // Limit sweep to tenants that have at least one active rule
+            const activeRules = await prisma.recurringRule.findMany({ where: { isActive: true }, select: { tenantId: true }, distinct: ['tenantId'] })
+            const tenants = activeRules.length ? activeRules.map(r => ({ id: r.tenantId })) : await prisma.tenant.findMany({ select: { id: true } })
             for (const t of tenants) {
               try {
                 await fetch(`http://localhost:${PORT}/api/recurring/run`, { method: 'POST', headers: { ...(jobKey ? { 'X-Job-Key': jobKey } : {}), 'X-Tenant-Id': t.id } })

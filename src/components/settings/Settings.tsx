@@ -19,16 +19,24 @@ export default function Settings() {
   const [confirmPw, setConfirmPw] = useReactState('')
 
   // Company profile state
-  const [company, setCompany] = useState<CompanyProfileDTO>({ legalName: '', aliases: [], email: '', addressLines: [], city: '', state: '', zipCode: '', country: 'US', timeZone: null })
+  const [company, setCompany] = useState<CompanyProfileDTO>({ legalName: '', aliases: [], email: '', addressLines: [], city: '', state: '', zipCode: '', country: 'US', timeZone: null, taxRegime: null, taxAccounts: null })
   const [companyLoading, setCompanyLoading] = useState(false)
   const [companySaving, setCompanySaving] = useState(false)
   const [companyOpen, setCompanyOpen] = useState(false)
   const [role, setRole] = useState<'OWNER'|'ADMIN'|'MEMBER'>('MEMBER')
+  const [apSplitLines, setApSplitLines] = useState<boolean>(() => {
+    try { return JSON.parse(localStorage.getItem('settings.apSplitLines') || 'false') } catch { return false }
+  })
 
   useEffect(() => {
     let mounted = true
     setCompanyLoading(true)
-    CompanyService.getCompanyProfile().then((p) => { if (mounted) setCompany(p) }).finally(() => setCompanyLoading(false))
+    CompanyService.getCompanyProfile().then((p) => {
+      if (mounted) {
+        setCompany(p)
+        try { setApSplitLines(!!((p as any)?.taxAccounts?.apSplitByLineItems)) } catch {}
+      }
+    }).finally(() => setCompanyLoading(false))
     ;(async () => {
       try {
         const list = await getUserMemberships()
@@ -38,6 +46,10 @@ export default function Settings() {
     })()
     return () => { mounted = false }
   }, [])
+
+  useEffect(() => {
+    try { localStorage.setItem('settings.apSplitLines', JSON.stringify(apSplitLines)) } catch {}
+  }, [apSplitLines])
 
   const run = async (key: string, fn: () => Promise<any>) => {
     try {
@@ -101,6 +113,31 @@ export default function Settings() {
               <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.timeZone || ''} onChange={(e)=>setCompany({ ...company, timeZone: e.target.value })} placeholder="America/New_York" />
               <div className="text-xs text-secondary-contrast mt-1">If set, recurring runs at tenant‑local midnight; otherwise server time is used.</div>
             </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-secondary-contrast">Tax Regime</span>
+                <select className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.taxRegime || ''} onChange={(e)=>setCompany({ ...company, taxRegime: (e.target.value || null) as any })}>
+                  <option value="">—</option>
+                  <option value="US_SALES_TAX">US Sales Tax (expense)</option>
+                  <option value="VAT">VAT/GST (recoverable)</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-secondary-contrast">Tax Accounts (JSON)</span>
+                <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={JSON.stringify(company.taxAccounts || {})} onChange={(e)=>{
+                  try { const j = JSON.parse(e.target.value || '{}'); setCompany({ ...company, taxAccounts: j }) } catch { /* ignore */ }
+                }} placeholder='{"payable":"2150","expense":"6110","receivable":"1360"}' />
+                <div className="text-xs text-secondary-contrast mt-1">Override default codes: payable 2150, expense 6110, receivable 1360.</div>
+              </label>
+            </div>
+            <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10">
+              <div className="text-sm font-semibold mb-1">Accounting</div>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={apSplitLines} onChange={(e)=>setApSplitLines(e.target.checked)} />
+                Split AP postings by line items (multi‑account)
+              </label>
+              <div className="text-xs text-secondary-contrast mt-1">When enabled, AP bills debit per-line expense accounts. Otherwise, a single expense account is used.</div>
+            </div>
             <label className="block">
               <span className="text-secondary-contrast">Address line 1</span>
               <input className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 focus:ring-focus" value={company.addressLines[0] || ''} onChange={(e)=>{ const lines = [...company.addressLines]; lines[0] = e.target.value; setCompany({ ...company, addressLines: lines }) }} placeholder="123 Tech Park Drive" />
@@ -128,10 +165,12 @@ export default function Settings() {
                 setCompanyLoading(true)
                 try { setCompany(await CompanyService.getCompanyProfile()) } finally { setCompanyLoading(false) }
               }}>{companyLoading ? 'Loading…' : 'Reload'}</button>
-              <button disabled={companySaving || !company.legalName.trim()} className="px-3 py-2 rounded-lg bg-primary/20 text-primary border border-primary/30 disabled:opacity-60" onClick={async ()=>{
+              <button disabled={companySaving} className="px-3 py-2 rounded-lg bg-primary/20 text-primary border border-primary/30 disabled:opacity-60" onClick={async ()=>{
                 setCompanySaving(true)
                 try {
-                  const res = await CompanyService.saveCompanyProfile(company)
+                  const payload: any = { ...company, taxAccounts: { ...(company.taxAccounts || {}), apSplitByLineItems: apSplitLines } }
+                  const res = await CompanyService.saveCompanyProfile(payload)
+                  try { localStorage.setItem('settings.apSplitLines', JSON.stringify(apSplitLines)) } catch {}
                   if (res.ok) { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Company profile saved', type: 'success' } })) }
                 } catch (e:any) {
                   window.dispatchEvent(new CustomEvent('toast', { detail: { message: e?.message || 'Failed to save', type: 'error' } }))
