@@ -144,12 +144,13 @@ export function AiRevenueModal({ open, onClose }: AiRevenueModalProps) {
       setExtractedText(text)
       setOcrProgress(60)
       // 2) AI extraction tailored for revenue receipts/deposits
-      const prompt = `Extract REVENUE/DEPOSIT data from the text below. Return ONLY JSON with keys: {"customerName","amount","date","description","paymentStatus"}.
+      const prompt = `Extract REVENUE/DEPOSIT data from the text below. Return ONLY JSON with keys: {"customerName","amount","date","description","paymentStatus","lineItems":[{"description","amount","accountCode"}]}.
 Rules:
 - Dates MUST be formatted as YYYY-MM-DD (ISO 8601). If unknown, return an empty string.
 - Default paymentStatus to "paid".
 - Amount must be numeric (no currency symbols or commas in the JSON value).
 - customerName may be payer/source (bank/processor).
+ - If you can infer revenue category from description (subscription, license, support, training, marketing services), choose accountCode from: 4020 (Services), 4030 (Marketing Services), 4040 (Support & Maintenance), 4050 (Subscription & SaaS), 4060 (License Revenue), 4070 (Training Revenue). Otherwise leave accountCode empty.
 TEXT:\n${text.slice(0, 12000)}`
       const { data } = await api.post('/api/ai/generate', { prompt })
 
@@ -210,6 +211,8 @@ TEXT:\n${text.slice(0, 12000)}`
       setAmount(amtStr)
       const isoDate = toISO(parsed.date || '') || findDateByLabels(['date', 'deposit date', 'payment date', 'transaction date'])
       setDate(isoDate)
+      // If AI provided line items with account codes, hold them for posting
+      try { (window as any)._aiRevenueLines = Array.isArray(parsed.lineItems) ? parsed.lineItems : null } catch {}
       setOcrProgress(100)
       setStage('form')
     } catch (e: any) {

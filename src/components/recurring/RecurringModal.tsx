@@ -107,7 +107,7 @@ export default function RecurringModal({ open, onClose, seed }: { open: boolean;
   return (
     <ModalPortal>
       {open && (
-        <div className="fixed inset-0 z-[9999] modal-overlay flex items-center justify-center p-4" onClick={onClose}>
+        <div className="fixed inset-0 z-[9999] modal-overlay flex items-center justify-center p-4 modal-scroll-container" onClick={onClose}>
           <div onClick={(e: any) => e.stopPropagation()}>
             <ThemedGlassSurface variant="light" className="p-6 max-w-xl w-[92%] glass-modal liquid-glass" hover={false}>
               <div className="text-lg font-semibold mb-3">Recurring</div>

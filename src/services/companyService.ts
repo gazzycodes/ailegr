@@ -10,6 +10,8 @@ export type CompanyProfileDTO = {
   zipCode?: string
   country?: string
   timeZone?: string | null
+  taxRegime?: 'US_SALES_TAX' | 'VAT' | null
+  taxAccounts?: { payable?: string; expense?: string; receivable?: string } | null
 }
 
 export async function getCompanyProfile(): Promise<CompanyProfileDTO> {
@@ -24,7 +26,9 @@ export async function getCompanyProfile(): Promise<CompanyProfileDTO> {
       state: data?.state || '',
       zipCode: data?.zipCode || '',
       country: data?.country || 'US',
-      timeZone: data?.timeZone || null
+      timeZone: data?.timeZone || null,
+      taxRegime: (data?.taxRegime as any) || null,
+      taxAccounts: (data?.taxAccounts as any) || null
     }
     return profile
   } catch (e) {

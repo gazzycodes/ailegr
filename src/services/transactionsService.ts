@@ -39,6 +39,16 @@ export type PostInvoicePayload = {
   balanceDue?: number | string
   dueDate?: string
   dueDays?: number | string
+  subtotal?: number | string
+  taxSettings?: { enabled: boolean; type: 'percentage' | 'amount'; rate?: number; amount?: number }
+  discount?: { enabled: boolean; amount?: number }
+  lineItems?: Array<{
+    description: string
+    amount: number | string
+    quantity?: number | string
+    rate?: number | string
+    category?: string
+  }>
 }
 
 export async function postInvoice(payload: PostInvoicePayload) {
@@ -51,12 +61,29 @@ export async function postInvoice(payload: PostInvoicePayload) {
     invoiceNumber: payload.invoiceNumber,
     dueDate: payload.dueDate,
     dueDays: payload.dueDays != null ? (typeof payload.dueDays === 'string' ? parseInt(payload.dueDays, 10) : payload.dueDays) : undefined,
+    subtotal: payload.subtotal != null ? (typeof payload.subtotal === 'string' ? parseFloat(payload.subtotal) : payload.subtotal) : undefined,
     // Optional fields to help server determine paid/partial/overpaid accurately
     amountPaid: payload.amountPaid != null
       ? (typeof payload.amountPaid === 'string' ? parseFloat(payload.amountPaid) : payload.amountPaid)
       : undefined,
     balanceDue: payload.balanceDue != null
       ? (typeof payload.balanceDue === 'string' ? parseFloat(payload.balanceDue) : payload.balanceDue)
+      : undefined,
+    taxSettings: payload.taxSettings ? {
+      enabled: !!payload.taxSettings.enabled,
+      type: payload.taxSettings.type,
+      rate: payload.taxSettings.type === 'percentage' ? Number(payload.taxSettings.rate || 0) : undefined,
+      amount: payload.taxSettings.type === 'amount' ? Number(payload.taxSettings.amount || 0) : undefined
+    } : undefined,
+    discount: payload.discount && payload.discount.enabled ? { enabled: true, amount: Number(payload.discount.amount || 0) } : undefined,
+    lineItems: Array.isArray(payload.lineItems)
+      ? payload.lineItems.map(li => ({
+          description: li.description,
+          amount: typeof li.amount === 'string' ? parseFloat(li.amount) : li.amount,
+          quantity: li.quantity != null ? (typeof li.quantity === 'string' ? parseFloat(li.quantity) : li.quantity) : undefined,
+          rate: li.rate != null ? (typeof li.rate === 'string' ? parseFloat(li.rate) : li.rate) : undefined,
+          category: li.category
+        }))
       : undefined
   }
   const { data } = await api.post('/api/invoices', body)

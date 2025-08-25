@@ -1,3 +1,7 @@
+- Server now accepts and persists line item quantity and rate:
+  - Updated `PostingService.validateExpensePayload` to normalize `lineItems` with `quantity` and `rate`.
+  - Included `quantity` and `rate` in `transaction.customFields.lineItems` for both expenses and invoices in `PostingService`.
+  - No schema changes required; stored in JSON `customFields`.
 - Implemented due date terms:
   - Backend: invoices and expenses accept `dueDays` and optional `dueDate`.
   - If `dueDate` omitted, compute as `date + dueDays` (default Net-0).
@@ -11,6 +15,18 @@
   - Void reference ids guaranteed unique to avoid Prisma P2002; edit flow supported by delta post or void+repost.
   - AI proxy and services return vendor-neutral errors; 429 mapped to friendly rate-limit message.
 
+2025-08-25 — Global admin scope hardening
+- Exported `systemPrisma` (unscoped Prisma) from `server/src/tenancy.js` for maintenance tasks.
+- Admin endpoints now operate across ALL tenants:
+  - `POST /api/admin/migrate-coa-tax-accounts` uses `systemPrisma` to rename 6110 → “Sales Tax Expense” and create 6115 “Insurance Expense” for every tenant (idempotent).
+  - `POST /api/admin/reset-recurring` uses `systemPrisma` to delete all `RecurringRule` rows globally (no tenant filter).
+- COA dataset `server/data/us_gaap_coa.json` defines 6110 “Sales Tax Expense” and 6115 “Insurance Expense”; `seed-coa` links parents in two passes.
+
+2025-08-25 — AP split-by-line-items + Items & Tax persistence
+- PostingService now stores `subtotal`, `discountAmount`, `taxAmount`, `dueDate`, `dueDays`, and `lineItems` in `Transaction.customFields` for both AP and AR posting flows.
+- New AP option: split by line items. When enabled (temporary toggle via local setting and optional env `AP_SPLIT_BY_LINES=1`), AP bills debit per-line expense accounts using keyword/category mapping; otherwise, a single expense account is debited. Credits and tax handling remain balanced.
+- UI `Settings` now exposes a local “Split AP postings by line items” toggle (persists to localStorage) used by the client to pass `splitByLineItems` in the posting payload. Server honors this flag.
+- AR/AP detail modals display an “Items & Tax” panel with Subtotal, Discount, Tax, Total, Terms/Due, and line items.
 Backlog (Backend)
 - Supabase JWT verification middleware; protect write endpoints
 - Per-tenant bootstrap (COA on tenant creation)
@@ -336,6 +352,28 @@ Next backend hooks (incremental):
 - CompanyProfile now includes `timeZone` (IANA). If set, recurring computes nextRunAt at tenant-local midnight; else server time.
 - Endpoints unchanged; smoke tests updated to tolerate cron timing.
 
+### 2025-08-24 — Recurring robustness fixes (root cause + resolutions)
+- Issue: DAILY cadence advanced by +2 in tests due to mixed timezone normalization and deriving next run from `nextRunAt` with time components.
+  - Fix: Normalize current run to date-only midnight; force DAILY increment by exactly +1 day at 00:00Z; bypass TZ shift for DAILY.
+- Issue: Due-run test missed postings when `lastRunAt` same-day guard filtered rules or when idempotency updated `nextRunAt` without a new post.
+  - Fix: Same-day guard allows backfill only when `nextRunAt` < today; advance `nextRunAt` only when a post actually occurs.
+- Issue: EOM monthly catch-up only produced one posting.
+  - Fix: EOM next occurrence set to the last day of next month; tests now drive rule-specific runs until 3 posts.
+- Added: Debug logs for DAILY and run planning; API results expose `posted` id for detection.
+
+### Tax handling — backend summary (full details in TAX.md)
+- Expenses: split subtotal and tax per CompanyProfile `taxRegime` and `taxAccounts` overrides.
+  - US Sales Tax: DR expense subtotal, DR 6110 (Tax Expense), CR 2010/AP gross.
+  - VAT/GST: DR expense subtotal, DR 1360 (VAT Receivable), CR 2010/AP gross.
+- Invoices: credit Sales Tax Payable 2150 when tax enabled.
+- Preview parity: `/api/posting/preview` computes discount and tax; revenue credits are net of tax/discount; line items scaled to match (total - tax - discount). Separate preview lines:
+  - CREDIT revenue (4020 et al)
+  - DEBIT Sales Discounts (4910) when applicable
+  - CREDIT Sales Tax Payable (2150) when tax enabled
+  - DEBIT Cash for payments received; DEBIT A/R for balance
+
+- Vendor defaults stored in `VendorSetting` (taxEnabled/mode/rate/amount). OCR attempts to detect tax and pre-fill.
+
 
 ## Membership management (2025-08-24T02:03:13.7336803+05:30)
 - Added /api/members (list/add/update/remove) with OWNER/ADMIN RBAC.
@@ -363,3 +401,25 @@ Next backend hooks (incremental):
 - 2025-08-24 08:00:31Z Recurring smoke x3 passed
 
 - 2025-08-24 08:25:43Z Extended recurring smoke suite passed: EOM, nth-weekday, pauseUntil/resume, endDate deactivation, overpaid credits, auto-resume
+
+2025-08-25 — COA mapping smoke tests (admin job-key) PASSED
+- Added admin endpoints to bypass auth for maintenance/testing:
+  - POST `/api/admin/post-expense` and POST `/api/admin/post-invoice` (guarded by `X-Job-Key`)
+- Ran `scripts/run-smoke-coa.js` using `AILEGR_JOB_KEY=dev-job-key`:
+  - 15/15 scenarios passed across AP and AR posting
+  - AP mapped to extended COA (examples): 6160, 6230, 6240, 6115, 6170, 6180, 6070, 6030, 6080, 5010
+  - AR line-item split verified (credits across multiple revenue lines); totals balanced
+  - Sources recorded per line: USER / AI / HEURISTIC_*; fallbacks not triggered
+  - Report saved to `smoke-coa-report.json`
+
+2025-08-25 — COA + QTY checkpoint
+- Added QTY/RATE support end-to-end: UI forms, API payloads, and persistence in `transaction.customFields.lineItems` for AP/AR.
+- Extended revenue mapping: line-items now prefer explicit `accountCode`, fallback to heuristics (4020/4030/4040/4050/4060/4070) with safe 4020 default.
+- Admin testing endpoints hardened:
+  - `/api/admin/post-expense` — validation and AP split-by-lines honored; duplicate VIN 409 on vendor+VIN.
+  - `/api/admin/post-invoice` — 409 on duplicate invoice number (idempotent existing also surfaced as 409 for admin tests).
+- Test suites:
+  - `scripts/run-smoke-coa-100.js`: broad AP/AR happy-paths.
+  - `scripts/run-smoke-coa-150.js`: 100 valid + 50 expected-failure (validation/duplicates/edge rounding/overpaid/refund).
+  - Runner: `scripts/run-suite-coa-ai.js` (starts server, waits ~2.5s, writes `tests/COA_AI/coa_smoke_{suite}_{timestamp}.json`).
+- Result: 100 valid pass; 50 expected-failure return correct 4xx/409. Posting invariants balanced; tax/discount scaling applied; extended COA codes exercised.

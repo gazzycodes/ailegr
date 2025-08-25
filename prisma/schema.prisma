@@ -243,6 +243,8 @@ model CompanyProfile {
   zipCode             String?
   country             String   @default("US")
   timeZone            String?  // IANA tz (e.g., "America/New_York"); if null, use server time
+  taxRegime           String?  // 'US_SALES_TAX' | 'VAT' (optional)
+  taxAccounts         Json?    // { payable:'2150', expense:'6110', receivable:'1360' }
   normalizedLegalName String
   normalizedAliases   Json
   createdAt           DateTime @default(now())
@@ -281,4 +283,19 @@ model UserProfile {
   updatedAt DateTime @updatedAt
 }
 
+
+model VendorSetting {
+  id         String   @id @default(cuid())
+  tenantId   String   @default("dev")
+  vendor     String
+  taxEnabled Boolean  @default(false)
+  taxMode    String?
+  taxRate    Float?
+  taxAmount  Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("vendor_settings")
+  @@unique([tenantId, vendor])
+}
 

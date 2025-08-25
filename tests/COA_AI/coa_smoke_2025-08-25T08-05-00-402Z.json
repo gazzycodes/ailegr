@@ -1,0 +1,4333 @@
+{
+  "base": "http://localhost:4000",
+  "ran": 100,
+  "ok": 97,
+  "failed": 3,
+  "results": [
+    {
+      "i": 1,
+      "name": "AP Telecom 6160 (AI)",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0n9i000071188cr1md6s",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6160",
+            "accountName": "Telephone & Internet",
+            "amount": "129.99",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "129.99",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "129.99"
+          },
+          {
+            "type": "credit",
+            "amount": "129.99"
+          }
+        ]
+      }
+    },
+    {
+      "i": 2,
+      "name": "AP Cloud Hosting 6240 (HEURISTIC)",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0ndl00077118mty1ekz3",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6240",
+            "accountName": "Cloud Hosting",
+            "amount": "350.00",
+            "source": "HEURISTIC_CLOUD_HOSTING"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "350.00",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "350"
+          },
+          {
+            "type": "credit",
+            "amount": "350"
+          }
+        ]
+      }
+    },
+    {
+      "i": 3,
+      "name": "AP Processor Fees 6230 (HEURISTIC)",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0ng0000e711801k3a1aw",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6230",
+            "accountName": "Payment Processor Fees",
+            "amount": "18.55",
+            "source": "HEURISTIC_PROCESSOR_FEES"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "18.55",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "18.55"
+          },
+          {
+            "type": "credit",
+            "amount": "18.55"
+          }
+        ]
+      }
+    },
+    {
+      "i": 4,
+      "name": "AP Insurance 6115 (AI)",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0o9f000l7118hv7zlynr",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6115",
+            "accountName": "Insurance Expense",
+            "amount": "200.00",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "200.00",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "200"
+          },
+          {
+            "type": "credit",
+            "amount": "200"
+          }
+        ]
+      }
+    },
+    {
+      "i": 5,
+      "name": "AP Training 6170 (AI)",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0pbo000s7118h8bgqjhl",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6170",
+            "accountName": "Training & Education",
+            "amount": "120.00",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "120.00",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "120"
+          },
+          {
+            "type": "credit",
+            "amount": "120"
+          }
+        ]
+      }
+    },
+    {
+      "i": 6,
+      "name": "AP Meals 6180 (AI)",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0q9d000z7118vuulkxe1",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6180",
+            "accountName": "Meals & Entertainment",
+            "amount": "13.75",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "13.75",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "13.75"
+          },
+          {
+            "type": "credit",
+            "amount": "13.75"
+          }
+        ]
+      }
+    },
+    {
+      "i": 7,
+      "name": "AP Rent 6070 (CATEGORY)",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0qbl00167118b7figui7",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6070",
+            "accountName": "Rent Expense",
+            "amount": "800.00",
+            "source": "USER"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "800.00",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "800"
+          },
+          {
+            "type": "credit",
+            "amount": "800"
+          }
+        ]
+      }
+    },
+    {
+      "i": 8,
+      "name": "AP SaaS 6030 (CATEGORY)",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0qde001d7118orlynrqa",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6030",
+            "accountName": "Software Subscriptions",
+            "amount": "16.00",
+            "source": "USER"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "16.00",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "16"
+          },
+          {
+            "type": "credit",
+            "amount": "16"
+          }
+        ]
+      }
+    },
+    {
+      "i": 9,
+      "name": "AP Utilities 6080 (CATEGORY)",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0qfk001k71180o659oaf",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6080",
+            "accountName": "Utilities",
+            "amount": "210.00",
+            "source": "USER"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "210.00",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "210"
+          },
+          {
+            "type": "credit",
+            "amount": "210"
+          }
+        ]
+      }
+    },
+    {
+      "i": 10,
+      "name": "AP COGS 5010 (CATEGORY)",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0qhi001r7118wdshpx80",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "5010",
+            "accountName": "COGS - Materials & Supplies",
+            "amount": "500.00",
+            "source": "USER"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "500.00",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "500"
+          },
+          {
+            "type": "credit",
+            "amount": "500"
+          }
+        ]
+      }
+    },
+    {
+      "i": 11,
+      "name": "AP Unknown code fallback → 6999",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0rhe001y711809ut51df",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6999",
+            "accountName": "Other Business Expense",
+            "amount": "42.42",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "42.42",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "42.42"
+          },
+          {
+            "type": "credit",
+            "amount": "42.42"
+          }
+        ]
+      }
+    },
+    {
+      "i": 12,
+      "name": "AP No hint fallback → 6999",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0sji00257118s9b0nepb",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6999",
+            "accountName": "Other Business Expense",
+            "amount": "19.99",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "19.99",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "19.99"
+          },
+          {
+            "type": "credit",
+            "amount": "19.99"
+          }
+        ]
+      }
+    },
+    {
+      "i": 13,
+      "name": "AP Negative amount (expect error)",
+      "path": "/api/admin/post-expense",
+      "ok": false,
+      "error": "422 Unprocessable Entity: {\"code\":\"VALIDATION_FAILED\",\"message\":\"Invalid expense data provided\",\"details\":[\"amount must be positive (use refund transactions for negative amounts)\"]}"
+    },
+    {
+      "i": 14,
+      "name": "AP Zero amount (expect error)",
+      "path": "/api/admin/post-expense",
+      "ok": false,
+      "error": "422 Unprocessable Entity: {\"code\":\"VALIDATION_FAILED\",\"message\":\"Invalid expense data provided\",\"details\":[\"amount is required and must be a valid number\"]}"
+    },
+    {
+      "i": 15,
+      "name": "AP Split lines SaaS + Fees",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0snu002c7118391et4u4",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6230",
+            "accountName": "Payment Processor Fees",
+            "amount": "38.55",
+            "source": "HEURISTIC_PROCESSOR_FEES"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "38.55",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "38.55"
+          },
+          {
+            "type": "credit",
+            "amount": "38.55"
+          }
+        ]
+      }
+    },
+    {
+      "i": 16,
+      "name": "AP OPEX 6060 #1",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0ti4002j7118jngw7rgf",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6150",
+            "accountName": "Repairs & Maintenance",
+            "amount": "128.45",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "128.45",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "128.45"
+          },
+          {
+            "type": "credit",
+            "amount": "128.45"
+          }
+        ]
+      }
+    },
+    {
+      "i": 17,
+      "name": "AP OPEX 6210 #2",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0ucu002q7118ie08llti",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6060",
+            "accountName": "Travel Expense",
+            "amount": "11.32",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "11.32",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "11.32"
+          },
+          {
+            "type": "credit",
+            "amount": "11.32"
+          }
+        ]
+      }
+    },
+    {
+      "i": 18,
+      "name": "AP OPEX 6200 #3",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0va8002x7118hnyuznpr",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6999",
+            "accountName": "Other Business Expense",
+            "amount": "248.59",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "248.59",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "248.59"
+          },
+          {
+            "type": "credit",
+            "amount": "248.59"
+          }
+        ]
+      }
+    },
+    {
+      "i": 19,
+      "name": "AP OPEX 6120 #4",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0w6o00347118ja232mxj",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6010",
+            "accountName": "Advertising & Promotion",
+            "amount": "571.49",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "571.49",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "571.49"
+          },
+          {
+            "type": "credit",
+            "amount": "571.49"
+          }
+        ]
+      }
+    },
+    {
+      "i": 20,
+      "name": "AP OPEX 6220 #5",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0x3o003b7118flxv7aut",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6090",
+            "accountName": "Professional Services",
+            "amount": "707.36",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "707.36",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "707.36"
+          },
+          {
+            "type": "credit",
+            "amount": "707.36"
+          }
+        ]
+      }
+    },
+    {
+      "i": 21,
+      "name": "AP OPEX 6140 #6",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0xwu003i7118modh6xaw",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6060",
+            "accountName": "Travel Expense",
+            "amount": "93.25",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "93.25",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "93.25"
+          },
+          {
+            "type": "credit",
+            "amount": "93.25"
+          }
+        ]
+      }
+    },
+    {
+      "i": 22,
+      "name": "AP OPEX 6220 #7",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0yx3003p7118sk63zzv5",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6090",
+            "accountName": "Professional Services",
+            "amount": "307.94",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "307.94",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "307.94"
+          },
+          {
+            "type": "credit",
+            "amount": "307.94"
+          }
+        ]
+      }
+    },
+    {
+      "i": 23,
+      "name": "AP OPEX 6190 #8",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ0zpe003w71187rp7klik",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6010",
+            "accountName": "Advertising & Promotion",
+            "amount": "782.29",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "782.29",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "782.29"
+          },
+          {
+            "type": "credit",
+            "amount": "782.29"
+          }
+        ]
+      }
+    },
+    {
+      "i": 24,
+      "name": "AP OPEX 6150 #9",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ10xh00437118lqgbk72y",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6999",
+            "accountName": "Other Business Expense",
+            "amount": "390.98",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "390.98",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "390.98"
+          },
+          {
+            "type": "credit",
+            "amount": "390.98"
+          }
+        ]
+      }
+    },
+    {
+      "i": 25,
+      "name": "AP OPEX 6120 #10",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ11s9004a7118v5u5ywg2",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6010",
+            "accountName": "Advertising & Promotion",
+            "amount": "540.37",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "540.37",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "540.37"
+          },
+          {
+            "type": "credit",
+            "amount": "540.37"
+          }
+        ]
+      }
+    },
+    {
+      "i": 26,
+      "name": "AP OPEX 6120 #11",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ128z004h711802h99ov4",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6020",
+            "accountName": "Office Supplies Expense",
+            "amount": "363.76",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "363.76",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "363.76"
+          },
+          {
+            "type": "credit",
+            "amount": "363.76"
+          }
+        ]
+      }
+    },
+    {
+      "i": 27,
+      "name": "AP OPEX 6100 #12",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ13lj004o7118aza27xxq",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6090",
+            "accountName": "Professional Services",
+            "amount": "655.75",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "655.75",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "655.75"
+          },
+          {
+            "type": "credit",
+            "amount": "655.75"
+          }
+        ]
+      }
+    },
+    {
+      "i": 28,
+      "name": "AP OPEX 6190 #13",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ13xr004v7118i6nt1jog",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6999",
+            "accountName": "Other Business Expense",
+            "amount": "799.93",
+            "source": "FALLBACK"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "799.93",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": true
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "799.9299999999999"
+          },
+          {
+            "type": "credit",
+            "amount": "799.9299999999999"
+          }
+        ]
+      }
+    },
+    {
+      "i": 29,
+      "name": "AP OPEX 6020 #14",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ14wd00527118k19pjchc",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6020",
+            "accountName": "Office Supplies Expense",
+            "amount": "710.90",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "710.90",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "710.9"
+          },
+          {
+            "type": "credit",
+            "amount": "710.9"
+          }
+        ]
+      }
+    },
+    {
+      "i": 30,
+      "name": "AP OPEX 6120 #15",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ159900597118ya24hwp4",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6040",
+            "accountName": "Marketing Expense",
+            "amount": "614.95",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "614.95",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "614.95"
+          },
+          {
+            "type": "credit",
+            "amount": "614.95"
+          }
+        ]
+      }
+    },
+    {
+      "i": 31,
+      "name": "AP OPEX 6200 #16",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1681005g7118ppxgnfk7",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6020",
+            "accountName": "Office Supplies Expense",
+            "amount": "319.68",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "319.68",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "319.68"
+          },
+          {
+            "type": "credit",
+            "amount": "319.68"
+          }
+        ]
+      }
+    },
+    {
+      "i": 32,
+      "name": "AP OPEX 6100 #17",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ16k6005n7118r2kj27zy",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6015",
+            "accountName": "Bank & Merchant Fees",
+            "amount": "57.32",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "57.32",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "57.32"
+          },
+          {
+            "type": "credit",
+            "amount": "57.32"
+          }
+        ]
+      }
+    },
+    {
+      "i": 33,
+      "name": "AP OPEX 6060 #18",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ17je005u7118y7o3s0zq",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6015",
+            "accountName": "Bank & Merchant Fees",
+            "amount": "429.27",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "429.27",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "429.27"
+          },
+          {
+            "type": "credit",
+            "amount": "429.27"
+          }
+        ]
+      }
+    },
+    {
+      "i": 34,
+      "name": "AP OPEX 6210 #19",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ17w500617118doaeot6i",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6020",
+            "accountName": "Office Supplies Expense",
+            "amount": "355.31",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "355.31",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "355.31"
+          },
+          {
+            "type": "credit",
+            "amount": "355.31"
+          }
+        ]
+      }
+    },
+    {
+      "i": 35,
+      "name": "AP OPEX 6120 #20",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ18va00687118g2gi9g3r",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6040",
+            "accountName": "Marketing Expense",
+            "amount": "335.36",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "335.36",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "335.36"
+          },
+          {
+            "type": "credit",
+            "amount": "335.36"
+          }
+        ]
+      }
+    },
+    {
+      "i": 36,
+      "name": "AP OPEX 6020 #21",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ197s006f7118tzqhyxml",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6020",
+            "accountName": "Office Supplies Expense",
+            "amount": "528.92",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "528.92",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "528.92"
+          },
+          {
+            "type": "credit",
+            "amount": "528.92"
+          }
+        ]
+      }
+    },
+    {
+      "i": 37,
+      "name": "AP OPEX 6190 #22",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1a6b006m71185ttj6nfo",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6020",
+            "accountName": "Office Supplies Expense",
+            "amount": "272.32",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "272.32",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "272.32"
+          },
+          {
+            "type": "credit",
+            "amount": "272.32"
+          }
+        ]
+      }
+    },
+    {
+      "i": 38,
+      "name": "AP OPEX 6150 #23",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1air006t71182l11sq0p",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6115",
+            "accountName": "Insurance Expense",
+            "amount": "785.94",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "785.94",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "785.9400000000001"
+          },
+          {
+            "type": "credit",
+            "amount": "785.9400000000001"
+          }
+        ]
+      }
+    },
+    {
+      "i": 39,
+      "name": "AP OPEX 6060 #24",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1bh400707118ukgkiys2",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6015",
+            "accountName": "Bank & Merchant Fees",
+            "amount": "737.00",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "737.00",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "737"
+          },
+          {
+            "type": "credit",
+            "amount": "737"
+          }
+        ]
+      }
+    },
+    {
+      "i": 40,
+      "name": "AP OPEX 6210 #25",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1cdq00777118t7wwql9x",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "1510",
+            "accountName": "Furniture & Equipment",
+            "amount": "76.16",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "76.16",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "76.16"
+          },
+          {
+            "type": "credit",
+            "amount": "76.16"
+          }
+        ]
+      }
+    },
+    {
+      "i": 41,
+      "name": "AP OPEX 6040 #26",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1dao007e7118dedpswmp",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6025",
+            "accountName": "Postage & Shipping",
+            "amount": "688.56",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "688.56",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "688.5599999999999"
+          },
+          {
+            "type": "credit",
+            "amount": "688.5599999999999"
+          }
+        ]
+      }
+    },
+    {
+      "i": 42,
+      "name": "AP OPEX 6210 #27",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1dpm007l7118ob0c5o6r",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6020",
+            "accountName": "Office Supplies Expense",
+            "amount": "393.97",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "393.97",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "393.97"
+          },
+          {
+            "type": "credit",
+            "amount": "393.97"
+          }
+        ]
+      }
+    },
+    {
+      "i": 43,
+      "name": "AP OPEX 6200 #28",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1f2q007s71182gap9q2m",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6150",
+            "accountName": "Repairs & Maintenance",
+            "amount": "522.35",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "522.35",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "522.35"
+          },
+          {
+            "type": "credit",
+            "amount": "522.35"
+          }
+        ]
+      }
+    },
+    {
+      "i": 44,
+      "name": "AP OPEX 6200 #29",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1g04007z71185p004zq1",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6150",
+            "accountName": "Repairs & Maintenance",
+            "amount": "258.09",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "258.09",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "258.09"
+          },
+          {
+            "type": "credit",
+            "amount": "258.09"
+          }
+        ]
+      }
+    },
+    {
+      "i": 45,
+      "name": "AP OPEX 6040 #30",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1gtn00867118loq50mxu",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6025",
+            "accountName": "Postage & Shipping",
+            "amount": "86.52",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "86.52",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "86.52"
+          },
+          {
+            "type": "credit",
+            "amount": "86.52"
+          }
+        ]
+      }
+    },
+    {
+      "i": 46,
+      "name": "AP Partial 1",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1hsp008d711874x7ux9k",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "5010",
+            "accountName": "COGS - Materials & Supplies",
+            "amount": "223.87",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "223.87",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "223.87"
+          },
+          {
+            "type": "credit",
+            "amount": "203.66"
+          },
+          {
+            "type": "credit",
+            "amount": "20.21000000000001"
+          }
+        ]
+      }
+    },
+    {
+      "i": 47,
+      "name": "AP Partial 2",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1iwe008m71186kgnhcta",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6090",
+            "accountName": "Professional Services",
+            "amount": "442.66",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "442.66",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "442.66"
+          },
+          {
+            "type": "credit",
+            "amount": "321.37"
+          },
+          {
+            "type": "credit",
+            "amount": "121.29"
+          }
+        ]
+      }
+    },
+    {
+      "i": 48,
+      "name": "AP Partial 3",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1jry008v7118j6bu654q",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6090",
+            "accountName": "Professional Services",
+            "amount": "1067.25",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "1067.25",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "1067.25"
+          },
+          {
+            "type": "credit",
+            "amount": "957.35"
+          },
+          {
+            "type": "credit",
+            "amount": "109.9"
+          }
+        ]
+      }
+    },
+    {
+      "i": 49,
+      "name": "AP Partial 4",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1kv9009471180q0mflsf",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "5010",
+            "accountName": "COGS - Materials & Supplies",
+            "amount": "817.82",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "817.82",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "817.8200000000001"
+          },
+          {
+            "type": "credit",
+            "amount": "82.23"
+          },
+          {
+            "type": "credit",
+            "amount": "735.59"
+          }
+        ]
+      }
+    },
+    {
+      "i": 50,
+      "name": "AP Partial 5",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1lnp009d7118begsr5ks",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6090",
+            "accountName": "Professional Services",
+            "amount": "782.83",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "782.83",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "782.83"
+          },
+          {
+            "type": "credit",
+            "amount": "325.66"
+          },
+          {
+            "type": "credit",
+            "amount": "457.17"
+          }
+        ]
+      }
+    },
+    {
+      "i": 51,
+      "name": "AP Partial 6",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1mrx009m7118eoy40zlg",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "5010",
+            "accountName": "COGS - Materials & Supplies",
+            "amount": "157.21",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "157.21",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "157.21"
+          },
+          {
+            "type": "credit",
+            "amount": "103.62"
+          },
+          {
+            "type": "credit",
+            "amount": "53.59"
+          }
+        ]
+      }
+    },
+    {
+      "i": 52,
+      "name": "AP Partial 7",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1o46009v7118jbo0gayj",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6999",
+            "accountName": "Other Business Expense",
+            "amount": "158.50",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "158.50",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "158.5"
+          },
+          {
+            "type": "credit",
+            "amount": "19.7"
+          },
+          {
+            "type": "credit",
+            "amount": "138.8"
+          }
+        ]
+      }
+    },
+    {
+      "i": 53,
+      "name": "AP Partial 8",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1p3y00a471181taxztq4",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6090",
+            "accountName": "Professional Services",
+            "amount": "760.28",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "760.28",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "760.28"
+          },
+          {
+            "type": "credit",
+            "amount": "182.16"
+          },
+          {
+            "type": "credit",
+            "amount": "578.12"
+          }
+        ]
+      }
+    },
+    {
+      "i": 54,
+      "name": "AP Partial 9",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1qav00ad7118rzhxtsiw",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6999",
+            "accountName": "Other Business Expense",
+            "amount": "1083.14",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "1083.14",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "1083.14"
+          },
+          {
+            "type": "credit",
+            "amount": "1058.3"
+          },
+          {
+            "type": "credit",
+            "amount": "24.84000000000015"
+          }
+        ]
+      }
+    },
+    {
+      "i": 55,
+      "name": "AP Partial 10",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1r3100am7118t852qz7v",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6090",
+            "accountName": "Professional Services",
+            "amount": "1036.28",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "1036.28",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "1036.28"
+          },
+          {
+            "type": "credit",
+            "amount": "171.18"
+          },
+          {
+            "type": "credit",
+            "amount": "865.0999999999999"
+          }
+        ]
+      }
+    },
+    {
+      "i": 56,
+      "name": "AP Taxed 1",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1s5500av7118opvlm4cp",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6999",
+            "accountName": "Other Business Expense",
+            "amount": "86.65",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "86.65",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "86.65000000000001"
+          },
+          {
+            "type": "credit",
+            "amount": "86.65000000000001"
+          }
+        ]
+      }
+    },
+    {
+      "i": 57,
+      "name": "AP Taxed 2",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1th300b27118c9swu268",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6999",
+            "accountName": "Other Business Expense",
+            "amount": "234.19",
+            "source": "AI"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "234.19",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "234.19"
+          },
+          {
+            "type": "credit",
+            "amount": "234.19"
+          }
+        ]
+      }
+    },
+    {
+      "i": 58,
+      "name": "AP Taxed 3",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1tt200b97118k1y5zpvb",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6999",
+            "accountName": "Other Business Expense",
+            "amount": "65.72",
+            "source": "FALLBACK"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "65.72",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": true
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "65.72"
+          },
+          {
+            "type": "credit",
+            "amount": "65.72"
+          }
+        ]
+      }
+    },
+    {
+      "i": 59,
+      "name": "AP Taxed 4",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1us400bg7118qaup0n9x",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "ACCRUAL_STEP1",
+          "debit": {
+            "accountCode": "6999",
+            "accountName": "Other Business Expense",
+            "amount": "535.14",
+            "source": "FALLBACK"
+          },
+          "credit": {
+            "accountCode": "2010",
+            "accountName": "Accounts Payable",
+            "amount": "535.14",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": true
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "535.14"
+          },
+          {
+            "type": "credit",
+            "amount": "535.14"
+          }
+        ]
+      }
+    },
+    {
+      "i": 60,
+      "name": "AP Taxed 5",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1v4c00bn7118bx3gl52m",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6090",
+            "accountName": "Professional Services",
+            "amount": "506.46",
+            "source": "KEYWORDS"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "506.46",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": false
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "506.46"
+          },
+          {
+            "type": "credit",
+            "amount": "506.46"
+          }
+        ]
+      }
+    },
+    {
+      "i": 61,
+      "name": "AP Taxed 6",
+      "path": "/api/admin/post-expense",
+      "ok": true,
+      "id": "cmequ1w2w00bu7118pu2xwez2",
+      "details": {
+        "accounts": {
+          "dateUsed": "2025-08-25",
+          "policy": "CASH",
+          "debit": {
+            "accountCode": "6999",
+            "accountName": "Other Business Expense",
+            "amount": "478.56",
+            "source": "FALLBACK"
+          },
+          "credit": {
+            "accountCode": "1010",
+            "accountName": "Cash and Cash Equivalents",
+            "amount": "478.56",
+            "source": "PAYMENT_STATUS"
+          },
+          "isFallback": true
+        },
+        "entries": [
+          {
+            "type": "debit",
+            "amount": "478.56"
+          },
+          {
+            "type": "credit",
+            "amount": "478.56"
+          }
+        ]
+      }
+    },
+    {
+      "i": 62,
+      "name": "AR Mixed 4020/4030/4040",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1w5900c17118gniibvmt",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "2000"
+          },
+          {
+            "type": "credit",
+            "amount": "1200"
+          },
+          {
+            "type": "credit",
+            "amount": "400"
+          },
+          {
+            "type": "debit",
+            "amount": "3600"
+          }
+        ]
+      }
+    },
+    {
+      "i": 63,
+      "name": "AR Subscription 4050",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1w7500cc7118hrlqhqam",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "300"
+          },
+          {
+            "type": "debit",
+            "amount": "300"
+          }
+        ]
+      }
+    },
+    {
+      "i": 64,
+      "name": "AR License 4060",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1w8s00cj71180onx9npk",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1500"
+          },
+          {
+            "type": "debit",
+            "amount": "1500"
+          }
+        ]
+      }
+    },
+    {
+      "i": 65,
+      "name": "AR Training 4070 partial",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1wan00cq711811lryoig",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1000"
+          },
+          {
+            "type": "debit",
+            "amount": "300"
+          },
+          {
+            "type": "debit",
+            "amount": "700"
+          }
+        ]
+      }
+    },
+    {
+      "i": 66,
+      "name": "AR Unknown code fallback → 4020",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1wca00cz711865vq1y99",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "420"
+          },
+          {
+            "type": "debit",
+            "amount": "420"
+          }
+        ]
+      }
+    },
+    {
+      "i": 67,
+      "name": "AR Discount + Tax",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1we400d67118293gzu7s",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1080"
+          },
+          {
+            "type": "debit",
+            "amount": "1080"
+          }
+        ]
+      }
+    },
+    {
+      "i": 68,
+      "name": "AR Heuristic map #1",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1wfx00dd71181cvnueqf",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "2912.56"
+          },
+          {
+            "type": "debit",
+            "amount": "2912.56"
+          }
+        ]
+      }
+    },
+    {
+      "i": 69,
+      "name": "AR Heuristic map #2",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1whu00dk7118l9rdrp74",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "687.62"
+          },
+          {
+            "type": "debit",
+            "amount": "687.62"
+          }
+        ]
+      }
+    },
+    {
+      "i": 70,
+      "name": "AR Heuristic map #3",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1wjp00dr7118khrwpz2d",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1257.47"
+          },
+          {
+            "type": "debit",
+            "amount": "1257.47"
+          }
+        ]
+      }
+    },
+    {
+      "i": 71,
+      "name": "AR Heuristic map #4",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1wl900dy71185pscclw9",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "568.29"
+          },
+          {
+            "type": "debit",
+            "amount": "568.29"
+          }
+        ]
+      }
+    },
+    {
+      "i": 72,
+      "name": "AR Heuristic map #5",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1wmw00e57118bpxgdjfh",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "556.5"
+          },
+          {
+            "type": "debit",
+            "amount": "556.5"
+          }
+        ]
+      }
+    },
+    {
+      "i": 73,
+      "name": "AR Heuristic map #6",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1woi00ec7118xgzzgequ",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1970.59"
+          },
+          {
+            "type": "debit",
+            "amount": "1970.59"
+          }
+        ]
+      }
+    },
+    {
+      "i": 74,
+      "name": "AR Heuristic map #7",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1wq500ej7118q1m5i755",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "2292.78"
+          },
+          {
+            "type": "debit",
+            "amount": "2292.78"
+          }
+        ]
+      }
+    },
+    {
+      "i": 75,
+      "name": "AR Heuristic map #8",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1wro00eq7118sjvje7f5",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "296.94"
+          },
+          {
+            "type": "debit",
+            "amount": "296.94"
+          }
+        ]
+      }
+    },
+    {
+      "i": 76,
+      "name": "AR Heuristic map #9",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1wth00ex7118xeuj9492",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1731.22"
+          },
+          {
+            "type": "debit",
+            "amount": "1731.22"
+          }
+        ]
+      }
+    },
+    {
+      "i": 77,
+      "name": "AR Heuristic map #10",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1wv500f471188zrzm5ir",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1929.69"
+          },
+          {
+            "type": "debit",
+            "amount": "1929.69"
+          }
+        ]
+      }
+    },
+    {
+      "i": 78,
+      "name": "AR Heuristic map #11",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1wwo00fb71188qgyeg80",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "3175.19"
+          },
+          {
+            "type": "debit",
+            "amount": "3175.19"
+          }
+        ]
+      }
+    },
+    {
+      "i": 79,
+      "name": "AR Heuristic map #12",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1wy700fi71183zudus2u",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "3146.37"
+          },
+          {
+            "type": "debit",
+            "amount": "3146.37"
+          }
+        ]
+      }
+    },
+    {
+      "i": 80,
+      "name": "AR Heuristic map #13",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1wzq00fp7118tr9z2qiw",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1616.31"
+          },
+          {
+            "type": "debit",
+            "amount": "1616.31"
+          }
+        ]
+      }
+    },
+    {
+      "i": 81,
+      "name": "AR Heuristic map #14",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1x1800fw71180nk5nefb",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "2626.21"
+          },
+          {
+            "type": "debit",
+            "amount": "2626.21"
+          }
+        ]
+      }
+    },
+    {
+      "i": 82,
+      "name": "AR Heuristic map #15",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1x2x00g37118i8jzl09d",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "2660.61"
+          },
+          {
+            "type": "debit",
+            "amount": "2660.61"
+          }
+        ]
+      }
+    },
+    {
+      "i": 83,
+      "name": "AR Heuristic map #16",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1x4m00ga7118clxsf7fn",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "2056.26"
+          },
+          {
+            "type": "debit",
+            "amount": "2056.26"
+          }
+        ]
+      }
+    },
+    {
+      "i": 84,
+      "name": "AR Heuristic map #17",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1x6c00gh7118o59a6m47",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "2563.11"
+          },
+          {
+            "type": "debit",
+            "amount": "2563.11"
+          }
+        ]
+      }
+    },
+    {
+      "i": 85,
+      "name": "AR Heuristic map #18",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1x7z00go711814l2jsyu",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1186.31"
+          },
+          {
+            "type": "debit",
+            "amount": "1186.31"
+          }
+        ]
+      }
+    },
+    {
+      "i": 86,
+      "name": "AR Heuristic map #19",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1x9n00gv71185v39ieme",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "2145.96"
+          },
+          {
+            "type": "debit",
+            "amount": "2145.96"
+          }
+        ]
+      }
+    },
+    {
+      "i": 87,
+      "name": "AR Heuristic map #20",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1xba00h271185s9mnrnd",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1788.97"
+          },
+          {
+            "type": "debit",
+            "amount": "1788.97"
+          }
+        ]
+      }
+    },
+    {
+      "i": 88,
+      "name": "AR QTYxRATE #1",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1xd000h97118kz4oytzr",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "93.98999999999999"
+          },
+          {
+            "type": "debit",
+            "amount": "93.98999999999999"
+          }
+        ]
+      }
+    },
+    {
+      "i": 89,
+      "name": "AR QTYxRATE #2",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1xeq00hg7118kni1b1pz",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1509.76"
+          },
+          {
+            "type": "debit",
+            "amount": "1509.76"
+          }
+        ]
+      }
+    },
+    {
+      "i": 90,
+      "name": "AR QTYxRATE #3",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1xgi00hn71186l2g2qpm",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1488.62"
+          },
+          {
+            "type": "debit",
+            "amount": "1488.62"
+          }
+        ]
+      }
+    },
+    {
+      "i": 91,
+      "name": "AR QTYxRATE #4",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1xi400hu71183goiavh0",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1086.16"
+          },
+          {
+            "type": "debit",
+            "amount": "1086.16"
+          }
+        ]
+      }
+    },
+    {
+      "i": 92,
+      "name": "AR QTYxRATE #5",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1xjw00i171186p4blumb",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "1732.86"
+          },
+          {
+            "type": "debit",
+            "amount": "1732.86"
+          }
+        ]
+      }
+    },
+    {
+      "i": 93,
+      "name": "AR QTYxRATE #6",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1xls00i87118ymohti98",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "121.24"
+          },
+          {
+            "type": "debit",
+            "amount": "121.24"
+          }
+        ]
+      }
+    },
+    {
+      "i": 94,
+      "name": "AR QTYxRATE #7",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1xnl00if7118m7dih1zs",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "137.78"
+          },
+          {
+            "type": "debit",
+            "amount": "137.78"
+          }
+        ]
+      }
+    },
+    {
+      "i": 95,
+      "name": "AR QTYxRATE #8",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1xpe00im71182slcb3eh",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "156.08"
+          },
+          {
+            "type": "debit",
+            "amount": "156.08"
+          }
+        ]
+      }
+    },
+    {
+      "i": 96,
+      "name": "AR QTYxRATE #9",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1xr800it7118hma4d7w7",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "610.04"
+          },
+          {
+            "type": "debit",
+            "amount": "610.04"
+          }
+        ]
+      }
+    },
+    {
+      "i": 97,
+      "name": "AR QTYxRATE #10",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1xsr00j07118hp0ah4j8",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "937.26"
+          },
+          {
+            "type": "debit",
+            "amount": "937.26"
+          }
+        ]
+      }
+    },
+    {
+      "i": 98,
+      "name": "AR Zero line amount (expect error)",
+      "path": "/api/admin/post-invoice",
+      "ok": false,
+      "error": "422 Unprocessable Entity: {\"code\":\"VALIDATION_FAILED\",\"message\":\"Invalid invoice data provided\",\"details\":[\"amount is required and must be a positive number\"]}"
+    },
+    {
+      "i": 99,
+      "name": "AR Duplicate VIN first",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1xvj00j77118eejlxfcy",
+      "details": {
+        "accounts": {
+          "cash": {
+            "id": "cmen8o51l000071vsz5th5zcp",
+            "code": "1010",
+            "name": "Cash and Cash Equivalents",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "arAccount": {
+            "id": "cmen8o51w000171vs1oa7f8ky",
+            "code": "1200",
+            "name": "Accounts Receivable",
+            "type": "ASSET",
+            "normalBalance": "DEBIT"
+          },
+          "revenue": {
+            "id": "cmen8o533000671vs3r1hd0dr",
+            "code": "4010",
+            "name": "Product Sales",
+            "type": "REVENUE",
+            "normalBalance": "CREDIT"
+          },
+          "customerCredits": null,
+          "taxPayable": {
+            "id": "cmen8o53y000971vsy5hr9v6x",
+            "code": "2150",
+            "name": "Sales Tax Payable",
+            "type": "LIABILITY",
+            "normalBalance": "CREDIT"
+          },
+          "salesDiscounts": {
+            "id": "cmen8o53a000771vswnz2eoqm",
+            "code": "4910",
+            "name": "Sales Discounts",
+            "type": "REVENUE",
+            "normalBalance": "DEBIT"
+          }
+        },
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "500"
+          },
+          {
+            "type": "debit",
+            "amount": "500"
+          }
+        ]
+      }
+    },
+    {
+      "i": 100,
+      "name": "AR Duplicate VIN second (expect 409)",
+      "path": "/api/admin/post-invoice",
+      "ok": true,
+      "id": "cmequ1xvj00j77118eejlxfcy",
+      "details": {
+        "entries": [
+          {
+            "type": "credit",
+            "amount": "500"
+          },
+          {
+            "type": "debit",
+            "amount": "500"
+          }
+        ]
+      }
+    }
+  ]
+}

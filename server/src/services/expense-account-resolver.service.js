@@ -8,19 +8,19 @@ import { prisma } from '../tenancy.js';
 class ExpenseAccountResolver {
   static CATEGORY_ACCOUNT_MAPPING = {
     SOFTWARE: '6030',
-    TELECOMMUNICATIONS: '6100',
-    BANK_FEES: '6100',
+    TELECOMMUNICATIONS: '6160',
+    BANK_FEES: '6015',
     UTILITIES: '6080',
     OFFICE_SUPPLIES: '6020',
     PROFESSIONAL_SERVICES: '6090',
-    INSURANCE: '6110',
-    LEGAL_COMPLIANCE: '6120',
-    TRAINING: '6130',
+    INSURANCE: '6115',
+    LEGAL_COMPLIANCE: '6100',
+    TRAINING: '6170',
     RENT: '6070',
     TRAVEL: '6060',
     MARKETING: '6040',
     COGS: '5010',
-    MEALS: '6140',
+    MEALS: '6180',
     GENERAL_EXPENSE: '6999'
   };
 
@@ -73,12 +73,30 @@ class ExpenseAccountResolver {
 
   static async resolveDebitAccount(expenseData) {
     const { categoryKey, vendorName = '', description = '' } = expenseData;
+    // 0) AI-suggested account code (if provided and exists)
+    try {
+      const suggested = (expenseData && (expenseData.suggestedAccountCode || expenseData.accountCode)) ? String(expenseData.suggestedAccountCode || expenseData.accountCode).trim() : ''
+      if (suggested) {
+        const acc = await this.getAccountByCode(suggested)
+        if (acc) return { accountCode: acc.code, accountName: acc.name, source: 'AI_SUGGESTED' }
+      }
+    } catch {}
     // Prefer obvious utility water delivery patterns before AI/keywords
     try {
       const text = `${vendorName} ${description}`.toLowerCase()
       if (/(\baquapure\b|\bwater\b|bottled water|dispenser|cooler|jug|jugs|gallon|culligan|sparklett|sparkletts|arrowhead|primo)/i.test(text)) {
         const acc = await this.getAccountByCode(this.CATEGORY_ACCOUNT_MAPPING.UTILITIES)
         if (acc) return { accountCode: acc.code, accountName: acc.name, source: 'HEURISTIC_UTILITIES' }
+      }
+      // Payment processor fees (Stripe/PayPal/Square etc.) → 6230 if available
+      if (/(stripe|paypal|square|braintree|merchant|processor)/i.test(text)) {
+        const acc = await this.getAccountByCode('6230')
+        if (acc) return { accountCode: acc.code, accountName: acc.name, source: 'HEURISTIC_PROCESSOR_FEES' }
+      }
+      // Cloud hosting (AWS/Azure/GCP/hosting) → 6240 if available
+      if (/(aws|amazon web services|azure|gcp|google cloud|cloudfront|s3|ec2|digitalocean|linode|vultr|cloudflare|hosting|server)/i.test(text)) {
+        const acc = await this.getAccountByCode('6240')
+        if (acc) return { accountCode: acc.code, accountName: acc.name, source: 'HEURISTIC_CLOUD_HOSTING' }
       }
     } catch {}
     // 1) If a category key is provided, honor it

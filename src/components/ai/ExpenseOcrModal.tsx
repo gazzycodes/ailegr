@@ -16,6 +16,10 @@ export default function ExpenseOcrModal({ open, onClose }: ExpenseOcrModalProps)
 	const [amount, setAmount] = useState('')
 	const [date, setDate] = useState('')
 	const [dueDays, setDueDays] = useState('')
+	const [taxEnabled, setTaxEnabled] = useState(false)
+	const [taxMode, setTaxMode] = useState<'percentage' | 'amount'>('percentage')
+	const [taxRate, setTaxRate] = useState('')
+	const [taxAmount, setTaxAmount] = useState('')
 	const [preview, setPreview] = useState<any | null>(null)
 	const [submitting, setSubmitting] = useState(false)
 	const [error, setError] = useState<string | null>(null)
@@ -34,6 +38,12 @@ export default function ExpenseOcrModal({ open, onClose }: ExpenseOcrModalProps)
 			const text = (res.text || '').toLowerCase()
 			if (!vendor) setVendor((text.match(/from\s*:?\s*([a-z\s]+)/i)?.[1] || '').trim())
 			if (!amount) setAmount((text.match(/\$?([0-9]+(?:\.[0-9]{2})?)/)?.[1] || '').trim())
+			// Ask server to normalize and try to extract tax clues
+			try {
+				const norm = await (await import('../../services/api')).default.post('/api/ocr/normalize', { text: res.text || '' })
+				const labels = norm?.data?.structured?.labels || {}
+				if (typeof labels.taxRatePercent === 'number') { setTaxEnabled(true); setTaxMode('percentage'); setTaxRate(String(labels.taxRatePercent)) }
+			} catch {}
 		} catch (e: any) {
 			setError(e?.message || 'Upload failed')
 		}
@@ -84,7 +94,8 @@ export default function ExpenseOcrModal({ open, onClose }: ExpenseOcrModalProps)
 					}
 				} catch {}
 			}
-			const res = await ExpensesService.postExpense({ vendorName: vendor.trim(), vendorInvoiceNo: vendorInvoiceNo.trim() || undefined, amount: amt, date, paymentStatus: 'paid', description: `Expense: ${vendor.trim()}`, dueDays: (dueDays === '' ? undefined : Math.max(0, Math.min(365, Number(dueDays) || 0))) })
+			const taxSettings = taxEnabled ? (taxMode === 'percentage' ? { enabled: true, type: 'percentage', rate: Number(taxRate || 0) } : { enabled: true, type: 'amount', amount: Number(taxAmount || 0) }) : undefined
+			const res = await ExpensesService.postExpense({ vendorName: vendor.trim(), vendorInvoiceNo: vendorInvoiceNo.trim() || undefined, amount: amt, date, paymentStatus: 'paid', description: `Expense: ${vendor.trim()}`, dueDays: (dueDays === '' ? undefined : Math.max(0, Math.min(365, Number(dueDays) || 0))), taxSettings })
 			// Attach receipt if available and we have the expense id
 			try {
 				const expenseId = (res as any)?.expenseId || (res as any)?.expense?.id
@@ -127,7 +138,7 @@ export default function ExpenseOcrModal({ open, onClose }: ExpenseOcrModalProps)
 							</div>
 							<label className="flex flex-col gap-1">
 								<span className="text-secondary-contrast">Vendor</span>
-								<input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="Adobe, Uber..." />
+								<input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={vendor} onChange={(e) => setVendor(e.target.value)} onBlur={async ()=>{ try { if (vendor.trim()) { const d = await ExpensesService.getVendorDefaults(vendor.trim()); if (d && d.taxEnabled) { setTaxEnabled(true); if (d.taxMode === 'percentage') { setTaxMode('percentage'); if (typeof d.taxRate === 'number') setTaxRate(String(d.taxRate)) } else if (d.taxMode === 'amount') { setTaxMode('amount'); if (typeof d.taxAmount === 'number') setTaxAmount(String(d.taxAmount)) } } } } catch {} }} placeholder="Adobe, Uber..." />
 							</label>
 							<label className="flex flex-col gap-1">
 								<span className="text-secondary-contrast">Vendor Invoice No. (optional)</span>
@@ -149,6 +160,35 @@ export default function ExpenseOcrModal({ open, onClose }: ExpenseOcrModalProps)
 								<span className="text-secondary-contrast">Due Terms (days)</span>
 								<input type="number" min={0} max={365} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={dueDays} onChange={(e) => setDueDays(e.target.value)} placeholder="e.g., 0, 14, 30" />
 							</label>
+							{/* Tax section */}
+							<div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+								<label className="flex items-center gap-2">
+									<input type="checkbox" checked={taxEnabled} onChange={(e) => setTaxEnabled(e.target.checked)} />
+									<span className="text-secondary-contrast text-sm">Tax</span>
+								</label>
+								{taxEnabled && (
+									<>
+										<label className="flex flex-col gap-1">
+											<span className="text-secondary-contrast">Mode</span>
+											<select className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={taxMode} onChange={(e) => setTaxMode(e.target.value as any)}>
+												<option value="percentage">Percent %</option>
+												<option value="amount">Amount</option>
+											</select>
+										</label>
+										{taxMode === 'percentage' ? (
+											<label className="flex flex-col gap-1">
+												<span className="text-secondary-contrast">Rate %</span>
+												<input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={taxRate} onChange={(e) => setTaxRate(e.target.value)} placeholder="9.5" />
+											</label>
+										) : (
+											<label className="flex flex-col gap-1">
+												<span className="text-secondary-contrast">Tax Amount</span>
+												<input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={taxAmount} onChange={(e) => setTaxAmount(e.target.value)} placeholder="76.00" />
+											</label>
+										)}
+									</>
+								)}
+							</div>
 							<div className="flex items-end gap-2">
 								<button className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" onClick={handlePreview}>Preview</button>
 							</div>

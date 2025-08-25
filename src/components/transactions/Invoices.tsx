@@ -20,6 +20,9 @@ type Invoice = {
   customer: string
   status: InvoiceStatus
   amount: number
+  amountPaid?: number
+  balanceDue?: number
+  paymentStatusRaw?: string
 }
 
 type Bill = {
@@ -87,6 +90,7 @@ export function Invoices() {
   const [newModal, setNewModal] = useState<boolean>(false)
   const [recurringOpen, setRecurringOpen] = useState<boolean>(false)
   const [viewMode, setViewMode] = useState<'AR' | 'AP'>('AR')
+  const [newBillModal, setNewBillModal] = useState<boolean>(false)
   const [dateStart, setDateStart] = useState<string>('')
   const [dateEnd, setDateEnd] = useState<string>('')
   const [arStatusBusy, setArStatusBusy] = useState(false)
@@ -114,6 +118,33 @@ export function Invoices() {
       window.removeEventListener('payments:updated', onRefresh)
     }
   }, [])
+
+  // Open parent source (AR/AP) and scroll to Items & Tax
+  useEffect(() => {
+    const handler = (e: any) => {
+      try {
+        const detailEvt: any = (e && e.detail) ? e.detail : {}
+        const id = detailEvt.id
+        const type = detailEvt.type
+        if (!id) return
+        if (type === 'AP') {
+          const row = bills.find(b => b.id === id)
+          if (row) {
+            setBillDetail(row)
+            setTimeout(() => { try { (document.querySelector('[data-section="items-tax"]') as any)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch {} }, 60)
+          }
+        } else {
+          const row = invoices.find(inv => inv.id === id)
+          if (row) {
+            setDetail(row)
+            setTimeout(() => { try { (document.querySelector('[data-section="items-tax"]') as any)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch {} }, 60)
+          }
+        }
+      } catch {}
+    }
+    try { window.addEventListener('open:source', handler as any) } catch {}
+    return () => { try { window.removeEventListener('open:source', handler as any) } catch {} }
+  }, [invoices, bills])
 
   // Load payments when a detail modal opens
   useEffect(() => {
@@ -178,21 +209,36 @@ export function Invoices() {
           const amount = Number(it.amount || it.transaction?.customFields?.invoiceTotal || 0)
           const paid = Number(it?.transaction?.customFields?.amountPaid || 0)
           const due = Math.max(0, amount - paid)
+          const overpaid = (paid - amount) > 0.01
           let status: InvoiceStatus = 'UNPAID'
           const db = String(it.status || 'SENT').toUpperCase()
           if (db === 'PAID') status = 'PAID'
           else if (db === 'OVERDUE') status = due > 0 && paid > 0 ? 'PARTIAL' : 'OVERDUE'
           else if (paid > 0 && due > 0) status = 'PARTIAL'
           else status = 'UNPAID'
-          return {
+          const paymentStatusRaw = overpaid ? 'overpaid' : (due <= 0.01 ? 'paid' : (paid > 0.01 ? 'partial' : 'unpaid'))
+          const base: any = {
             id: it.id,
             number: it.invoiceNumber || it.number || it.reference || `INV-${it.id}`,
             date: (it.date ? new Date(it.date) : new Date()).toISOString().slice(0,10),
             dueDate: (it.dueDate ? new Date(it.dueDate) : new Date()).toISOString().slice(0,10),
             customer: it.customer || it.transaction?.description?.replace(/^Invoice:\s*/i,'') || 'Customer',
             status,
-            amount
+            amount,
+            amountPaid: paid,
+            balanceDue: due,
+            paymentStatusRaw
           }
+          // Enrich for Items & Tax panel (read from transaction.customFields if present)
+          try {
+            base.invoiceNumber = it.invoiceNumber || base.number
+            base.dueDays = it?.transaction?.customFields?.dueDays ?? null
+            base.subtotal = it?.transaction?.customFields?.subtotal != null ? Number(it.transaction.customFields.subtotal) : undefined
+            base.discount = it?.transaction?.customFields?.discountAmount != null ? Number(it.transaction.customFields.discountAmount) : undefined
+            base.tax = it?.transaction?.customFields?.taxAmount != null ? Number(it.transaction.customFields.taxAmount) : undefined
+            base.lineItems = Array.isArray(it?.transaction?.customFields?.lineItems) ? it.transaction.customFields.lineItems : undefined
+          } catch {}
+          return base as Invoice
         }) : []
           setInvoices(mapped)
         } else {
@@ -203,7 +249,7 @@ export function Invoices() {
             const status: InvoiceStatus = raw === 'paid' ? 'PAID' : raw === 'partial' ? 'PARTIAL' : raw === 'overpaid' ? 'PAID' : 'UNPAID'
             const amountPaid = Number(e?.transaction?.customFields?.amountPaid || 0)
             const balanceDue = Number(e?.transaction?.customFields?.balanceDue ?? Math.max(0, Number(e.amount || 0) - amountPaid))
-            return {
+            const base: any = {
               id: e.id,
               vendor: e.vendor || 'Vendor',
               vendorInvoiceNo: e.vendorInvoiceNo || null,
@@ -214,6 +260,16 @@ export function Invoices() {
               balanceDue,
               paymentStatusRaw: raw
             }
+            try {
+              base.receiptUrl = e?.receiptUrl || null
+              base.dueDate = e?.transaction?.customFields?.dueDate || base.date
+              base.dueDays = e?.transaction?.customFields?.dueDays ?? null
+              base.subtotal = e?.transaction?.customFields?.subtotal != null ? Number(e.transaction.customFields.subtotal) : undefined
+              base.discount = e?.transaction?.customFields?.discountAmount != null ? Number(e.transaction.customFields.discountAmount) : undefined
+              base.tax = e?.transaction?.customFields?.taxAmount != null ? Number(e.transaction.customFields.taxAmount) : undefined
+              base.lineItems = Array.isArray(e?.transaction?.customFields?.lineItems) ? e.transaction.customFields.lineItems : undefined
+            } catch {}
+            return base as Bill
           }) : []
           setBills(mapped)
         }
@@ -372,16 +428,15 @@ export function Invoices() {
               <button className={cn('px-3 py-1.5 text-sm transition', viewMode === 'AR' ? 'bg-white/15' : 'hover:bg-white/5')} onClick={() => setViewMode('AR')}>AR Invoices</button>
               <button className={cn('px-3 py-1.5 text-sm transition', viewMode === 'AP' ? 'bg-white/15' : 'hover:bg-white/5')} onClick={() => setViewMode('AP')}>AP Bills</button>
             </div>
-            {viewMode === 'AR' && (
             <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 backdrop-blur-md flex items-center gap-1" onClick={() => setNewModal(true)}>
               <Plus className="w-3.5 h-3.5" /> New Invoice
             </button>
-            )}
-            {viewMode === 'AR' && (
+            <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 backdrop-blur-md flex items-center gap-1" onClick={() => setNewBillModal(true)}>
+              <Plus className="w-3.5 h-3.5" /> New Bill
+            </button>
             <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 backdrop-blur-md flex items-center gap-1" onClick={() => setRecurringOpen(true)}>
               <Plus className="w-3.5 h-3.5" /> New Recurring
             </button>
-            )}
             <button className={cn('px-3 py-1.5 text-sm rounded-lg border transition backdrop-blur-glass bg-white/10 hover:bg-white/15 border-white/10 text-foreground', printFriendly ? 'bg-white border-black text-black shadow-none' : '')} onClick={() => window.print()}>
               <Printer className="w-3.5 h-3.5" />
             </button>
@@ -453,9 +508,20 @@ export function Invoices() {
                     <td className="py-2">
                         <div className="flex items-center gap-1">
                       <span className={cn('px-2 py-0.5 text-xs rounded-md border', statusToneClass[inv.status])}>{statusLabel[inv.status]}</span>
+                      {String(inv.paymentStatusRaw || '').toLowerCase() === 'overpaid' && (
+                        <span className="px-2 py-0.5 text-[11px] rounded-md border bg-red-500/15 border-red-400/30 text-red-300">Overpaid</span>
+                      )}
+                      {/* Duplicate Partial badge removed; rely on primary status pill */}
                         </div>
                     </td>
-                    <td className="py-2 text-right font-semibold">{formatMoney(inv.amount)}</td>
+                    <td className="py-2 text-right font-semibold">
+                      {formatMoney(inv.amount)}
+                      {(inv.amountPaid != null || inv.balanceDue != null) && (
+                        <div className="mt-0.5 text-xs font-normal text-secondary-contrast">
+                          Paid {formatMoney(Math.max(0, Number(inv.amountPaid || 0)))} • Due {formatMoney(Math.max(0, Number(inv.balanceDue ?? (inv.amount - (inv.amountPaid || 0))))) }
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {useVirtual && <tr style={{ height: computeRange(listRef.current, sorted.length, scrollTop).padBot }} aria-hidden="true" />}
@@ -526,7 +592,13 @@ export function Invoices() {
               <ThemedGlassSurface variant="light" className="p-3">
               <div className="flex items-center justify-between mb-1">
                 <div className="text-xs text-secondary-contrast">{inv.date} → {inv.dueDate}</div>
-                <span className={cn('px-2 py-0.5 text-[10px] rounded border', statusToneClass[inv.status])}>{statusLabel[inv.status]}</span>
+                <div className="flex items-center gap-1">
+                  <span className={cn('px-2 py-0.5 text-[10px] rounded border', statusToneClass[inv.status])}>{statusLabel[inv.status]}</span>
+                  {String(inv.paymentStatusRaw || '').toLowerCase() === 'overpaid' && (
+                    <span className="px-2 py-0.5 text-[10px] rounded-md border bg-red-500/15 border-red-400/30 text-red-300">Overpaid</span>
+                  )}
+                  {/* Duplicate Partial badge removed; rely on primary status pill */}
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <div className="font-medium">{inv.number} • {inv.customer}</div>
@@ -616,10 +688,9 @@ export function Invoices() {
                         if (!amt) return
                         const date = prompt('Payment date (YYYY-MM-DD)?', new Date().toISOString().slice(0,10)) || undefined
                         const res = await TransactionsService.recordInvoicePayment(id, { amount: parseFloat(amt), date })
-                        const nextUiStatus: InvoiceStatus = String(res?.invoiceStatus || '').toUpperCase() === 'PAID'
-                          ? ((detail.amount - (sumPayments(payments) + parseFloat(amt))) > 0.01 ? 'PARTIAL' : 'PAID')
-                          : 'UNPAID'
-                        setInvoices(prev => prev.map(v => v.id === id ? { ...v, status: nextUiStatus } : v))
+                        const raw = String(res?.paymentStatus || '').toLowerCase()
+                        const nextUiStatus: InvoiceStatus = raw === 'partial' ? 'PARTIAL' : 'PAID'
+                        setInvoices(prev => prev.map(v => v.id === id ? { ...v, status: nextUiStatus, paymentStatusRaw: raw } : v))
                         setDetail({ ...detail!, status: nextUiStatus })
                         window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Payment recorded', type: 'success' } }))
                         window.dispatchEvent(new Event('payments:updated'))
@@ -634,19 +705,59 @@ export function Invoices() {
                   <div className="text-sm font-medium mb-2">Payments</div>
                   <ul className="text-sm space-y-1 max-h-44 overflow-auto">
                     <li className="flex items-center gap-2"><Clock3 className="w-3.5 h-3.5 text-muted-contrast" /> Created {detail.date} • Due {detail.dueDate}</li>
+                    <li className="text-xs text-secondary-contrast" data-section="items-tax">
+                      <div className="font-medium text-foreground mb-1">Items & Tax</div>
+                      <div className="space-y-1">
+                        {(detail as any)?.invoiceNumber && <div>Invoice #: <span className="font-medium">{(detail as any).invoiceNumber}</span></div>}
+                        {(detail as any)?.dueDate && <div>Due Date: <span className="font-medium">{(detail as any).dueDate}</span></div>}
+                        {(detail as any)?.dueDays != null && <div>Terms: <span className="font-medium">Net {(detail as any).dueDays}</span></div>}
+                        {(detail as any)?.subtotal != null && <div>Subtotal: <span className="font-medium">{formatMoney(Math.max(0, Number((detail as any).subtotal || 0)))}</span></div>}
+                        {(detail as any)?.discount != null && Number((detail as any).discount) > 0 && <div>Discount: <span className="font-medium">{formatMoney(Math.max(0, Number((detail as any).discount || 0)))}</span></div>}
+                        {(detail as any)?.tax != null && Number((detail as any).tax) > 0 && <div>Tax: <span className="font-medium">{formatMoney(Math.max(0, Number((detail as any).tax || 0)))}</span></div>}
+                        <div>Total: <span className="font-semibold">{formatMoney(detail.amount)}</span></div>
+                        {Array.isArray((detail as any)?.lineItems) && (detail as any).lineItems.length > 0 && (
+                          <div className="mt-1">
+                            <div className="font-medium">Line items</div>
+                            <ul className="list-disc ml-4 space-y-0.5">
+                              {(detail as any).lineItems.map((li: any, idx: number) => (
+                                <li key={idx}>{li.description || 'Line'} — {formatMoney(Number(li.amount || 0))}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </li>
                     {payments.map((p, i) => (
                       <li key={i} className="flex items-center justify-between gap-2">
                         <span className="text-secondary-contrast">{new Date(p.date).toISOString().slice(0,10)} • {p.reference}</span>
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{formatMoney(Number(p.amount))}</span>
+                          <button className="px-2 py-0.5 text-xs rounded border border-white/10 hover:bg-white/10" onClick={() => {
+                            try {
+                              const id = (detail as any)?.id
+                              if (!id) return
+                              window.dispatchEvent(new CustomEvent('open:source', { detail: { type: 'AR', id } }))
+                            } catch {}
+                          }}>View Source</button>
                           <button className="px-2 py-0.5 text-xs rounded border border-white/10 hover:bg-white/10" onClick={async () => {
                             try {
                               const newAmtStr = prompt('Edit payment amount', String(p.amount))
                               if (!newAmtStr) return
+                              const newAmt = parseFloat(newAmtStr)
                               const newDate = prompt('Edit payment date (YYYY-MM-DD)', new Date(p.date).toISOString().slice(0,10)) || undefined
-                              // void then repost
-                              await (TransactionsService as any).voidPayment(p.id)
-                              await TransactionsService.recordInvoicePayment((detail as any).id, { amount: parseFloat(newAmtStr), date: newDate })
+                              const isInitial = String(p?.customFields?.origin || '') === 'initial'
+                              if (isInitial) {
+                                window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Initial posting payment cannot be edited here.', type: 'info' } }))
+                                return
+                              } else {
+                                // Non-initial: void then repost the new amount
+                                await (TransactionsService as any).voidPayment(p.id)
+                                const res = await TransactionsService.recordInvoicePayment((detail as any).id, { amount: newAmt, date: newDate })
+                                const raw = String(res?.paymentStatus || '').toLowerCase()
+                                const nextUiStatus: InvoiceStatus = raw === 'partial' ? 'PARTIAL' : 'PAID'
+                                setInvoices(prev => prev.map(v => v.id === (detail as any).id ? { ...v, status: nextUiStatus, paymentStatusRaw: raw } : v))
+                                setDetail(prev => prev ? { ...prev, status: nextUiStatus } : prev)
+                              }
                               window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Payment updated', type: 'success' } }))
                               window.dispatchEvent(new Event('payments:updated'))
                             } catch (e: any) {
@@ -656,7 +767,8 @@ export function Invoices() {
                           }}>Edit</button>
                           <button className="px-2 py-0.5 text-xs rounded border border-white/10 hover:bg-white/10" onClick={async () => {
                             try {
-                              if (String(p?.customFields?.origin || '') === 'initial') {
+                              const isInitial = String(p?.customFields?.origin || '') === 'initial'
+                              if (isInitial) {
                                 window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Initial posting payment cannot be voided.', type: 'info' } }))
                                 return
                               }
@@ -666,9 +778,10 @@ export function Invoices() {
                               setPayments(prev => prev.filter(row => row.id !== p.id))
                               const newPaid = Math.max(0, sumPayments(payments) - Number(p.amount))
                               const newDue = Math.max(0, detail.amount - newPaid)
-                              const nextStatusLocal: InvoiceStatus = newDue <= 0.01 ? 'PAID' : newPaid > 0.01 ? 'PARTIAL' : 'UNPAID'
+                              const raw = (newPaid - detail.amount) > 0.01 ? 'overpaid' : (newDue <= 0.01 ? 'paid' : (newPaid > 0.01 ? 'partial' : 'unpaid'))
+                              const nextStatusLocal: InvoiceStatus = raw === 'partial' ? 'PARTIAL' : (raw === 'paid' || raw === 'overpaid' ? 'PAID' : 'UNPAID')
                               setDetail(prev => prev ? { ...prev, status: nextStatusLocal } : prev)
-                              setInvoices(prev => prev.map(v => v.id === (detail as any).id ? { ...v, status: nextStatusLocal } : v))
+                              setInvoices(prev => prev.map(v => v.id === (detail as any).id ? { ...v, status: nextStatusLocal, paymentStatusRaw: raw } : v))
                               window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Payment voided', type: 'success' } }))
                               setTimeout(() => window.dispatchEvent(new Event('payments:updated')), 100)
                             } catch (e: any) {
@@ -778,11 +891,78 @@ export function Invoices() {
                   <div className="text-sm font-medium mb-2">Payments</div>
                   <ul className="text-sm space-y-1 max-h-44 overflow-auto">
                     <li className="flex items-center gap-2"><Clock3 className="w-3.5 h-3.5 text-muted-contrast" /> Created {billDetail.date}</li>
+                    <li className="text-xs text-secondary-contrast" data-section="items-tax">
+                      <div className="font-medium text-foreground mb-1">Items & Tax</div>
+                      <div className="space-y-1">
+                        {billDetail.vendorInvoiceNo && <div>Vendor Invoice No.: <span className="font-medium">{billDetail.vendorInvoiceNo}</span></div>}
+                        {(billDetail as any)?.dueDate && <div>Due Date: <span className="font-medium">{(billDetail as any).dueDate}</span></div>}
+                        {(billDetail as any)?.dueDays != null && <div>Terms: <span className="font-medium">Net {(billDetail as any).dueDays}</span></div>}
+                        {(billDetail as any)?.subtotal != null && <div>Subtotal: <span className="font-medium">{formatMoney(Math.max(0, Number((billDetail as any).subtotal || 0)))}</span></div>}
+                        {(billDetail as any)?.discount != null && Number((billDetail as any).discount) > 0 && <div>Discount: <span className="font-medium">{formatMoney(Math.max(0, Number((billDetail as any).discount || 0)))}</span></div>}
+                        {(billDetail as any)?.tax != null && Number((billDetail as any).tax) > 0 && <div>Tax: <span className="font-medium">{formatMoney(Math.max(0, Number((billDetail as any).tax || 0)))}</span></div>}
+                        <div>Total: <span className="font-semibold">{formatMoney(billDetail.amount)}</span></div>
+                        {Array.isArray((billDetail as any)?.lineItems) && (billDetail as any).lineItems.length > 0 && (
+                          <div className="mt-1">
+                            <div className="font-medium">Line items</div>
+                            <ul className="list-disc ml-4 space-y-0.5">
+                              {(billDetail as any).lineItems.map((li: any, idx: number) => (
+                                <li key={idx}>{li.description || 'Line'} — {formatMoney(Number(li.amount || 0))}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {(billDetail as any)?.receiptUrl && (
+                          <div className="flex gap-2 mt-1">
+                            <a className="px-2 py-0.5 text-xs rounded border border-white/10 hover:bg-white/10" href={(billDetail as any).receiptUrl} target="_blank" rel="noreferrer">View Attachment</a>
+                            <label className="px-2 py-0.5 text-xs rounded border border-white/10 hover:bg-white/10 cursor-pointer">
+                              Replace Attachment
+                              <input type="file" className="hidden" onChange={async (e) => {
+                                const f = e.target.files?.[0]
+                                if (!f) return
+                                try {
+                                  await (ExpensesService as any).attachReceipt(billDetail.id, f)
+                                  window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Attachment updated', type: 'success' } }))
+                                } catch (err: any) {
+                                  window.dispatchEvent(new CustomEvent('toast', { detail: { message: err?.message || 'Failed to update attachment', type: 'error' } }))
+                                } finally {
+                                  setTimeout(() => window.dispatchEvent(new Event('data:refresh')), 50)
+                                }
+                              }} />
+                            </label>
+                          </div>
+                        )}
+                        {!(billDetail as any)?.receiptUrl && (
+                          <label className="px-2 py-0.5 text-xs rounded border border-white/10 hover:bg-white/10 cursor-pointer inline-flex items-center gap-1">
+                            <Paperclip className="w-3.5 h-3.5" /> Attach Receipt
+                            <input type="file" className="hidden" onChange={async (e) => {
+                              const f = e.target.files?.[0]
+                              if (!f) return
+                              try {
+                                await (ExpensesService as any).attachReceipt(billDetail.id, f)
+                                window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Receipt attached', type: 'success' } }))
+                              } catch (err: any) {
+                                window.dispatchEvent(new CustomEvent('toast', { detail: { message: err?.message || 'Failed to attach', type: 'error' } }))
+                              } finally {
+                                setTimeout(() => window.dispatchEvent(new Event('data:refresh')), 50)
+                              }
+                            }} />
+                          </label>
+                        )}
+                      </div>
+                    </li>
                     {billPayments.map((p, i) => (
                       <li key={i} className="flex items-center justify-between gap-2">
                         <span className="text-secondary-contrast">{new Date(p.date).toISOString().slice(0,10)} • {p.reference} {String(p?.customFields?.origin || '') === 'initial' ? '• Initial payment at posting' : ''}</span>
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{formatMoney(Number(p.amount))}</span>
+                          <button className="px-2 py-0.5 text-xs rounded border border-white/10 hover:bg-white/10" onClick={() => {
+                            try {
+                              const id = (billDetail as any)?.id || (detail as any)?.id
+                              if (!id) return
+                              // Emit event for parent to reopen Items & Tax section
+                              window.dispatchEvent(new CustomEvent('open:source', { detail: { type: billDetail ? 'AP' : 'AR', id } }))
+                            } catch {}
+                          }}>View Source</button>
                           <button className="px-2 py-0.5 text-xs rounded border border-white/10 hover:bg-white/10" onClick={async () => {
                             try {
                               const newAmtStr = prompt('Edit payment amount', String(p.amount))
@@ -875,7 +1055,33 @@ export function Invoices() {
       )}
 
       {recurringOpen && (
-        <RecurringModal open={recurringOpen} onClose={() => setRecurringOpen(false)} seed={{ type: 'INVOICE' }} />
+        <RecurringModal open={recurringOpen} onClose={() => setRecurringOpen(false)} seed={{ type: viewMode === 'AR' ? 'INVOICE' : 'EXPENSE' }} />
+      )}
+
+      {/* New Bill Modal */}
+      {newBillModal && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[9999] modal-overlay flex items-center justify-center p-4" onClick={() => setNewBillModal(false)}>
+            <div onClick={(e: any) => e.stopPropagation()}>
+              <ThemedGlassSurface variant="light" className="p-6 max-w-2xl w-[92%] glass-modal liquid-glass" hover={false}>
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div>
+                    <div className="text-lg font-semibold">New Bill</div>
+                    <div className="text-sm text-secondary-contrast">Enter vendor bill details.</div>
+                  </div>
+                  <button className="px-2 py-1 rounded bg-surface/60 hover:bg-surface" onClick={() => setNewBillModal(false)}>
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <BillForm onClose={() => setNewBillModal(false)} onCreated={(bill) => {
+                  setBills(prev => [bill, ...prev])
+                  setNewBillModal(false)
+                  window.dispatchEvent(new Event('data:refresh'))
+                }} />
+              </ThemedGlassSurface>
+            </div>
+          </div>
+        </ModalPortal>
       )}
     </div>
   )
@@ -888,39 +1094,123 @@ function InvoiceForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [customer, setCustomer] = useState('')
   const [number, setNumber] = useState('')
   const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0,10))
-  const [dueDate, setDueDate] = useState<string>(() => new Date().toISOString().slice(0,10))
+  const [dueDate, setDueDate] = useState<string>('')
   const [dueDays, setDueDays] = useState<string>('0')
-  const [amount, setAmount] = useState('')
+  const [subtotal, setSubtotal] = useState<string>('')
+  const [taxEnabled, setTaxEnabled] = useState<boolean>(false)
+  const [taxMode, setTaxMode] = useState<'percentage'|'amount'>('percentage')
+  const [taxRate, setTaxRate] = useState<string>('0')
+  const [taxAmount, setTaxAmount] = useState<string>('0')
+  const [discount, setDiscount] = useState<string>('')
+  const [amountPaid, setAmountPaid] = useState<string>('')
+  const [lineItems, setLineItems] = useState<Array<{ description: string; qty?: string; rate?: string; amount: string }>>([{ description: '', qty: '1', rate: '', amount: '' }])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const lineItemsSubtotal = useMemo(() => {
+    try { return lineItems.reduce((s, li) => s + (parseFloat(li.amount||li.rate||'0')||0), 0) } catch { return 0 }
+  }, [lineItems])
+  const effectiveSubtotal = useMemo(() => {
+    const subNum = parseFloat(subtotal||'0') || 0
+    return subNum > 0 ? subNum : lineItemsSubtotal
+  }, [subtotal, lineItemsSubtotal])
+  const computedTax = (() => {
+    if (!taxEnabled) return 0
+    const base = Math.max(0, (effectiveSubtotal - (parseFloat(discount||'0') || 0)))
+    if (taxMode === 'percentage') return base * (parseFloat(taxRate||'0')/100)
+    return parseFloat(taxAmount||'0')
+  })()
+  const total = Math.max(0, (effectiveSubtotal - (parseFloat(discount||'0') || 0) + computedTax))
 
   const submit = async () => {
     try {
       setSaving(true)
       setError(null)
-      const payload = {
-        customerName: customer,
-        amount: parseFloat(amount || '0'),
+      // Validation
+      const errs: string[] = []
+      const subNum = parseFloat(subtotal||'0') || 0
+      const linesSum = lineItemsSubtotal
+      const discNum = parseFloat(discount||'0') || 0
+      const rateNum = parseFloat(taxRate||'0') || 0
+      const amtNum = parseFloat(taxAmount||'0') || 0
+      const paidNum = parseFloat(amountPaid||'0') || 0
+      if (!customer.trim()) errs.push('Customer is required')
+      if (!((subNum > 0) || (linesSum > 0))) errs.push('Enter a positive Subtotal or at least one line item amount')
+      if (discNum < 0) errs.push('Discount cannot be negative')
+      if (discNum > Math.max(subNum, linesSum)) errs.push('Discount cannot exceed current subtotal (from Subtotal or line items)')
+      if (taxEnabled && taxMode === 'percentage' && (rateNum < 0 || rateNum > 100)) errs.push('Tax rate must be between 0 and 100')
+      if (taxEnabled && taxMode === 'amount' && amtNum < 0) errs.push('Tax amount cannot be negative')
+      if (paidNum < 0) errs.push('Amount Paid cannot be negative')
+      const computed = Math.max(0, ((Math.max(subNum, linesSum)) - discNum) + (taxEnabled ? (taxMode==='percentage' ? ((Math.max(subNum, linesSum) - discNum) * (rateNum/100)) : amtNum) : 0))
+      if (!(computed > 0)) {
+        if ((subNum <= 0) && (linesSum <= 0)) errs.push('Total must be greater than 0. Enter Subtotal or add line item amounts')
+        else errs.push('Total must be greater than 0 after discount/tax')
+      }
+      if (errs.length) { setError(errs[0]); try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: errs[0], type: 'error' } })) } catch {}; setSaving(false); return }
+      const epsilon = 0.01
+      const amtPaidNum = parseFloat(amountPaid||'0') || 0
+      const balDue = Math.max(0, +(total - amtPaidNum).toFixed(2))
+      let paymentStatus: 'paid'|'invoice'|'partial'|'overpaid' = 'invoice'
+      if (amtPaidNum > total + epsilon) paymentStatus = 'overpaid'
+      else if (Math.abs(total - amtPaidNum) <= epsilon) paymentStatus = 'paid'
+      else if (amtPaidNum > epsilon) paymentStatus = 'partial'
+      const taxPayload = taxEnabled ? (taxMode === 'percentage' ? { enabled: true, type: 'percentage', rate: parseFloat(taxRate||'0') } : { enabled: true, type: 'amount', amount: parseFloat(taxAmount||'0') }) : undefined
+      // Enforce line-items vs subtotal consistency when both provided
+      const cleanedItems = lineItems
+        .filter(li => (li.description && li.description.trim()) || (li.amount && !isNaN(parseFloat(li.amount))))
+        .map(li => ({
+          description: li.description || 'Line',
+          amount: parseFloat(li.amount || li.rate || '0'),
+          quantity: li.qty != null && li.qty !== '' ? parseFloat(li.qty) : undefined,
+          rate: li.rate != null && li.rate !== '' ? parseFloat(li.rate) : undefined
+        }))
+      if (subtotal && cleanedItems.length) {
+        const sum = cleanedItems.reduce((s, li) => s + (parseFloat(String(li.amount)) || 0), 0)
+        if (Math.abs(sum - parseFloat(subtotal)) > 0.01) {
+          const diff = (parseFloat(subtotal) - sum).toFixed(2)
+          const msg = `Line items don't match Subtotal. Difference: $${diff}`
+          setError(msg)
+          try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } })) } catch {}
+          setSaving(false)
+          return
+        }
+      }
+      const payload: any = {
+        customerName: customer.trim(),
+        amount: +total.toFixed(2),
         date,
-        description: `Invoice for ${customer}`,
+        description: `Invoice for ${customer.trim()}`,
         invoiceNumber: number || undefined,
-        paymentStatus: 'paid' as const,
+        paymentStatus,
+        amountPaid: amtPaidNum > 0 ? amtPaidNum : undefined,
+        balanceDue: balDue,
         dueDate: dueDate || undefined,
-        dueDays: dueDays === '' ? undefined : Math.max(0, Math.min(365, Number(dueDays) || 0))
+        dueDays: dueDays === '' ? undefined : Math.max(0, Math.min(365, Number(dueDays) || 0)),
+        subtotal: subtotal ? parseFloat(subtotal) : undefined,
+        taxSettings: taxPayload,
+        discount: (discount && !isNaN(parseFloat(discount))) ? { enabled: true, amount: parseFloat(discount) } : undefined,
+        lineItems: cleanedItems
       }
       const res = await TransactionsService.postInvoice(payload)
+      const uiStatus: InvoiceStatus = paymentStatus === 'partial' ? 'PARTIAL' : (paymentStatus === 'paid' || paymentStatus === 'overpaid' ? 'PAID' : 'UNPAID')
       const inv: Invoice = {
         id: res?.transactionId || String(Date.now()),
         number: payload.invoiceNumber || `INV-${Date.now()}`,
         date,
-        dueDate,
+        dueDate: dueDate || date,
         customer,
-        status: 'PAID',
-        amount: payload.amount
+        status: uiStatus,
+        amount: +total.toFixed(2),
+        amountPaid: amtPaidNum,
+        balanceDue: balDue,
+        paymentStatusRaw: paymentStatus
       }
+      try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Invoice created successfully', type: 'success' } })) } catch {}
       onCreated(inv)
     } catch (e: any) {
-      setError(e?.message || 'Failed to create invoice')
+      const msg = e?.response?.data?.message || e?.message || 'Failed to create invoice'
+      setError(msg)
+      try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } })) } catch {}
     } finally {
       setSaving(false)
     }
@@ -960,15 +1250,271 @@ function InvoiceForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
             <input type="number" min={0} max={365} value={dueDays} onChange={e=>setDueDays(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md w-24" placeholder="days" />
           </div>
         </label>
-        <label className="flex flex-col gap-1 sm:col-span-2">
-          <span className="text-secondary-contrast">Amount</span>
-          <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" placeholder="0.00" />
+        <label className="flex flex-col gap-1">
+          <span className="text-secondary-contrast">Subtotal</span>
+          <input type="number" value={subtotal} onChange={e=>setSubtotal(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" placeholder="0.00" />
+          <div className="text-xs text-secondary-contrast">If left blank, we use the sum of line item amounts.</div>
         </label>
+        <div className="flex flex-col gap-1">
+          <span className="text-secondary-contrast">Tax</span>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={taxEnabled} onChange={e=>setTaxEnabled(e.target.checked)} /> Enable</label>
+            <ThemedSelect value={taxMode} onChange={e=>setTaxMode(((e.target as HTMLSelectElement).value as 'percentage'|'amount'))}>
+              <option value="percentage">Percentage</option>
+              <option value="amount">Amount</option>
+            </ThemedSelect>
+            {taxMode === 'percentage' ? (
+              <input type="number" step="0.01" value={taxRate} onChange={e=>setTaxRate(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md w-28" placeholder="%" />
+            ) : (
+              <input type="number" step="0.01" value={taxAmount} onChange={e=>setTaxAmount(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md w-28" placeholder="0.00" />
+            )}
+          </div>
+          <label className="flex flex-col gap-1">
+            <span className="text-secondary-contrast">Discount (amount)</span>
+            <input type="number" step="0.01" value={discount} onChange={e=>setDiscount(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" placeholder="0.00" />
+          </label>
+          <div className="text-xs text-secondary-contrast">Total: <span className="font-medium">${total.toFixed(2)}</span></div>
+        </div>
+        <div className="sm:col-span-2">
+          <span className="text-secondary-contrast">Line items</span>
+          <div className="space-y-2 mt-1">
+            {lineItems.map((li, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                <input value={li.description} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, description: e.target.value }: x))} className="col-span-6 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder={`Description ${idx+1}`} />
+                <input type="number" value={li.qty || ''} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, qty: e.target.value }: x))} className="col-span-2 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Qty" />
+                <input type="number" value={li.rate || ''} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, rate: e.target.value, amount: (parseFloat(e.target.value||'0') * parseFloat(li.qty||'1') || 0).toString() }: x))} className="col-span-2 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Rate" />
+                <input type="number" value={li.amount} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, amount: e.target.value }: x))} className="col-span-2 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Amount" />
+                <div className="col-span-12 flex gap-2">
+                  <button type="button" className="px-2 py-1 rounded bg-white/10 border border-white/10" onClick={()=> setLineItems(prev => [...prev, { description: '', qty: '1', rate: '', amount: '' }])}>Add</button>
+                  <button type="button" className="px-2 py-1 rounded bg-white/10 border border-white/10 disabled:opacity-60" disabled={lineItems.length<=1} onClick={()=> setLineItems(prev => prev.filter((_,i)=> i!==idx))}>Remove</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="sm:col-span-2 grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-secondary-contrast">Amount Paid</span>
+            <input type="number" value={amountPaid} onChange={e=>setAmountPaid(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" placeholder="0.00" />
+          </label>
+          <div />
+        </div>
       </div>
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
       <div className="mt-4 flex justify-end gap-2">
         <button className="px-3 py-1.5 text-sm rounded-lg border transition backdrop-blur-glass bg-white/10 hover:bg-white/15 border-white/10 text-foreground" onClick={onClose} disabled={saving}>Close</button>
-        <button className="px-3 py-1.5 text-sm rounded-lg bg-primary/20 text-primary border border-primary/30" onClick={submit} disabled={saving || !customer || !amount}>Create</button>
+        <button className="px-3 py-1.5 text-sm rounded-lg bg-primary/20 text-primary border border-primary/30" onClick={submit} disabled={saving || !customer || !((parseFloat(subtotal||'0')>0) || lineItems.some(li => (parseFloat(li.amount||'0')>0)))}>Create</button>
+      </div>
+    </div>
+  )
+}
+
+function BillForm({ onClose, onCreated }: { onClose: () => void; onCreated: (bill: Bill) => void }) {
+  const [vendor, setVendor] = useState('')
+  const [vendorInvoiceNo, setVendorInvoiceNo] = useState('')
+  const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0,10))
+  const [dueDate, setDueDate] = useState<string>('')
+  const [dueDays, setDueDays] = useState<string>('0')
+  const [subtotal, setSubtotal] = useState<string>('')
+  const [taxEnabled, setTaxEnabled] = useState<boolean>(false)
+  const [taxMode, setTaxMode] = useState<'percentage'|'amount'>('percentage')
+  const [taxRate, setTaxRate] = useState<string>('0')
+  const [taxAmount, setTaxAmount] = useState<string>('0')
+  const [discount, setDiscount] = useState<string>('')
+  const [lineItems, setLineItems] = useState<Array<{ description: string; qty?: string; rate?: string; amount: string }>>([{ description: '', qty: '1', rate: '', amount: '' }])
+  const [amountPaid, setAmountPaid] = useState<string>('0')
+  const [paidOn, setPaidOn] = useState<string>('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const lineItemsSubtotalAp = useMemo(() => {
+    try { return lineItems.reduce((s, li) => s + (parseFloat(li.amount||li.rate||'0')||0), 0) } catch { return 0 }
+  }, [lineItems])
+  const effectiveSubtotalAp = useMemo(() => {
+    const subNum = parseFloat(subtotal||'0') || 0
+    return subNum > 0 ? subNum : lineItemsSubtotalAp
+  }, [subtotal, lineItemsSubtotalAp])
+  const discountAmt = parseFloat(discount||'0') || 0
+  const baseForTax = Math.max(0, (effectiveSubtotalAp - discountAmt))
+  const totalTax = taxEnabled ? (taxMode === 'percentage' ? (baseForTax * (parseFloat(taxRate||'0')/100)) : parseFloat(taxAmount||'0')) : 0
+  const total = Math.max(0, (baseForTax + totalTax))
+
+  const submit = async () => {
+    try {
+      setSaving(true)
+      setError(null)
+      // Validation for AP form
+      const errs: string[] = []
+      if (!vendor.trim()) errs.push('Vendor is required')
+      const subNum = parseFloat(subtotal||'0') || 0
+      const linesSum = lineItemsSubtotalAp
+      const discNum = parseFloat(discount||'0') || 0
+      if (!((subNum > 0) || (linesSum > 0))) errs.push('Enter a positive Subtotal or at least one line item amount')
+      if (discNum < 0) errs.push('Discount cannot be negative')
+      if (discNum > Math.max(subNum, linesSum)) errs.push('Discount cannot exceed current subtotal (from Subtotal or line items)')
+      if (taxEnabled && taxMode === 'percentage') {
+        const r = parseFloat(taxRate||'0')
+        if (r < 0 || r > 100) errs.push('Tax rate must be 0..100')
+      }
+      if (taxEnabled && taxMode === 'amount') {
+        const a = parseFloat(taxAmount||'0')
+        if (a < 0) errs.push('Tax amount cannot be negative')
+      }
+      if (parseFloat(amountPaid||'0') < 0) errs.push('Amount Paid cannot be negative')
+      if (errs.length) { setError(errs[0]); try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: errs[0], type: 'error' } })) } catch {}; setSaving(false); return }
+      // Enforce line-items vs subtotal consistency when both provided
+      const cleanedItems = lineItems
+        .filter(li => (li.description && li.description.trim()) || (li.amount && !isNaN(parseFloat(li.amount))))
+        .map(li => ({
+          description: li.description || 'Line',
+          amount: parseFloat(li.amount || li.rate || '0'),
+          quantity: li.qty != null && li.qty !== '' ? parseFloat(li.qty) : undefined,
+          rate: li.rate != null && li.rate !== '' ? parseFloat(li.rate) : undefined
+        }))
+      if (subtotal && cleanedItems.length) {
+        const sum = cleanedItems.reduce((s, li) => s + (parseFloat(String(li.amount)) || 0), 0)
+        if (Math.abs(sum - parseFloat(subtotal)) > 0.01) {
+          const diff = (parseFloat(subtotal) - sum).toFixed(2)
+          const msg = `Line items don't match Subtotal. Difference: $${diff}`
+          setError(msg)
+          try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } })) } catch {}
+          setSaving(false)
+          return
+        }
+      }
+      const payload: any = {
+        vendorName: vendor,
+        vendorInvoiceNo: vendorInvoiceNo || undefined,
+        date,
+        amount: total.toFixed(2),
+        categoryKey: 'OFFICE_SUPPLIES',
+        description: `Bill from ${vendor}`,
+        dueDays: dueDays === '' ? undefined : Math.max(0, Math.min(365, Number(dueDays) || 0)),
+        dueDate: dueDate || undefined,
+        paymentStatus: (parseFloat(amountPaid||'0') > 0) ? (parseFloat(amountPaid) + 0.005 >= total ? 'paid' : 'partial') : 'unpaid',
+        amountPaid: parseFloat(amountPaid||'0') > 0 ? parseFloat(amountPaid) : undefined,
+        datePaid: paidOn || undefined,
+        taxSettings: taxEnabled ? (taxMode === 'percentage' ? { enabled: true, type: 'percentage', rate: parseFloat(taxRate||'0') } : { enabled: true, type: 'amount', amount: parseFloat(taxAmount||'0') }) : undefined
+      }
+      if (cleanedItems.length) payload.lineItems = cleanedItems
+      try {
+        // Honor Settings toggle persisted locally
+        const split = JSON.parse(localStorage.getItem('settings.apSplitLines') || 'false')
+        if (split) payload.splitByLineItems = true
+      } catch {}
+      if (discount && !isNaN(parseFloat(discount))) payload.discount = { enabled: true, amount: parseFloat(discount) }
+      const res = await (ExpensesService as any).postExpense(payload)
+      const bill: Bill = {
+        id: res?.expenseId || res?.transactionId || String(Date.now()),
+        vendor,
+        vendorInvoiceNo: vendorInvoiceNo || undefined,
+        date,
+        status: payload.paymentStatus === 'paid' ? 'PAID' : payload.paymentStatus === 'partial' ? 'PARTIAL' : 'UNPAID',
+        amount: total,
+        amountPaid: parseFloat(amountPaid||'0') || 0,
+        balanceDue: Math.max(0, total - (parseFloat(amountPaid||'0') || 0)),
+        paymentStatusRaw: payload.paymentStatus
+      }
+      try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Bill created successfully', type: 'success' } })) } catch {}
+      onCreated(bill)
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || 'Failed to create bill'
+      setError(msg)
+      try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } })) } catch {}
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <label className="flex flex-col gap-1">
+          <span className="text-secondary-contrast">Vendor</span>
+          <input value={vendor} onChange={e=>setVendor(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" placeholder="Vendor name" />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-secondary-contrast">Vendor Invoice No.</span>
+          <input value={vendorInvoiceNo} onChange={e=>setVendorInvoiceNo(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" placeholder="BILL-001" />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-secondary-contrast">Date</span>
+          <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" />
+        </label>
+        <label className="flex flex-col gap-1">
+          <InfoHint label="Due Date">Optional override of terms. If blank, computed from Due Terms.</InfoHint>
+          <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" />
+        </label>
+        <label className="flex flex-col gap-1">
+          <InfoHint label="Due Terms">Choose a preset or set custom days (0–365).</InfoHint>
+          <div className="flex gap-2">
+            <ThemedSelect value={['0','14','30','45','60','90'].includes(dueDays) ? dueDays : ''} onChange={e=> setDueDays((e.target as HTMLSelectElement).value || dueDays)}>
+              <option value="">Custom</option>
+              <option value="0">Net 0</option>
+              <option value="14">Net 14</option>
+              <option value="30">Net 30</option>
+              <option value="45">Net 45</option>
+              <option value="60">Net 60</option>
+              <option value="90">Net 90</option>
+            </ThemedSelect>
+            <input type="number" min={0} max={365} value={dueDays} onChange={e=>setDueDays(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md w-24" placeholder="days" />
+          </div>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-secondary-contrast">Subtotal</span>
+          <input type="number" value={subtotal} onChange={e=>setSubtotal(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" placeholder="0.00" />
+          <div className="text-xs text-secondary-contrast">If left blank, we use the sum of line item amounts.</div>
+        </label>
+        <div className="flex flex-col gap-1">
+          <span className="text-secondary-contrast">Tax</span>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={taxEnabled} onChange={e=>setTaxEnabled(e.target.checked)} /> Enable</label>
+            <ThemedSelect value={taxMode} onChange={e=>setTaxMode(((e.target as HTMLSelectElement).value as 'percentage'|'amount'))}>
+              <option value="percentage">Percentage</option>
+              <option value="amount">Amount</option>
+            </ThemedSelect>
+            {taxMode === 'percentage' ? (
+              <input type="number" step="0.01" value={taxRate} onChange={e=>setTaxRate(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md w-28" placeholder="%" />
+            ) : (
+              <input type="number" step="0.01" value={taxAmount} onChange={e=>setTaxAmount(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md w-28" placeholder="0.00" />
+            )}
+          </div>
+          <label className="flex flex-col gap-1">
+            <span className="text-secondary-contrast">Discount (amount)</span>
+            <input type="number" step="0.01" value={discount} onChange={e=>setDiscount(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" placeholder="0.00" />
+          </label>
+          <div className="text-xs text-secondary-contrast">Total: <span className="font-medium">${total.toFixed(2)}</span></div>
+        </div>
+        <div className="sm:col-span-2">
+          <span className="text-secondary-contrast">Line items</span>
+          <div className="space-y-2 mt-1">
+            {lineItems.map((li, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                <input value={li.description} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, description: e.target.value }: x))} className="col-span-6 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder={`Description ${idx+1}`} />
+                <input type="number" value={li.qty || ''} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, qty: e.target.value, amount: (parseFloat(x.rate||'0') * parseFloat(e.target.value||'1') || 0).toString() }: x))} className="col-span-2 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Qty" />
+                <input type="number" value={li.rate || ''} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, rate: e.target.value, amount: (parseFloat(e.target.value||'0') * parseFloat(x.qty||'1') || 0).toString() }: x))} className="col-span-2 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Rate" />
+                <input type="number" value={li.amount} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, amount: e.target.value }: x))} className="col-span-2 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Amount" />
+                <div className="col-span-12 flex gap-2">
+                  <button type="button" className="px-2 py-1 rounded bg-white/10 border border-white/10" onClick={()=> setLineItems(prev => [...prev, { description: '', qty: '1', rate: '', amount: '' }])}>Add</button>
+                  <button type="button" className="px-2 py-1 rounded bg-white/10 border border-white/10 disabled:opacity-60" disabled={lineItems.length<=1} onClick={()=> setLineItems(prev => prev.filter((_,i)=> i!==idx))}>Remove</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="sm:col-span-2 grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-secondary-contrast">Amount Paid</span>
+            <input type="number" value={amountPaid} onChange={e=>setAmountPaid(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" placeholder="0.00" />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-secondary-contrast">Paid On</span>
+            <input type="date" value={paidOn} onChange={e=>setPaidOn(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" />
+          </label>
+        </div>
+      </div>
+      {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
+      <div className="mt-4 flex justify-end gap-2">
+        <button className="px-3 py-1.5 text-sm rounded-lg border transition backdrop-blur-glass bg-white/10 hover:bg-white/15 border-white/10 text-foreground" onClick={onClose} disabled={saving}>Close</button>
+        <button className="px-3 py-1.5 text-sm rounded-lg bg-primary/20 text-primary border border-primary/30" onClick={submit} disabled={saving || !vendor || !((parseFloat(subtotal||'0')>0) || lineItems.some(li => (parseFloat(li.amount||'0')>0)))}>Create</button>
       </div>
     </div>
   )

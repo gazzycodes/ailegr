@@ -1,0 +1,1584 @@
+{
+  "summary": {
+    "base": "http://localhost:4000",
+    "ran": 150,
+    "valid_expected": 100,
+    "failure_expected": 50,
+    "passed": 130,
+    "failed": 20,
+    "failures": [
+      {
+        "i": 103,
+        "name": "AR Duplicate first OK",
+        "path": "/api/admin/post-invoice",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 104,
+        "name": "AR Duplicate second 409",
+        "path": "/api/admin/post-invoice",
+        "status": 200,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 111,
+        "name": "AP Unknown code fallback #1",
+        "path": "/api/admin/post-expense",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 112,
+        "name": "AP Unknown code fallback #2",
+        "path": "/api/admin/post-expense",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 113,
+        "name": "AP Unknown code fallback #3",
+        "path": "/api/admin/post-expense",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 114,
+        "name": "AP Unknown code fallback #4",
+        "path": "/api/admin/post-expense",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 115,
+        "name": "AP Unknown code fallback #5",
+        "path": "/api/admin/post-expense",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 116,
+        "name": "AP Unknown code fallback #6",
+        "path": "/api/admin/post-expense",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 117,
+        "name": "AR Rounding stress #1",
+        "path": "/api/admin/post-invoice",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 118,
+        "name": "AR Rounding stress #2",
+        "path": "/api/admin/post-invoice",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 119,
+        "name": "AR Rounding stress #3",
+        "path": "/api/admin/post-invoice",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 120,
+        "name": "AR Rounding stress #4",
+        "path": "/api/admin/post-invoice",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 121,
+        "name": "AR Rounding stress #5",
+        "path": "/api/admin/post-invoice",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 122,
+        "name": "AR Rounding stress #6",
+        "path": "/api/admin/post-invoice",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 123,
+        "name": "AP Overpaid #1",
+        "path": "/api/admin/post-expense",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 124,
+        "name": "AP Overpaid #2",
+        "path": "/api/admin/post-expense",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 125,
+        "name": "AP Overpaid #3",
+        "path": "/api/admin/post-expense",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 126,
+        "name": "AP Overpaid #4",
+        "path": "/api/admin/post-expense",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 127,
+        "name": "AP Overpaid #5",
+        "path": "/api/admin/post-expense",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      },
+      {
+        "i": 128,
+        "name": "AP Overpaid #6",
+        "path": "/api/admin/post-expense",
+        "status": 201,
+        "ok": false,
+        "expectedOk": false
+      }
+    ]
+  },
+  "results": [
+    {
+      "i": 1,
+      "name": "AP Telecom 6160",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 2,
+      "name": "AP Cloud 6240",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 3,
+      "name": "AP Fees 6230",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 4,
+      "name": "AP Insurance 6115",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 5,
+      "name": "AP Meals 6180",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 6,
+      "name": "AP Rent 6070",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 7,
+      "name": "AP SaaS 6030",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 8,
+      "name": "AP Utilities 6080",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 9,
+      "name": "AP COGS 5010",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 10,
+      "name": "AP OPEX 6200 #1",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 11,
+      "name": "AP OPEX 6040 #2",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 12,
+      "name": "AP OPEX 6020 #3",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 13,
+      "name": "AP OPEX 6220 #4",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 14,
+      "name": "AP OPEX 6020 #5",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 15,
+      "name": "AP OPEX 6060 #6",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 16,
+      "name": "AP OPEX 6140 #7",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 17,
+      "name": "AP OPEX 6060 #8",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 18,
+      "name": "AP OPEX 6140 #9",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 19,
+      "name": "AP OPEX 6210 #10",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 20,
+      "name": "AP OPEX 6190 #11",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 21,
+      "name": "AP OPEX 6150 #12",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 22,
+      "name": "AP OPEX 6190 #13",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 23,
+      "name": "AP OPEX 6140 #14",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 24,
+      "name": "AP OPEX 6150 #15",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 25,
+      "name": "AP OPEX 6100 #16",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 26,
+      "name": "AP OPEX 6220 #17",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 27,
+      "name": "AP OPEX 6200 #18",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 28,
+      "name": "AP OPEX 6210 #19",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 29,
+      "name": "AP OPEX 6190 #20",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 30,
+      "name": "AP OPEX 6220 #21",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 31,
+      "name": "AP OPEX 6040 #22",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 32,
+      "name": "AP OPEX 6150 #23",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 33,
+      "name": "AP OPEX 6020 #24",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 34,
+      "name": "AP OPEX 6210 #25",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 35,
+      "name": "AP OPEX 6140 #26",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 36,
+      "name": "AP OPEX 6100 #27",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 37,
+      "name": "AP OPEX 6020 #28",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 38,
+      "name": "AP OPEX 6060 #29",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 39,
+      "name": "AP OPEX 6210 #30",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 40,
+      "name": "AP OPEX 6150 #31",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 41,
+      "name": "AP OPEX 6220 #32",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 42,
+      "name": "AP OPEX 6020 #33",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 43,
+      "name": "AP OPEX 6100 #34",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 44,
+      "name": "AP OPEX 6120 #35",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 45,
+      "name": "AP OPEX 6100 #36",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 46,
+      "name": "AP OPEX 6060 #37",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 47,
+      "name": "AP OPEX 6150 #38",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 48,
+      "name": "AP OPEX 6020 #39",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 49,
+      "name": "AP OPEX 6120 #40",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 50,
+      "name": "AP Split lines SaaS+Fees",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 51,
+      "name": "AP Partial 1",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 52,
+      "name": "AP Partial 2",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 53,
+      "name": "AP Partial 3",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 54,
+      "name": "AP Partial 4",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 55,
+      "name": "AP Partial 5",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 56,
+      "name": "AP Partial 6",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 57,
+      "name": "AP Partial 7",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 58,
+      "name": "AP Partial 8",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 59,
+      "name": "AP Partial 9",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 60,
+      "name": "AP Partial 10",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 61,
+      "name": "AP Taxed 1",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 62,
+      "name": "AP Taxed 2",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 63,
+      "name": "AP Taxed 3",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 64,
+      "name": "AP Taxed 4",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 65,
+      "name": "AP Taxed 5",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 66,
+      "name": "AP Taxed 6",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 67,
+      "name": "AP Refund 1",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 68,
+      "name": "AP Refund 2",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 69,
+      "name": "AP Refund 3",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 70,
+      "name": "AP Refund 4",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 71,
+      "name": "AP Refund 5",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 72,
+      "name": "AR Mixed 4020/4030/4040",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 73,
+      "name": "AR Subscription 4050",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 74,
+      "name": "AR License 4060",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 75,
+      "name": "AR Training 4070 partial",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 76,
+      "name": "AR Heuristic #1",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 77,
+      "name": "AR Heuristic #2",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 78,
+      "name": "AR Heuristic #3",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 79,
+      "name": "AR Heuristic #4",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 80,
+      "name": "AR Heuristic #5",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 81,
+      "name": "AR Heuristic #6",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 82,
+      "name": "AR Heuristic #7",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 83,
+      "name": "AR Heuristic #8",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 84,
+      "name": "AR Heuristic #9",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 85,
+      "name": "AR Heuristic #10",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 86,
+      "name": "AR Heuristic #11",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 87,
+      "name": "AR Heuristic #12",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 88,
+      "name": "AR Heuristic #13",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 89,
+      "name": "AR Heuristic #14",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 90,
+      "name": "AR Heuristic #15",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 91,
+      "name": "AR Heuristic #16",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 92,
+      "name": "AR Heuristic #17",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 93,
+      "name": "AR Heuristic #18",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 94,
+      "name": "AR Heuristic #19",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 95,
+      "name": "AR Heuristic #20",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 96,
+      "name": "AR Heuristic #21",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 97,
+      "name": "AR Heuristic #22",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 98,
+      "name": "AR Heuristic #23",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 99,
+      "name": "AR Heuristic #24",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 100,
+      "name": "AR Heuristic #25",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": true,
+      "expectedOk": true
+    },
+    {
+      "i": 101,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 102,
+      "name": "AR Negative amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 103,
+      "name": "AR Duplicate first OK",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 104,
+      "name": "AR Duplicate second 409",
+      "path": "/api/admin/post-invoice",
+      "status": 200,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 105,
+      "name": "AP Zero amount",
+      "path": "/api/admin/post-expense",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid expense data provided",
+        "details": [
+          "amount is required and must be a valid number"
+        ]
+      }
+    },
+    {
+      "i": 106,
+      "name": "AP Negative no refund flag",
+      "path": "/api/admin/post-expense",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid expense data provided",
+        "details": [
+          "amount must be positive (use refund transactions for negative amounts)"
+        ]
+      }
+    },
+    {
+      "i": 107,
+      "name": "AP Bad date",
+      "path": "/api/admin/post-expense",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid expense data provided",
+        "details": [
+          "date must be in YYYY-MM-DD format"
+        ]
+      }
+    },
+    {
+      "i": 108,
+      "name": "AR Bad date",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "date must be in YYYY-MM-DD format"
+        ]
+      }
+    },
+    {
+      "i": 109,
+      "name": "AP Missing vendor",
+      "path": "/api/admin/post-expense",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid expense data provided",
+        "details": [
+          "vendorName is required and must be a string"
+        ]
+      }
+    },
+    {
+      "i": 110,
+      "name": "AR Missing customer",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "customerName is required and must be a string"
+        ]
+      }
+    },
+    {
+      "i": 111,
+      "name": "AP Unknown code fallback #1",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 112,
+      "name": "AP Unknown code fallback #2",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 113,
+      "name": "AP Unknown code fallback #3",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 114,
+      "name": "AP Unknown code fallback #4",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 115,
+      "name": "AP Unknown code fallback #5",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 116,
+      "name": "AP Unknown code fallback #6",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 117,
+      "name": "AR Rounding stress #1",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 118,
+      "name": "AR Rounding stress #2",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 119,
+      "name": "AR Rounding stress #3",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 120,
+      "name": "AR Rounding stress #4",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 121,
+      "name": "AR Rounding stress #5",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 122,
+      "name": "AR Rounding stress #6",
+      "path": "/api/admin/post-invoice",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 123,
+      "name": "AP Overpaid #1",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 124,
+      "name": "AP Overpaid #2",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 125,
+      "name": "AP Overpaid #3",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 126,
+      "name": "AP Overpaid #4",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 127,
+      "name": "AP Overpaid #5",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 128,
+      "name": "AP Overpaid #6",
+      "path": "/api/admin/post-expense",
+      "status": 201,
+      "ok": false,
+      "expectedOk": false
+    },
+    {
+      "i": 129,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 130,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 131,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 132,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 133,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 134,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 135,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 136,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 137,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 138,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 139,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 140,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 141,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 142,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 143,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 144,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 145,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 146,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 147,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 148,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 149,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    },
+    {
+      "i": 150,
+      "name": "AR Zero amount",
+      "path": "/api/admin/post-invoice",
+      "status": 422,
+      "ok": true,
+      "expectedOk": false,
+      "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "Invalid invoice data provided",
+        "details": [
+          "amount is required and must be a positive number"
+        ]
+      }
+    }
+  ]
+}
