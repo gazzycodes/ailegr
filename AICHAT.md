@@ -23,6 +23,8 @@ Client
   - ACTION dispatcher now supports: `createExpense`, `createInvoice`, `getFinancialSummary`, `recordInvoicePayment`, `recordExpensePayment`, `voidPayment`, `duplicateInvoice`, `duplicateExpense`.
 - Threads persist in `localStorage` with active thread id.
  - Help UX: "How it works" button opens `AiHelpModal` with examples, safety notes, and tips.
+ - Modes: Auto/Guide/Act selector in Chat. Guide avoids actions and presents steps; Auto decides; Act executes.
+ - Navigation: Chat can trigger `navigate:view` (e.g., universe) and `transactions:filter`. Universe listens to `universe:focus`.
 
 Future (v1.1)
 - Multi-provider expansions and ranking; semantic cache for common prompts.

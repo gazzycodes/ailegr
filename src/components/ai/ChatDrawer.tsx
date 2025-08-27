@@ -148,6 +148,13 @@ export function ChatDrawer({ open, onClose, onOpenAiDocument }: ChatDrawerProps)
         explainRevenueFromParams(params)
         return
       }
+      if (/focusuniverse/i.test(type)) {
+        const { nodeid } = parseParams(params)
+        if (nodeid) {
+          try { window.dispatchEvent(new CustomEvent('universe:focus', { detail: { nodeId: String(nodeid) } })) } catch {}
+        }
+        return
+      }
       window.dispatchEvent(new CustomEvent('toast', { detail: { message: `Action not recognized: ${type}`, type: 'error' } }))
     } catch {}
   }
@@ -185,6 +192,7 @@ export function ChatDrawer({ open, onClose, onOpenAiDocument }: ChatDrawerProps)
       if (Math.abs(cogs) > 0.6 * rev) tips.push('COGS is high relative to revenue; check pricing and inventory costs.')
       if (Math.abs(exp) > 0.5 * gross) tips.push('Operating expenses are elevated; review recent large expenses.')
       const msg = `Revenue insight (${p}):\n- Revenue: $${rev.toFixed(0)}\n- Gross: $${gross.toFixed(0)}\n- Net: $${net.toFixed(0)}\n\nSuggestions:\n${(tips.length? tips:['Open the 3D Universe to explore flows.']).map(t=>`• ${t}`).join('\n')}`
+      try { window.dispatchEvent(new CustomEvent('navigate:view', { detail: { view: 'universe' } })) } catch {}
       appendAssistant(msg)
     } catch (e: any) {
       window.dispatchEvent(new CustomEvent('toast', { detail: { message: e?.message || 'Failed to analyze revenue', type: 'error' } }))
@@ -195,6 +203,17 @@ export function ChatDrawer({ open, onClose, onOpenAiDocument }: ChatDrawerProps)
     try {
       if (!active) return
       const assistantMsg: Message = { id: `m-${Date.now()+1}`, role: 'assistant', content: text, ts: Date.now()+1 }
+      setThreads(prev => prev.map(t => t.id === active.id ? { ...t, messages: [...t.messages, assistantMsg] } : t))
+    } catch {}
+  }
+
+  // Lightweight feedback for guide answers (thumbs)
+  function appendFeedbackable(text: string) {
+    try {
+      if (!active) return
+      const baseId = `m-${Date.now()+1}`
+      const content = `${text}\n\nWas this helpful? (type: thumbs up/down)`
+      const assistantMsg: Message = { id: baseId, role: 'assistant', content, ts: Date.now()+1 }
       setThreads(prev => prev.map(t => t.id === active.id ? { ...t, messages: [...t.messages, assistantMsg] } : t))
     } catch {}
   }

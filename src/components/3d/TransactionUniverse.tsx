@@ -695,6 +695,20 @@ export function TransactionUniverse() {
     return () => clearTimeout(timer)
   }, [])
 
+  // Focus/selection from global events
+  useEffect(() => {
+    const onFocus = (e: any) => {
+      try {
+        const id = String(e?.detail?.nodeId || '')
+        if (!id) return
+        setSelectedNode(id)
+        // Optional: future camera centering can be added here
+      } catch {}
+    }
+    try { window.addEventListener('universe:focus', onFocus as any) } catch {}
+    return () => { try { window.removeEventListener('universe:focus', onFocus as any) } catch {} }
+  }, [])
+
   // Persist help popover state
   useEffect(() => {
     localStorage.setItem('universe_helpOpen', helpOpen ? '1' : '0')
