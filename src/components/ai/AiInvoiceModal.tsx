@@ -8,6 +8,7 @@ import CustomersService from '../../services/customersService'
 import ExpensesService from '../../services/expensesService'
 import api from '../../services/api'
 import ThemedSelect from '../themed/ThemedSelect'
+import CoaSelector from '../themed/CoaSelector'
 
 interface AiInvoiceModalProps {
   open: boolean
@@ -38,6 +39,7 @@ export function AiInvoiceModal({ open, onClose }: AiInvoiceModalProps) {
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [showSuggest, setShowSuggest] = useState(false)
   const [loadingSuggest, setLoadingSuggest] = useState(false)
+  const [lineItemsInv, setLineItemsInv] = useState<Array<{ description: string; qty?: string; rate?: string; amount: string; accountCode?: string }>>([{ description: '', qty: '1', rate: '', amount: '' }])
 
   if (!open) return null
 
@@ -363,6 +365,50 @@ TEXT:\n${text.slice(0, 12000)}`
                           <span className="text-secondary-contrast">Description</span>
                           <textarea rows={3} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Line items, payment terms, etc." />
                         </label>
+                        {/* Optional AR Line items */}
+                        <div className="sm:col-span-2 space-y-2">
+                          <div className="text-secondary-contrast">Line items</div>
+                          <div className="rounded-lg border border-white/10 overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead className="bg-surface/60">
+                                <tr>
+                                  <th className="text-left px-3 py-2">Description</th>
+                                  <th className="text-right px-3 py-2">Qty</th>
+                                  <th className="text-right px-3 py-2">Rate</th>
+                                  <th className="text-right px-3 py-2">Amount</th>
+                                  <th className="px-3 py-2 w-16"></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {lineItemsInv.map((li, idx) => (
+                                  <tr key={idx} className="border-t border-white/10">
+                                    <td className="px-3 py-2">
+                                      <input className="w-full px-2 py-1 rounded bg-white/10 border border-white/10" value={li.description} onChange={(e) => setLineItemsInv(prev => prev.map((x, i) => i === idx ? { ...x, description: e.target.value } : x))} placeholder={`Item ${idx + 1}`} />
+                                      <div className="mt-1">
+                                        <CoaSelector value={li.accountCode} onChange={(code)=> setLineItemsInv(prev=> prev.map((x,i)=> i===idx? { ...x, accountCode: code }: x))} allowedTypes={["REVENUE"]} placeholder="Account (optional override)" hint="Overrides AI mapping for this line only." warningText="Manual override. Ensure this is the correct revenue account." />
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      <input className="w-20 px-2 py-1 rounded bg-white/10 border border-white/10 text-right" value={li.qty || ''} onChange={(e) => setLineItemsInv(prev => prev.map((x, i) => i === idx ? { ...x, qty: e.target.value, amount: (parseFloat(x.rate||'0') * parseFloat(e.target.value||'1') || 0).toString() } : x))} placeholder="1" />
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      <input className="w-24 px-2 py-1 rounded bg-white/10 border border-white/10 text-right" value={li.rate || ''} onChange={(e) => setLineItemsInv(prev => prev.map((x, i) => i === idx ? { ...x, rate: e.target.value, amount: (parseFloat(e.target.value||'0') * parseFloat(x.qty||'1') || 0).toString() } : x))} placeholder="0.00" />
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      <input className="w-28 px-2 py-1 rounded bg-white/10 border border-white/10 text-right" value={li.amount} onChange={(e) => setLineItemsInv(prev => prev.map((x, i) => i === idx ? { ...x, amount: e.target.value } : x))} placeholder="0.00" />
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      <button type="button" className="px-2 py-1 rounded bg-white/10 border border-white/10 disabled:opacity-60" disabled={lineItemsInv.length <= 1} onClick={() => setLineItemsInv(prev => prev.filter((_, i) => i !== idx))}>Remove</button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div>
+                            <button type="button" className="px-3 py-1.5 rounded bg-white/10 border border-white/10" onClick={() => setLineItemsInv(prev => [...prev, { description: '', qty: '1', rate: '', amount: '' }])}>Add Line</button>
+                          </div>
+                        </div>
                       </div>
 
                       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}

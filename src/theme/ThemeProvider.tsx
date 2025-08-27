@@ -88,7 +88,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
     applyTheme(themeConfig);
     // Remove preload class once theme variables applied to avoid initial flash
     const html = document.documentElement;
-    const body = document.body;
     html.classList.remove('preload');
     // Mark that theme is ready so background can fade in without flashing over content
     document.documentElement.classList.add('theme-ready');

@@ -26,7 +26,7 @@ export async function getVendorDefaults(vendor: string) {
   return data || {}
 }
 
-export async function saveVendorDefaults(vendor: string, defaults: { taxEnabled: boolean; taxMode?: 'percentage'|'amount'; taxRate?: number; taxAmount?: number }) {
+export async function saveVendorDefaults(vendor: string, defaults: any) {
   const { data } = await api.put(`/api/vendors/${encodeURIComponent(vendor)}/defaults`, defaults)
   return data || { ok: true }
 }

@@ -48,6 +48,7 @@ export type PostInvoicePayload = {
     quantity?: number | string
     rate?: number | string
     category?: string
+    accountCode?: string
   }>
 }
 
@@ -82,7 +83,9 @@ export async function postInvoice(payload: PostInvoicePayload) {
           amount: typeof li.amount === 'string' ? parseFloat(li.amount) : li.amount,
           quantity: li.quantity != null ? (typeof li.quantity === 'string' ? parseFloat(li.quantity) : li.quantity) : undefined,
           rate: li.rate != null ? (typeof li.rate === 'string' ? parseFloat(li.rate) : li.rate) : undefined,
-          category: li.category
+          category: li.category,
+          accountCode: (li as any).accountCode, // allow explicit per-line revenue override
+          productId: (li as any).productId
         }))
       : undefined
   }
@@ -90,7 +93,7 @@ export async function postInvoice(payload: PostInvoicePayload) {
   return data
 }
 
-export async function previewRevenue(payload: { customerName?: string; customer?: string; amount: number | string; date: string; description?: string; paymentStatus?: 'paid' | 'invoice' | 'partial' | 'overpaid'; amountPaid?: number | string; balanceDue?: number | string; categoryKey?: string }) {
+export async function previewRevenue(payload: { customerName?: string; customer?: string; amount: number | string; date: string; description?: string; paymentStatus?: 'paid' | 'invoice' | 'partial' | 'overpaid'; amountPaid?: number | string; balanceDue?: number | string; categoryKey?: string; subtotal?: number | string; taxSettings?: { enabled: boolean; type?: 'percentage' | 'amount'; rate?: number | string; amount?: number | string }; discount?: { enabled: boolean; amount?: number | string }; lineItems?: Array<{ description: string; amount: number | string; quantity?: number | string; rate?: number | string; accountCode?: string; category?: string }>; dueDate?: string; recognitionDate?: string }) {
   const amountNum = typeof payload.amount === 'string' ? parseFloat(payload.amount) : payload.amount
   const amountPaidNum = payload.amountPaid != null ? (typeof payload.amountPaid === 'string' ? parseFloat(payload.amountPaid) : payload.amountPaid) : amountNum
   const body = {
@@ -102,7 +105,27 @@ export async function previewRevenue(payload: { customerName?: string; customer?
     description: payload.description || `Revenue from ${(payload.customerName || payload.customer || 'Customer').trim()}`,
     paymentStatus: payload.paymentStatus || 'paid',
     // Optional: allow category mapping to different revenue accounts if provided
-    categoryKey: payload.categoryKey || 'PROFESSIONAL_SERVICES'
+    categoryKey: payload.categoryKey || 'PROFESSIONAL_SERVICES',
+    // Pass-throughs for accurate preview parity with posting
+    subtotal: payload.subtotal != null ? (typeof payload.subtotal === 'string' ? parseFloat(payload.subtotal) : payload.subtotal) : undefined,
+    taxSettings: payload.taxSettings ? {
+      enabled: !!payload.taxSettings.enabled,
+      type: payload.taxSettings.type || 'amount',
+      rate: payload.taxSettings.type === 'percentage' ? Number(payload.taxSettings.rate || 0) : undefined,
+      amount: payload.taxSettings.type === 'amount' ? Number(payload.taxSettings.amount || 0) : undefined
+    } : undefined,
+    discount: payload.discount && payload.discount.enabled ? { enabled: true, amount: Number(payload.discount.amount || 0) } : undefined,
+    lineItems: Array.isArray(payload.lineItems) ? payload.lineItems.map(li => ({
+      description: li.description,
+      amount: typeof li.amount === 'string' ? parseFloat(li.amount) : li.amount,
+      quantity: li.quantity != null ? (typeof li.quantity === 'string' ? parseFloat(li.quantity) : li.quantity) : undefined,
+      rate: li.rate != null ? (typeof li.rate === 'string' ? parseFloat(li.rate) : li.rate) : undefined,
+      accountCode: li.accountCode,
+      category: li.category,
+      productId: (li as any).productId
+    })) : undefined,
+    dueDate: payload.dueDate,
+    recognitionDate: payload.recognitionDate
   }
   const { data } = await api.post('/api/posting/preview', body)
   return data

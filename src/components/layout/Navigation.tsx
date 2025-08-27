@@ -9,7 +9,9 @@ import {
   TrendingUp,
   Activity,
   Zap,
-  LogOut
+  LogOut,
+  Briefcase,
+  Boxes
 } from 'lucide-react'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import { cn } from '../../lib/utils'
@@ -53,6 +55,18 @@ const navItems: NavItem[] = [
     icon: ArrowUpDown,
     description: 'Liquid money movement',
     badge: 'LIVE'
+  },
+  {
+    id: 'assets',
+    label: 'Assets',
+    icon: Briefcase,
+    description: 'Fixed assets & depreciation'
+  },
+  {
+    id: 'products',
+    label: 'Products',
+    icon: Boxes,
+    description: 'Catalog & inventory'
   },
   {
     id: 'reports',

@@ -4,7 +4,7 @@ import queryClient from '../../queryClient'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import { ModalPortal } from '../layout/ModalPortal'
 import { cn } from '../../lib/utils'
-import { BarChart3, ListTree, Scale, Table as TableIcon, Search, ChevronDown, Paperclip } from 'lucide-react'
+import { BarChart3, ListTree, Scale, Table as TableIcon, Search, ChevronDown, Paperclip, Package } from 'lucide-react'
 import SegmentedControl from '../themed/SegmentedControl'
 import { motion, AnimatePresence } from 'framer-motion'
 import ReportsService from '../../services/reportsService'
@@ -70,7 +70,7 @@ function AIInsightPanel({ tab }: { tab: string }) {
 }
 
 export function Reports() {
-  const [activeTab, setActiveTab] = useState<'pnl' | 'balance' | 'trial' | 'coa'>('pnl')
+  const [activeTab, setActiveTab] = useState<'pnl' | 'balance' | 'trial' | 'coa' | 'inventory'>('pnl')
   const [coaFilter, setCoaFilter] = useState<'active'|'all'>(() => (localStorage.getItem('coa.filter') as any) || 'active')
   const [periodType, setPeriodType] = useState<PeriodType>('Monthly')
   const [period, setPeriod] = useState<string>('Aug 2025')
@@ -104,12 +104,14 @@ export function Reports() {
     balance: { section: boolean; name: boolean; amount: boolean; prev: boolean }
     trial: { code: boolean; name: boolean; debit: boolean; credit: boolean; prev: boolean }
     coa: { code: boolean; name: boolean; type: boolean; balance: boolean; prev: boolean }
+    inventory: { name: boolean; sku: boolean; qty: boolean; unitCost: boolean; value: boolean }
   }
   const defaultCols: ColumnVisibility = {
     pnl: { category: true, amount: true, prev: false },
     balance: { section: true, name: true, amount: true, prev: false },
     trial: { code: true, name: true, debit: true, credit: true, prev: false },
     coa: { code: true, name: true, type: true, balance: true, prev: false },
+    inventory: { name: true, sku: true, qty: true, unitCost: true, value: true },
   }
   const [cols, setCols] = useState<ColumnVisibility>(() => {
     try { return { ...defaultCols, ...(JSON.parse(localStorage.getItem('reports.cols') || 'null') || {}) } } catch { return defaultCols }
@@ -303,6 +305,25 @@ export function Reports() {
     placeholderData: (prev) => prev,
   })
   useEffect(() => { setRecentExpense(recentExpenseQuery.data as any) }, [recentExpenseQuery.data])
+
+  // Inventory valuation
+  type InventoryRow = { productId: string; name: string; sku?: string | null; quantityOnHand: number; unitCost: number | null; value: number }
+  const inventoryQuery = useQuery({
+    queryKey: ['reports', 'inventory-valuation'],
+    queryFn: () => ReportsService.getInventoryValuation(),
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
+  })
+  const [inventoryRows, setInventoryRows] = useState<InventoryRow[] | null>(null)
+  const [inventoryTotals, setInventoryTotals] = useState<{ quantity: number; value: number } | null>(null)
+  useEffect(() => {
+    try {
+      const data: any = inventoryQuery.data
+      if (!data || !Array.isArray(data.rows)) { setInventoryRows(null); setInventoryTotals(null); return }
+      setInventoryRows(data.rows as InventoryRow[])
+      setInventoryTotals(data.totals || null)
+    } catch {}
+  }, [inventoryQuery.data])
 
   // Load live account ledger when modal opens
   useEffect(() => {
@@ -524,6 +545,7 @@ export function Reports() {
           <button className={cn("px-3 py-1.5 text-sm rounded-lg", activeTab === 'balance' ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-white/10 border border-white/10 hover:bg-white/15 backdrop-blur-md')} onClick={() => { setActiveTab('balance'); setSortKey('name'); setSearch('') }}>Balance Sheet</button>
           <button className={cn("px-3 py-1.5 text-sm rounded-lg", activeTab === 'trial' ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-white/10 border border-white/10 hover:bg-white/15 backdrop-blur-md')} onClick={() => { setActiveTab('trial'); setSortKey('code'); setSearch('') }}>Trial Balance</button>
           <button className={cn("px-3 py-1.5 text-sm rounded-lg", activeTab === 'coa' ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-white/10 border border-white/10 hover:bg-white/15 backdrop-blur-md')} onClick={() => { setActiveTab('coa'); setSortKey('code'); setSearch('') }}>Chart of Accounts</button>
+          <button className={cn("px-3 py-1.5 text-sm rounded-lg", activeTab === 'inventory' ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-white/10 border border-white/10 hover:bg-white/15 backdrop-blur-md')} onClick={() => { setActiveTab('inventory'); setSortKey('name'); setSearch('') }}>Inventory Valuation</button>
           <div className="ml-auto flex items-center gap-2">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-contrast" />
@@ -616,6 +638,77 @@ export function Reports() {
                       <div className="flex items-center justify-between">
                         <div className={cn('font-medium', r.type === 'revenue' ? 'text-financial-revenue' : r.type === 'cogs' ? 'text-amber-500' : 'text-financial-expense')}>{r.name}</div>
                         <div className={cn('font-semibold', r.amount >= 0 ? 'text-financial-revenue' : 'text-financial-expense')}>{formatMoneySigned(r.amount)}</div>
+                      </div>
+                    </ThemedGlassSurface>
+                  ))}
+                </div>
+              )}
+            </ThemedGlassSurface>
+          )}
+
+          {activeTab === 'inventory' && (
+            <ThemedGlassSurface variant="medium" elevation={2} glow className="p-4">
+              <SectionHeader icon={Package} title="Inventory Valuation" subtitle="Quantity on hand and value by product (FIFO)" />
+              <div className="overflow-x-auto hidden sm:block">
+                <table className={cn('reports-table w-full text-sm min-w-[640px] table-fixed', compactDensity ? '[&_*]:py-1' : '')}>
+                  <colgroup>
+                    {cols.inventory.name && <col style={{ width: '36%' }} />}
+                    {cols.inventory.sku && <col style={{ width: '18%' }} />}
+                    {cols.inventory.qty && <col style={{ width: '14%' }} />}
+                    {cols.inventory.unitCost && <col style={{ width: '16%' }} />}
+                    {cols.inventory.value && <col style={{ width: '16%' }} />}
+                  </colgroup>
+                  <thead className="reports-thead sticky top-0 z-10">
+                    <tr>
+                      {cols.inventory.name && <th className="px-4 py-2 cursor-pointer" onClick={() => sortBy('name')}>Product</th>}
+                      {cols.inventory.sku && <th className="px-4 py-2">SKU</th>}
+                      {cols.inventory.qty && <th className="px-4 py-2 text-right cursor-pointer" onClick={() => sortBy('quantityOnHand')}>Qty On Hand</th>}
+                      {cols.inventory.unitCost && <th className="px-4 py-2 text-right">Avg Unit Cost</th>}
+                      {cols.inventory.value && <th className="px-4 py-2 text-right cursor-pointer" onClick={() => sortBy('value')}>Value</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(inventoryRows || []).filter(r => [r.name, r.sku].some(s => String(s || '').toLowerCase().includes(search.toLowerCase()))).sort((a, b) => {
+                      const key = sortKey as keyof InventoryRow
+                      const av: any = (a as any)[key]
+                      const bv: any = (b as any)[key]
+                      if (typeof av === 'number' && typeof bv === 'number') return sortDir === 'asc' ? av - bv : bv - av
+                      return sortDir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av))
+                    }).map((r, i) => (
+                      <tr key={i} className="border-t border-white/10 hover:bg-white/5">
+                        {cols.inventory.name && <td className="py-2 truncate">{r.name}</td>}
+                        {cols.inventory.sku && <td className="py-2 truncate">{r.sku || '-'}</td>}
+                        {cols.inventory.qty && <td className="py-2 text-right">{r.quantityOnHand.toLocaleString()}</td>}
+                        {cols.inventory.unitCost && <td className="py-2 text-right">{r.unitCost != null ? `$${Number(r.unitCost).toFixed(4)}` : '-'}</td>}
+                        {cols.inventory.value && <td className="py-2 text-right font-semibold">${Number(r.value || 0).toLocaleString()}</td>}
+                      </tr>
+                    ))}
+                    {!inventoryRows?.length && (
+                      <tr><td className="px-3 py-6 text-center text-secondary-contrast" colSpan={5}>No inventory products</td></tr>
+                    )}
+                  </tbody>
+                  <tfoot className="text-sm">
+                    <tr className="border-t border-white/10">
+                      {cols.inventory.name && <td className="py-2 font-semibold text-secondary-contrast">Totals</td>}
+                      {cols.inventory.sku && <td></td>}
+                      {cols.inventory.qty && <td className="py-2 text-right font-semibold">{(inventoryTotals?.quantity || 0).toLocaleString()}</td>}
+                      {cols.inventory.unitCost && <td></td>}
+                      {cols.inventory.value && <td className="py-2 text-right font-semibold">${Number(inventoryTotals?.value || 0).toLocaleString()}</td>}
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              {isMobile && (
+                <div className="mt-3 space-y-2 sm:hidden">
+                  {(inventoryRows || []).map((r, i) => (
+                    <ThemedGlassSurface key={i} variant="light" className="p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="font-medium truncate">{r.name}</div>
+                        <div className="font-semibold">${Number(r.value || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-secondary-contrast">
+                        <span>{r.sku || '-'}</span>
+                        <span>Qty {r.quantityOnHand.toLocaleString()} • Unit {r.unitCost != null ? `$${Number(r.unitCost).toFixed(2)}` : '-'}</span>
                       </div>
                     </ThemedGlassSurface>
                   ))}
@@ -835,7 +928,8 @@ export function Reports() {
                   const rows = activeTab === 'pnl' ? pnlData.map(r => ({ category: r.name, amount: r.amount }))
                     : activeTab === 'balance' ? balanceData.map(r => ({ section: r.section, name: r.name, amount: r.amount }))
                     : activeTab === 'trial' ? trialData.map(r => ({ code: r.code, name: r.name, debit: r.debit, credit: r.credit }))
-                    : coaData.map(r => ({ code: r.code, name: r.name, type: r.type, balance: r.balance }))
+                    : activeTab === 'coa' ? coaData.map(r => ({ code: r.code, name: r.name, type: r.type, balance: r.balance }))
+                    : (inventoryRows || []).map(r => ({ name: r.name, sku: r.sku || '', qty: r.quantityOnHand, unitCost: r.unitCost ?? '', value: r.value }))
                   const headers = Object.keys(rows[0] || {})
                   const csv = [headers.join(','), ...rows.map((r: any) => headers.map(h => JSON.stringify(r[h] ?? '')).join(','))].join('\n')
                   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -918,6 +1012,15 @@ export function Reports() {
                     <label className="flex items-center gap-2"><input type="checkbox" checked={cols.coa.type} onChange={(e) => setCols({ ...cols, coa: { ...cols.coa, type: e.target.checked } })} /> Type</label>
                     <label className="flex items-center gap-2"><input type="checkbox" checked={cols.coa.balance} onChange={(e) => setCols({ ...cols, coa: { ...cols.coa, balance: e.target.checked } })} /> Balance</label>
                     <label className="flex items-center gap-2"><input type="checkbox" checked={cols.coa.prev} onChange={(e) => setCols({ ...cols, coa: { ...cols.coa, prev: e.target.checked } })} /> Prev</label>
+                  </>
+                )}
+                {activeTab === 'inventory' && (
+                  <>
+                    <label className="flex items-center gap-2"><input type="checkbox" checked={cols.inventory.name} onChange={(e) => setCols({ ...cols, inventory: { ...cols.inventory, name: e.target.checked } })} /> Name</label>
+                    <label className="flex items-center gap-2"><input type="checkbox" checked={cols.inventory.sku} onChange={(e) => setCols({ ...cols, inventory: { ...cols.inventory, sku: e.target.checked } })} /> SKU</label>
+                    <label className="flex items-center gap-2"><input type="checkbox" checked={cols.inventory.qty} onChange={(e) => setCols({ ...cols, inventory: { ...cols.inventory, qty: e.target.checked } })} /> Qty</label>
+                    <label className="flex items-center gap-2"><input type="checkbox" checked={cols.inventory.unitCost} onChange={(e) => setCols({ ...cols, inventory: { ...cols.inventory, unitCost: e.target.checked } })} /> Unit Cost</label>
+                    <label className="flex items-center gap-2"><input type="checkbox" checked={cols.inventory.value} onChange={(e) => setCols({ ...cols, inventory: { ...cols.inventory, value: e.target.checked } })} /> Value</label>
                   </>
                 )}
               </div>
@@ -1056,6 +1159,35 @@ export function Reports() {
             <div className="px-5 pb-4 flex items-center justify-between">
               <button className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15" onClick={() => setAccountModal(null)}>Close</button>
               <div className="flex items-center gap-2">
+                <button className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15" onClick={() => {
+                  try {
+                    const rows = Array.isArray((ledger as any)?.transactions) ? (ledger as any).transactions : []
+                    if (!rows.length) { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'No transactions to export', type: 'error' } })); return }
+                    const cleaned = rows.map((t: any) => ({
+                      date: new Date(t.date).toISOString().slice(0,10),
+                      description: t.description,
+                      debit: t.debitAmount || 0,
+                      credit: t.creditAmount || 0,
+                      balance: t.balance
+                    }))
+                    const headers = Object.keys(cleaned[0] || { date:'', description:'', debit:0, credit:0, balance:0 })
+                    const csv = [headers.join(','), ...cleaned.map((r: any) => headers.map(h => JSON.stringify(r[h] ?? '')).join(','))].join('\n')
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `ledger-${accountModal.code}.csv`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  } catch (e: any) {
+                    window.dispatchEvent(new CustomEvent('toast', { detail: { message: e?.message || 'Export failed', type: 'error' } }))
+                  }
+                }}>Export CSV</button>
+                <button className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15" onClick={() => {
+                  try {
+                    window.print()
+                  } catch {}
+                }}>Print</button>
                 <button className="px-3 py-1.5 rounded-lg bg-primary/20 text-primary border border-primary/30" onClick={async () => {
                   const newName = prompt('New account name?', accountModal.name)
                   if (!newName) return

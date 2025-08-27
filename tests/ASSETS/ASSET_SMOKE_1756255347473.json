@@ -1,0 +1,24 @@
+{
+  "ts": "2025-08-27T00:42:27.196Z",
+  "base": "http://localhost:4000",
+  "results": [
+    {
+      "case": "SL 1200/12 one month",
+      "ok": true,
+      "amount": "100",
+      "run": 1
+    },
+    {
+      "case": "Idempotency (second run, same month)",
+      "ok": true,
+      "months": 1,
+      "run": 0
+    },
+    {
+      "case": "Tenant B first run",
+      "ok": true,
+      "amount": "100",
+      "run": 1
+    }
+  ]
+}

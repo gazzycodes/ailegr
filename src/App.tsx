@@ -30,9 +30,14 @@ import { cn } from './lib/utils'
 import ToastContainer from './components/themed/Toast'
 import useToast from './components/themed/useToast'
 import { useAuth } from './theme/AuthProvider'
+import AssetModal from './components/assets/AssetModal'
+import AssetRegister from './components/assets/AssetRegister'
+import AssetsPage from './components/assets/AssetsPage'
+import ProductsPage from './components/assets/ProductsPage'
+import AiHelpModal from './components/ai/AiHelpModal'
 
 // Main application view states
-type AppView = 'landing' | 'login' | 'register' | 'reset-password' | 'dashboard' | 'universe' | 'transactions' | 'reports' | 'customers' | 'settings' | 'admin'
+type AppView = 'landing' | 'login' | 'register' | 'reset-password' | 'dashboard' | 'universe' | 'transactions' | 'reports' | 'customers' | 'settings' | 'admin' | 'assets' | 'products'
 
 // Revolutionary App Component
 function App() {
@@ -42,6 +47,41 @@ function App() {
   const [openAiDocument, setOpenAiDocument] = useState(false)
   const [openRecurring, setOpenRecurring] = useState(false)
   const [openChat, setOpenChat] = useState(false)
+  const [openAsset, setOpenAsset] = useState(false)
+  const [openAssetRegister, setOpenAssetRegister] = useState(false)
+  const [openAiHelp, setOpenAiHelp] = useState(false)
+  useEffect(() => {
+    const onAssetNew = (e: any) => {
+      try { (onAssetNew as any)._seed = e?.detail?.seed || null } catch {}
+      setOpenAsset(true)
+    }
+    const onAssetsOpen = (e: any) => {
+      try {
+        const id = e?.detail?.assetId
+        if (id) {
+          setCurrentView('assets')
+          setTimeout(() => {
+            try { (window as any)._openAssetId = id; window.dispatchEvent(new CustomEvent('assets:select', { detail: { assetId: id } })) } catch {}
+          }, 0)
+        }
+      } catch {}
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.altKey && e.key.toLowerCase() === 'a') setOpenAssetRegister(true) }
+    window.addEventListener('asset:new', onAssetNew as any)
+    window.addEventListener('assets:open', onAssetsOpen as any)
+    window.addEventListener('keydown', onKey)
+    const onAiHelp = () => setOpenAiHelp(true)
+    try { window.addEventListener('ai:help', onAiHelp as any) } catch {}
+    const onNavigate = (e: any) => {
+      try {
+        const v = String(e?.detail?.view || '') as any
+        const allowed = ['landing','login','register','reset-password','dashboard','admin','universe','transactions','reports','customers','settings','assets','products']
+        if (allowed.includes(v)) setCurrentView(v)
+      } catch {}
+    }
+    try { window.addEventListener('navigate:view', onNavigate as any) } catch {}
+    return () => { window.removeEventListener('asset:new', onAssetNew as any); window.removeEventListener('assets:open', onAssetsOpen as any); window.removeEventListener('keydown', onKey); try { window.removeEventListener('ai:help', onAiHelp as any) } catch {}; try { window.removeEventListener('navigate:view', onNavigate as any) } catch {} }
+  }, [])
   const { currentTheme, isDark } = useTheme()
   const [fabExpanded, setFabExpanded] = useState(false)
   const { toasts, push, remove } = useToast()
@@ -146,6 +186,8 @@ function App() {
       case '/reports': return 'reports'
       case '/customers': return 'customers'
       case '/settings': return 'settings'
+      case '/assets': return 'assets'
+      case '/products': return 'products'
       default: return 'landing'
     }
   }
@@ -163,6 +205,8 @@ function App() {
       case 'reports': return '/reports'
       case 'customers': return '/customers'
       case 'settings': return '/settings'
+      case 'assets': return '/assets'
+      case 'products': return '/products'
       default: return '/'
     }
   }
@@ -234,6 +278,10 @@ function App() {
         return <SettingsView />
       case 'admin':
         return <AdminPanel onBack={() => setCurrentView('dashboard')} />
+      case 'assets':
+        return <AssetsPage />
+      case 'products':
+        return <ProductsPage />
       default:
         return <Landing onGetStarted={() => setCurrentView('register')} onSignIn={() => setCurrentView('login')} />
     }
@@ -371,6 +419,8 @@ function App() {
           actions={[
             { icon: "📄", label: "AI Document", action: () => setOpenAiDocument(true) },
             { icon: "🔁", label: "Recurring", action: () => setOpenRecurring(true) },
+            { icon: "🏗️", label: "Add Asset", action: () => setOpenAsset(true) },
+            { icon: "📦", label: "Asset Register", action: () => setOpenAssetRegister(true) },
           ]}
           onExpandedChange={setFabExpanded}
         />
@@ -384,6 +434,9 @@ function App() {
       {/* AI Modals & Chat Drawer */}
       <AiDocumentModal open={openAiDocument} onClose={() => { setOpenAiDocument(false) }} />
       <RecurringModal open={openRecurring} onClose={() => setOpenRecurring(false)} />
+      <AssetModal open={openAsset} onClose={() => setOpenAsset(false)} seed={(window as any).onAssetNew?._seed || null} />
+      <AssetRegister open={openAssetRegister} onClose={() => setOpenAssetRegister(false)} />
+      <AiHelpModal open={openAiHelp} onClose={() => setOpenAiHelp(false)} />
       <ToastContainer toasts={toasts} onClose={remove} />
       {!(currentView === 'landing' || currentView === 'login' || currentView === 'register' || currentView === 'reset-password') && (
         <ChatDrawer open={openChat} onClose={() => setOpenChat(false)} onOpenAiDocument={() => { setOpenChat(false); setOpenAiDocument(true) }} />

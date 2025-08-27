@@ -1,3 +1,35 @@
+- 2025-08-27 — Admin error mapping & WS auth
+  - WS chat: server already enforces auth; client now reliably sends JWT + tenant.
+  - Admin posting endpoints return friendly 422/409 messages; unknown 5xx softened via client error mapper.
+
+2025-08-27
+- Products: `/api/products` CRUD live (list/search, create, update).
+- Assets: `/api/assets` supports vendor filter; `/api/assets/:id/events` for timeline; metrics endpoint confirmed.
+- Next: PostingService inventory wiring (AP receive → InventoryLot, AR sell → FIFO + COGS).
+
+- Reports: Added `/api/reports/inventory-valuation` (FIFO-based) summarizing quantity on hand and value per inventory product.
+- Expenses: Added `/api/expenses/:id/link-asset` to persist `relatedAssetId` in `expense.customFields`.
+ - QA: Introduced `scripts/run-admin-smokes.js` to run admin-level posts with `X-Job-Key`; complex batch validated 422 messages map to friendly text.
+ - AI: Added `server/src/services/ai-provider.service.js` with provider fallback (Gemini→heuristic), retries, and circuit breaker; server chat now routes through this provider service.
+
+- Vendor/Customer defaults now support accountsRemember JSON for pre-filling COA overrides
+- Preview: AR discount consistency mirrored; AP split + percent tax supported; explicit per-line accountCode for AR/AP honored
+- Posting: AP split variant respects per-line accountCode; parity with preview ensured
+ - Preview (AP): respects header-level accountCode when split is OFF
+ - Posting (AP): header-level accountCode supported when split is OFF
+## 2025-08-26 — COA mapping robustness
+
+- AR revenue mapper expanded in `server/src/services/posting.service.js`:
+  - Added keyword coverage for hosting/cloud/VPS/server/domain/CDN/DNS → 4050
+  - Broadened matches for design/consulting/support/maintenance, marketing/SEO/ads → respective 4020/4030/4040
+  - Added training/certification → 4070; licensing variants → 4060; analytics/security/HR services default to 4020
+- AP expense resolver expanded in `server/src/services/expense-account-resolver.service.js`:
+  - Wider keyword lists for software/cloud tooling (AWS/Azure/GCP/Cloudflare/Vercel/Netlify/etc.)
+  - Telecom/utilities/office supplies/marketing/meals/travel broadened
+  - Heuristics: payment processor fees → 6230 (if present); cloud hosting → 6240 (if present)
+  - Preserves precedence: AI suggested > categoryKey > keywords > fallback 6999
+- No schema changes. Idempotent behavior preserved. Preview endpoint still mirrors posting composition.
+
 - Server now accepts and persists line item quantity and rate:
   - Updated `PostingService.validateExpensePayload` to normalize `lineItems` with `quantity` and `rate`.
   - Included `quantity` and `rate` in `transaction.customFields.lineItems` for both expenses and invoices in `PostingService`.
@@ -423,3 +455,19 @@ Next backend hooks (incremental):
   - `scripts/run-smoke-coa-150.js`: 100 valid + 50 expected-failure (validation/duplicates/edge rounding/overpaid/refund).
   - Runner: `scripts/run-suite-coa-ai.js` (starts server, waits ~2.5s, writes `tests/COA_AI/coa_smoke_{suite}_{timestamp}.json`).
 - Result: 100 valid pass; 50 expected-failure return correct 4xx/409. Posting invariants balanced; tax/discount scaling applied; extended COA codes exercised.
+
+
+## 2025-08-27T04:44:41+05:30 — Depreciating Assets (backend foundation)
+- Prisma: added `AssetCategory`, `Asset`, `AssetEvent` with tenant scoping, indexes, unique keys.
+- Service: `server/src/services/asset.service.js` with straight‑line depreciation, idempotent postings, schedule.
+- Posting: `postAssetDepreciation` (DR 6120, CR 1590), category overrides supported.
+- API: `/api/assets` (create/list), `/api/assets/run-depreciation`, `/api/admin/assets/run-depreciation`.
+- Scheduler: optional `AILEGR_ASSET_CRON=true` runs every 15m.
+
+## 2025-08-27T05:03:19+05:30 — Asset UI hooks integrated
+- Asset endpoints consumed by `AssetModal` and `AssetRegister` (create/list/run-depreciation).
+- Bill form now emits asset creation seed; no server changes required.
+
+## 2025-08-27T05:39:33+05:30 — Asset categories endpoints
+- Added `/api/asset-categories` GET/POST (tenant-scoped) to manage categories.
+- Client: `assetsService.listCategories/createCategory` used by `AssetModal`.

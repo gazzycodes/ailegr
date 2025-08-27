@@ -9,6 +9,7 @@ import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import { useTheme } from '../../theme/ThemeProvider'
 import { Globe, Zap, DollarSign, TrendingUp, RefreshCw } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { VoiceCommandInterface } from '../voice/VoiceCommandInterface'
 
 // Perfect scale financial data for spectacular 3D visualization
 const financialNodes = [
@@ -686,6 +687,7 @@ export function TransactionUniverse() {
   const [loadMenuOpen, setLoadMenuOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState<boolean>(() => localStorage.getItem('universe_helpOpen') === '1')
   const { currentTheme } = useTheme()
+  const [voiceOpen, setVoiceOpen] = useState(false)
 
   useEffect(() => {
     // Reduce loading time for better UX - just enough for Three.js to initialize
@@ -1035,6 +1037,9 @@ export function TransactionUniverse() {
                       >
                         Contrast
                       </button>
+                      <div className="ml-1">
+                        <VoiceCommandInterface isActive={voiceOpen} onToggle={setVoiceOpen} />
+                      </div>
                     </div>
                   </ThemedGlassSurface>
                 </div>

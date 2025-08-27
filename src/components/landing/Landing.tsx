@@ -29,13 +29,13 @@ function SpinningGlobe() {
 					</radialGradient>
 				</defs>
 				<circle cx="50" cy="50" r="48" fill="url(#glow)" />
-				<motion.g animate={{ rotate: 360 }} transition={{ duration: 18, repeat: Infinity, ease: 'linear' }} originX={50} originY={50}>
+				<motion.g animate={{ rotate: 360, originX: 0.5, originY: 0.5 }} transition={{ duration: 18, repeat: Infinity, ease: 'linear' }}>
 					{Array.from({ length: 10 }).map((_, i) => (
 						<circle key={i} cx={50 + Math.sin((i / 10) * Math.PI * 2) * 28} cy={50} r="0.8" fill={`rgb(var(--color-primary-500))`} />
 					))}
 				</motion.g>
 				{/* latitude lines */}
-				<motion.g animate={{ rotate: -360 }} transition={{ duration: 28, repeat: Infinity, ease: 'linear' }} originX={50} originY={50}>
+				<motion.g animate={{ rotate: -360, originX: 0.5, originY: 0.5 }} transition={{ duration: 28, repeat: Infinity, ease: 'linear' }}>
 					{[14, 24, 32].map((ry, idx) => (
 						<ellipse key={idx} cx="50" cy="50" rx="34" ry={ry} fill="none" stroke={`rgb(var(--color-primary-500))`} strokeOpacity="0.15" strokeWidth="0.5" />
 					))}
@@ -196,10 +196,10 @@ export default function Landing({ onGetStarted, onSignIn }: LandingProps) {
 					<div className="pointer-events-none absolute -bottom-24 -right-24 w-80 h-80 rounded-full blur-3xl" style={{ background: 'radial-gradient(closest-side, rgb(var(--color-primary-500) / 0.12), transparent)' }} />
 
 					<div className="relative grid items-center gap-4 md:grid-cols-[1.6fr_1fr]">
-						<div>
+					<div>
 							<div className="text-xl sm:text-2xl font-semibold">Ready to experience AI‑First Accounting?</div>
-							<div className="text-sm text-secondary-contrast">Start in minutes. No credit card required.</div>
-						</div>
+						<div className="text-sm text-secondary-contrast">Start in minutes. No credit card required.</div>
+					</div>
 						<div className="justify-self-end">
 							<div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/10 backdrop-blur-xl p-1.5">
 								<button onClick={onGetStarted} className={cn('rounded-full text-sm font-semibold focus:ring-focus glow-cta transition-all', 'px-4 py-2 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/25')}>Get Started</button>

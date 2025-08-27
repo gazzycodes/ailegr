@@ -6,9 +6,13 @@ import { cn } from '../../lib/utils'
 import { FileText, Search, Plus, Printer, Download, X, CheckCircle2, Clock3, RefreshCcw, Wallet, Paperclip } from 'lucide-react'
 import ThemedSelect from '../themed/ThemedSelect'
 import { TransactionsService } from '../../services/transactionsService'
+import CoaSelector from '../themed/CoaSelector'
 import ExpensesService from '../../services/expensesService'
 import RecurringModal from '../recurring/RecurringModal'
 import InfoHint from '../themed/InfoHint'
+import AssetsService from '../../services/assetsService'
+import ProductPicker from '../themed/ProductPicker'
+import ProductsService from '../../services/productsService'
 
 type InvoiceStatus = 'PAID' | 'UNPAID' | 'OVERDUE' | 'PARTIAL' | 'CREDIT' | 'RECURRING' | 'PROFORMA'
 
@@ -35,6 +39,7 @@ type Bill = {
   amountPaid?: number
   balanceDue?: number
   paymentStatusRaw?: string
+  relatedAssetId?: string | null
 }
 
 const statusOrder: Record<InvoiceStatus, number> = {
@@ -87,6 +92,8 @@ export function Invoices() {
   })
   const [detail, setDetail] = useState<Invoice | null>(null)
   const [billDetail, setBillDetail] = useState<Bill | null>(null)
+  const [assetsForLink, setAssetsForLink] = useState<any[]>([])
+  const [linkingAssetId, setLinkingAssetId] = useState<string>('')
   const [newModal, setNewModal] = useState<boolean>(false)
   const [recurringOpen, setRecurringOpen] = useState<boolean>(false)
   const [viewMode, setViewMode] = useState<'AR' | 'AP'>('AR')
@@ -96,6 +103,15 @@ export function Invoices() {
   const [arStatusBusy, setArStatusBusy] = useState(false)
   const [apStatusBusy, setApStatusBusy] = useState(false)
   const [refreshTick, setRefreshTick] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!billDetail) return
+      try { const list = await AssetsService.listAssets(); if (!cancelled) setAssetsForLink(Array.isArray(list)? list: []) } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [billDetail])
   const [payments, setPayments] = useState<any[]>([])
   const [billPayments, setBillPayments] = useState<any[]>([])
   const isOverpaid = (status: InvoiceStatus | string) => String(status).toUpperCase() === 'OVERPAID'
@@ -117,6 +133,20 @@ export function Invoices() {
       window.removeEventListener('data:refresh', onRefresh)
       window.removeEventListener('payments:updated', onRefresh)
     }
+  }, [])
+
+  // Apply simple period filter when instructed by chat actions
+  useEffect(() => {
+    const onFilter = (e: any) => {
+      try {
+        const period = String(e?.detail?.period || '').toLowerCase()
+        if (!period) return
+        // naive scroll to top; UI can later use period to adjust local filtering
+        try { (document.querySelector('[data-list="invoices"]') as any)?.scrollIntoView({ behavior: 'smooth' }) } catch {}
+      } catch {}
+    }
+    try { window.addEventListener('transactions:filter', onFilter as any) } catch {}
+    return () => { try { window.removeEventListener('transactions:filter', onFilter as any) } catch {} }
   }, [])
 
   // Open parent source (AR/AP) and scroll to Items & Tax
@@ -258,7 +288,8 @@ export function Invoices() {
               amount: Number(e.amount || 0),
               amountPaid,
               balanceDue,
-              paymentStatusRaw: raw
+              paymentStatusRaw: raw,
+              relatedAssetId: (e?.customFields?.relatedAssetId || undefined)
             }
             try {
               base.receiptUrl = e?.receiptUrl || null
@@ -402,6 +433,21 @@ export function Invoices() {
     }
   }
 
+  useEffect(() => {
+    const handler = async (e: any) => {
+      try {
+        const assetId = e?.detail?.assetId
+        // Prefer linking when New Bill modal is open and a vendor is present
+        if (newBillModal && billDetail) {
+          await (AssetsService as any).linkExpenseToAsset(billDetail.id, assetId)
+          window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Linked asset to bill', type: 'success' } }))
+        }
+      } catch {}
+    }
+    window.addEventListener('asset:created', handler as any)
+    return () => window.removeEventListener('asset:created', handler as any)
+  }, [newBillModal, billDetail])
+
   return (
     <div className="relative h-full space-y-6 max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
       {/* Ambient accents */}
@@ -434,8 +480,11 @@ export function Invoices() {
             <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 backdrop-blur-md flex items-center gap-1" onClick={() => setNewBillModal(true)}>
               <Plus className="w-3.5 h-3.5" /> New Bill
             </button>
+            <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 backdrop-blur-md flex items-center gap-1" onClick={() => { try { window.dispatchEvent(new CustomEvent('asset:new')) } catch {} }}>
+              <Plus className="w-3.5 h-3.5" /> New Asset
+            </button>
             <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 backdrop-blur-md flex items-center gap-1" onClick={() => setRecurringOpen(true)}>
-              <Plus className="w-3.5 h-3.5" /> New Recurring
+              <Plus className="w-3.5 h-3.5" /> Recurring
             </button>
             <button className={cn('px-3 py-1.5 text-sm rounded-lg border transition backdrop-blur-glass bg-white/10 hover:bg-white/15 border-white/10 text-foreground', printFriendly ? 'bg-white border-black text-black shadow-none' : '')} onClick={() => window.print()}>
               <Printer className="w-3.5 h-3.5" />
@@ -511,7 +560,6 @@ export function Invoices() {
                       {String(inv.paymentStatusRaw || '').toLowerCase() === 'overpaid' && (
                         <span className="px-2 py-0.5 text-[11px] rounded-md border bg-red-500/15 border-red-400/30 text-red-300">Overpaid</span>
                       )}
-                      {/* Duplicate Partial badge removed; rely on primary status pill */}
                         </div>
                     </td>
                     <td className="py-2 text-right font-semibold">
@@ -525,6 +573,11 @@ export function Invoices() {
                   </tr>
                 ))}
                 {useVirtual && <tr style={{ height: computeRange(listRef.current, sorted.length, scrollTop).padBot }} aria-hidden="true" />}
+                {!loading && sorted.length === 0 && (
+                  <tr>
+                    <td className="py-8 text-center text-sm text-secondary-contrast" colSpan={6}>No invoices match the current filters.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -565,6 +618,16 @@ export function Invoices() {
                           {String(bill.paymentStatusRaw || '').toLowerCase() === 'overpaid' && (
                             <span className="px-2 py-0.5 text-[11px] rounded-md border bg-red-500/15 border-red-400/30 text-red-300">Overpaid</span>
                           )}
+                          {(() => {
+                            try {
+                              // Show Related Asset tag if server populated customFields.relatedAssetId
+                              const cf: any = (bills.find(b => b.id === bill.id) as any)?.customFields || {}
+                              if (cf.relatedAssetId) {
+                                return <span className="px-2 py-0.5 text-[11px] rounded-md border bg-white/10 border-white/15 text-secondary-contrast">Related Asset</span>
+                              }
+                            } catch {}
+                            return null
+                          })()}
                         </div>
                       </td>
                       <td className="py-2 text-right font-semibold">
@@ -578,6 +641,11 @@ export function Invoices() {
                     </tr>
                   ))}
                   {useVirtual && <tr style={{ height: computeRange(listRef.current, sortedBills.length, scrollTop).padBot }} aria-hidden="true" />}
+                  {!loading && sortedBills.length === 0 && (
+                    <tr>
+                      <td className="py-8 text-center text-sm text-secondary-contrast" colSpan={5}>No bills match the current filters.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -906,47 +974,22 @@ export function Invoices() {
                             <div className="font-medium">Line items</div>
                             <ul className="list-disc ml-4 space-y-0.5">
                               {(billDetail as any).lineItems.map((li: any, idx: number) => (
-                                <li key={idx}>{li.description || 'Line'} — {formatMoney(Number(li.amount || 0))}</li>
+                                <li key={idx}>
+                                  {li.description || 'Line'} — {formatMoney(Number(li.amount || 0))}
+                                  {li.productId && <span className="ml-2 text-xs text-secondary-contrast">(Product)</span>}
+                                </li>
                               ))}
                             </ul>
                           </div>
                         )}
-                        {(billDetail as any)?.receiptUrl && (
-                          <div className="flex gap-2 mt-1">
-                            <a className="px-2 py-0.5 text-xs rounded border border-white/10 hover:bg-white/10" href={(billDetail as any).receiptUrl} target="_blank" rel="noreferrer">View Attachment</a>
-                            <label className="px-2 py-0.5 text-xs rounded border border-white/10 hover:bg-white/10 cursor-pointer">
-                              Replace Attachment
-                              <input type="file" className="hidden" onChange={async (e) => {
-                                const f = e.target.files?.[0]
-                                if (!f) return
-                                try {
-                                  await (ExpensesService as any).attachReceipt(billDetail.id, f)
-                                  window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Attachment updated', type: 'success' } }))
-                                } catch (err: any) {
-                                  window.dispatchEvent(new CustomEvent('toast', { detail: { message: err?.message || 'Failed to update attachment', type: 'error' } }))
-                                } finally {
-                                  setTimeout(() => window.dispatchEvent(new Event('data:refresh')), 50)
-                                }
-                              }} />
-                            </label>
+                        {(() => { try { return (billDetail as any)?.relatedAssetId || (billDetail as any)?.transaction?.expense?.customFields?.relatedAssetId } catch { return null } })() && (
+                          <div className="mt-2 text-sm">
+                            <span className="text-secondary-contrast">Related Asset:</span>{' '}
+                            <button className="text-primary hover:underline" onClick={()=>{ try {
+                              const aid = ((billDetail as any)?.relatedAssetId || (billDetail as any)?.transaction?.expense?.customFields?.relatedAssetId)
+                              if (aid) window.dispatchEvent(new CustomEvent('assets:open', { detail: { assetId: aid } }))
+                            } catch {} }}>Open Asset</button>
                           </div>
-                        )}
-                        {!(billDetail as any)?.receiptUrl && (
-                          <label className="px-2 py-0.5 text-xs rounded border border-white/10 hover:bg-white/10 cursor-pointer inline-flex items-center gap-1">
-                            <Paperclip className="w-3.5 h-3.5" /> Attach Receipt
-                            <input type="file" className="hidden" onChange={async (e) => {
-                              const f = e.target.files?.[0]
-                              if (!f) return
-                              try {
-                                await (ExpensesService as any).attachReceipt(billDetail.id, f)
-                                window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Receipt attached', type: 'success' } }))
-                              } catch (err: any) {
-                                window.dispatchEvent(new CustomEvent('toast', { detail: { message: err?.message || 'Failed to attach', type: 'error' } }))
-                              } finally {
-                                setTimeout(() => window.dispatchEvent(new Event('data:refresh')), 50)
-                              }
-                            }} />
-                          </label>
                         )}
                       </div>
                     </li>
@@ -1103,9 +1146,12 @@ function InvoiceForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [taxAmount, setTaxAmount] = useState<string>('0')
   const [discount, setDiscount] = useState<string>('')
   const [amountPaid, setAmountPaid] = useState<string>('')
-  const [lineItems, setLineItems] = useState<Array<{ description: string; qty?: string; rate?: string; amount: string }>>([{ description: '', qty: '1', rate: '', amount: '' }])
+  const [rememberAccount, setRememberAccount] = useState<boolean>(false)
+  const [lineItems, setLineItems] = useState<Array<{ description: string; qty?: string; rate?: string; amount: string; accountCode?: string; productId?: string; productName?: string }>>([{ description: '', qty: '1', rate: '', amount: '' }])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [preview, setPreview] = useState<any | null>(null)
+  const [previewBusy, setPreviewBusy] = useState(false)
 
   const lineItemsSubtotal = useMemo(() => {
     try { return lineItems.reduce((s, li) => s + (parseFloat(li.amount||li.rate||'0')||0), 0) } catch { return 0 }
@@ -1121,6 +1167,61 @@ function InvoiceForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
     return parseFloat(taxAmount||'0')
   })()
   const total = Math.max(0, (effectiveSubtotal - (parseFloat(discount||'0') || 0) + computedTax))
+
+  const doPreview = async () => {
+    try {
+      setPreviewBusy(true)
+      setError(null)
+      const subNum = parseFloat(subtotal||'0') || 0
+      const discNum = parseFloat(discount||'0') || 0
+      const amtPaidNum = parseFloat(amountPaid||'0') || 0
+      if (!customer.trim()) { const msg = 'Customer is required for preview'; setError(msg); try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } })) } catch {}; return }
+      if (!((subNum > 0) || (lineItemsSubtotal > 0))) { const msg = 'Enter Subtotal or at least one line item amount'; setError(msg); try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } })) } catch {}; return }
+      const taxPayload = taxEnabled ? (taxMode === 'percentage' ? { enabled: true, type: 'percentage', rate: parseFloat(taxRate||'0') } : { enabled: true, type: 'amount', amount: parseFloat(taxAmount||'0') }) : undefined
+      const cleanedItems = lineItems
+        .filter(li => (li.description && li.description.trim()) || (li.amount && !isNaN(parseFloat(li.amount))))
+        .map(li => ({
+          description: li.description || 'Line',
+          amount: parseFloat(li.amount || li.rate || '0'),
+          quantity: li.qty != null && li.qty !== '' ? parseFloat(li.qty) : undefined,
+          rate: li.rate != null && li.rate !== '' ? parseFloat(li.rate) : undefined,
+          accountCode: li.accountCode || undefined,
+          productId: li.productId || undefined
+        }))
+      const epsilon = 0.01
+      const balDue = Math.max(0, +(total - amtPaidNum).toFixed(2))
+      let paymentStatus: 'paid'|'invoice'|'partial'|'overpaid' = 'invoice'
+      if (amtPaidNum > total + epsilon) paymentStatus = 'overpaid'
+      else if (Math.abs(total - amtPaidNum) <= epsilon) paymentStatus = 'paid'
+      else if (amtPaidNum > epsilon) paymentStatus = 'partial'
+      const payload: any = {
+        customerName: customer.trim(),
+        amount: +total.toFixed(2),
+        amountPaid: amtPaidNum,
+        balanceDue: balDue,
+        date,
+        description: `Invoice for ${customer.trim()}`,
+        invoiceNumber: number || undefined,
+        paymentStatus,
+        subtotal: subtotal ? parseFloat(subtotal) : undefined,
+        taxSettings: taxPayload,
+        discount: (discount && !isNaN(parseFloat(discount))) ? { enabled: true, amount: parseFloat(discount) } : undefined,
+        lineItems: cleanedItems
+      }
+      try {
+        const hasProducts = Array.isArray(cleanedItems) && cleanedItems.some((li: any) => !!li.productId)
+        if (hasProducts) payload.splitByLineItems = true
+      } catch {}
+      const res = await (TransactionsService as any).previewRevenue(payload)
+      setPreview(res)
+    } catch (e: any) {
+      const msg = e?.message || 'Preview failed'
+      setPreview(null)
+      try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } })) } catch {}
+    } finally {
+      setPreviewBusy(false)
+    }
+  }
 
   const submit = async () => {
     try {
@@ -1162,7 +1263,9 @@ function InvoiceForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
           description: li.description || 'Line',
           amount: parseFloat(li.amount || li.rate || '0'),
           quantity: li.qty != null && li.qty !== '' ? parseFloat(li.qty) : undefined,
-          rate: li.rate != null && li.rate !== '' ? parseFloat(li.rate) : undefined
+          rate: li.rate != null && li.rate !== '' ? parseFloat(li.rate) : undefined,
+          accountCode: li.accountCode || undefined,
+          productId: li.productId || undefined
         }))
       if (subtotal && cleanedItems.length) {
         const sum = cleanedItems.reduce((s, li) => s + (parseFloat(String(li.amount)) || 0), 0)
@@ -1275,14 +1378,50 @@ function InvoiceForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
           </label>
           <div className="text-xs text-secondary-contrast">Total: <span className="font-medium">${total.toFixed(2)}</span></div>
         </div>
+        <label className="flex items-center gap-2 mt-2">
+          <input type="checkbox" checked={rememberAccount} onChange={(e)=> setRememberAccount(e.target.checked)} />
+          <span className="text-xs text-secondary-contrast">Remember chosen accounts for this customer</span>
+        </label>
         <div className="sm:col-span-2">
           <span className="text-secondary-contrast">Line items</span>
           <div className="space-y-2 mt-1">
             {lineItems.map((li, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                <input value={li.description} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, description: e.target.value }: x))} className="col-span-6 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder={`Description ${idx+1}`} />
-                <input type="number" value={li.qty || ''} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, qty: e.target.value }: x))} className="col-span-2 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Qty" />
-                <input type="number" value={li.rate || ''} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, rate: e.target.value, amount: (parseFloat(e.target.value||'0') * parseFloat(li.qty||'1') || 0).toString() }: x))} className="col-span-2 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Rate" />
+                <div className="col-span-8 flex items-center gap-2">
+                  <input value={li.description} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, description: e.target.value }: x))} className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder={`Description ${idx+1}`} />
+                  <CoaSelector variant="compact" value={li.accountCode} onChange={(code)=> setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, accountCode: code }: x))} allowedTypes={['REVENUE']} placeholder="Account (optional override)" hint="Overrides AI mapping for this line only." warningText="Manual override. Ensure this is the correct revenue account." />
+                </div>
+                {/* Optional Product picker (services only for AR v1) */}
+                <div className="col-span-12 sm:col-span-6">
+                  <ProductPicker
+                    compact
+                    allowTypes={['service','inventory']}
+                    value={undefined}
+                    onChange={(p) => setLineItems(prev => prev.map((x,i)=> {
+                      if (i !== idx) return x
+                      const next: any = { ...x, productId: (p?.id||undefined), productName: (p?.name||undefined), description: x.description || (p?.name||'') }
+                      const qtyNum = parseFloat(String(x.qty||'1')) || 1
+                      const price = (p && p.price != null) ? Number(p.price) : undefined
+                      if (price != null && !isNaN(price)) {
+                        next.rate = String(price)
+                        next.amount = String(Math.max(0, +(price * qtyNum).toFixed(2)))
+                      }
+                      if (!x.accountCode && p && (p as any).incomeAccountCode) {
+                        next.accountCode = (p as any).incomeAccountCode
+                      }
+                      return next
+                    }))}
+                    placeholder={li.productName ? li.productName : 'Select product (optional)'}
+                  />
+                </div>
+                <input type="number" value={li.qty || ''} onChange={e=>setLineItems(prev=> prev.map((x,i)=> {
+                  if (i!==idx) return x
+                  const qtyStr = e.target.value
+                  const qtyNum = parseFloat(qtyStr||'0') || 0
+                  const rateNum = parseFloat(String(x.rate||'0')) || 0
+                  return { ...x, qty: qtyStr, amount: String(Math.max(0, +(qtyNum * rateNum).toFixed(2))) }
+                }))} className="col-span-1 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Qty" />
+                <input type="number" value={li.rate || ''} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, rate: e.target.value, amount: (parseFloat(e.target.value||'0') * parseFloat(li.qty||'1') || 0).toString() }: x))} className="col-span-1 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Rate" />
                 <input type="number" value={li.amount} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, amount: e.target.value }: x))} className="col-span-2 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Amount" />
                 <div className="col-span-12 flex gap-2">
                   <button type="button" className="px-2 py-1 rounded bg-white/10 border border-white/10" onClick={()=> setLineItems(prev => [...prev, { description: '', qty: '1', rate: '', amount: '' }])}>Add</button>
@@ -1301,8 +1440,24 @@ function InvoiceForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
         </div>
       </div>
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
+      {preview && (
+        <ThemedGlassSurface variant="light" className="mt-3 p-3">
+          <div className="text-sm font-medium mb-1">Preview — Account mapping</div>
+          <div className="text-xs text-secondary-contrast mb-1">Document: Invoice • Date used: {preview.dateUsed}</div>
+          <ul className="text-sm space-y-1">
+            {(Array.isArray(preview.entries) ? preview.entries : []).map((e: any, idx: number) => (
+              <li key={idx} className="flex items-center justify-between gap-2">
+                <span className="text-secondary-contrast">{String(e.type).toUpperCase()}</span>
+                <span className="truncate">{e.accountCode} {e.accountName ? `— ${e.accountName}` : ''}</span>
+                <span className="font-medium">${Number(e.amount || 0).toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+        </ThemedGlassSurface>
+      )}
       <div className="mt-4 flex justify-end gap-2">
         <button className="px-3 py-1.5 text-sm rounded-lg border transition backdrop-blur-glass bg-white/10 hover:bg-white/15 border-white/10 text-foreground" onClick={onClose} disabled={saving}>Close</button>
+        <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 disabled:opacity-60" onClick={doPreview} disabled={previewBusy || saving || !customer || !((parseFloat(subtotal||'0')>0) || lineItems.some(li => (parseFloat(li.amount||'0')>0)))}>Preview</button>
         <button className="px-3 py-1.5 text-sm rounded-lg bg-primary/20 text-primary border border-primary/30" onClick={submit} disabled={saving || !customer || !((parseFloat(subtotal||'0')>0) || lineItems.some(li => (parseFloat(li.amount||'0')>0)))}>Create</button>
       </div>
     </div>
@@ -1321,11 +1476,15 @@ function BillForm({ onClose, onCreated }: { onClose: () => void; onCreated: (bil
   const [taxRate, setTaxRate] = useState<string>('0')
   const [taxAmount, setTaxAmount] = useState<string>('0')
   const [discount, setDiscount] = useState<string>('')
-  const [lineItems, setLineItems] = useState<Array<{ description: string; qty?: string; rate?: string; amount: string }>>([{ description: '', qty: '1', rate: '', amount: '' }])
+  const [lineItems, setLineItems] = useState<Array<{ description: string; qty?: string; rate?: string; amount: string; accountCode?: string; productId?: string; productName?: string }>>([{ description: '', qty: '1', rate: '', amount: '' }])
   const [amountPaid, setAmountPaid] = useState<string>('0')
   const [paidOn, setPaidOn] = useState<string>('')
+  const [headerAccountCode, setHeaderAccountCode] = useState<string>('')
+  const [rememberAccount, setRememberAccount] = useState<boolean>(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [preview, setPreview] = useState<any | null>(null)
+  const [previewBusy, setPreviewBusy] = useState(false)
 
   const lineItemsSubtotalAp = useMemo(() => {
     try { return lineItems.reduce((s, li) => s + (parseFloat(li.amount||li.rate||'0')||0), 0) } catch { return 0 }
@@ -1338,6 +1497,56 @@ function BillForm({ onClose, onCreated }: { onClose: () => void; onCreated: (bil
   const baseForTax = Math.max(0, (effectiveSubtotalAp - discountAmt))
   const totalTax = taxEnabled ? (taxMode === 'percentage' ? (baseForTax * (parseFloat(taxRate||'0')/100)) : parseFloat(taxAmount||'0')) : 0
   const total = Math.max(0, (baseForTax + totalTax))
+
+  // Read AP split setting (local persisted)
+  const apSplitEnabled = (() => { try { return JSON.parse(localStorage.getItem('settings.apSplitLines') || 'false') } catch { return false } })()
+
+  const doPreview = async () => {
+    try {
+      setPreviewBusy(true)
+      setError(null)
+      if (!vendor.trim()) { const msg = 'Vendor is required for preview'; setError(msg); try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } })) } catch {}; return }
+      if (!((parseFloat(subtotal||'0')>0) || lineItemsSubtotalAp > 0)) { const msg = 'Enter Subtotal or at least one line item amount'; setError(msg); try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } })) } catch {}; return }
+      const taxPayload = taxEnabled ? (taxMode === 'percentage' ? { enabled: true, type: 'percentage', rate: parseFloat(taxRate||'0') } : { enabled: true, type: 'amount', amount: parseFloat(taxAmount||'0') }) : undefined
+      const cleanedItems = lineItems
+        .filter(li => (li.description && li.description.trim()) || (li.amount && !isNaN(parseFloat(li.amount))))
+        .map(li => ({
+          description: li.description || 'Line',
+          amount: parseFloat(li.amount || li.rate || '0'),
+          quantity: li.qty != null && li.qty !== '' ? parseFloat(li.qty) : undefined,
+          rate: li.rate != null && li.rate !== '' ? parseFloat(li.rate) : undefined,
+          accountCode: li.accountCode || undefined,
+          productId: li.productId || undefined
+        }))
+      const payload: any = {
+        vendorName: vendor.trim(),
+        amount: +total.toFixed(2),
+        amountPaid: Math.max(0, Math.min(parseFloat(amountPaid||'0') || 0, total)),
+        balanceDue: Math.max(0, +(total - (parseFloat(amountPaid||'0') || 0)).toFixed(2)),
+        date,
+        description: `Bill from ${vendor.trim()}`,
+        vendorInvoiceNo: vendorInvoiceNo || undefined,
+        paymentStatus: (parseFloat(amountPaid||'0') > 0) ? (parseFloat(amountPaid||'0') + 0.005 >= total ? 'paid' : 'partial') : 'unpaid',
+        subtotal: subtotal ? parseFloat(subtotal) : undefined,
+        taxSettings: taxPayload,
+        discount: (discount && !isNaN(parseFloat(discount))) ? { enabled: true, amount: parseFloat(discount) } : undefined,
+        lineItems: cleanedItems
+      }
+      try {
+        const split = JSON.parse(localStorage.getItem('settings.apSplitLines') || 'false')
+        if (split) (payload as any).splitByLineItems = true
+        else if (headerAccountCode) (payload as any).accountCode = headerAccountCode
+      } catch {}
+      const res = await (ExpensesService as any).previewExpense(payload)
+      setPreview(res)
+    } catch (e:any) {
+      const msg = e?.message || 'Preview failed'
+      setPreview(null)
+      try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'error' } })) } catch {}
+    } finally {
+      setPreviewBusy(false)
+    }
+  }
 
   const submit = async () => {
     try {
@@ -1369,7 +1578,9 @@ function BillForm({ onClose, onCreated }: { onClose: () => void; onCreated: (bil
           description: li.description || 'Line',
           amount: parseFloat(li.amount || li.rate || '0'),
           quantity: li.qty != null && li.qty !== '' ? parseFloat(li.qty) : undefined,
-          rate: li.rate != null && li.rate !== '' ? parseFloat(li.rate) : undefined
+          rate: li.rate != null && li.rate !== '' ? parseFloat(li.rate) : undefined,
+          accountCode: li.accountCode || undefined,
+          productId: li.productId || undefined
         }))
       if (subtotal && cleanedItems.length) {
         const sum = cleanedItems.reduce((s, li) => s + (parseFloat(String(li.amount)) || 0), 0)
@@ -1398,12 +1609,31 @@ function BillForm({ onClose, onCreated }: { onClose: () => void; onCreated: (bil
       }
       if (cleanedItems.length) payload.lineItems = cleanedItems
       try {
-        // Honor Settings toggle persisted locally
+        // Honor Settings and auto-enable split when any product selected
         const split = JSON.parse(localStorage.getItem('settings.apSplitLines') || 'false')
-        if (split) payload.splitByLineItems = true
+        const hasProducts = Array.isArray(cleanedItems) && cleanedItems.some((li: any) => !!li.productId)
+        if (split || hasProducts) payload.splitByLineItems = true
+        else if (headerAccountCode) (payload as any).accountCode = headerAccountCode
       } catch {}
       if (discount && !isNaN(parseFloat(discount))) payload.discount = { enabled: true, amount: parseFloat(discount) }
       const res = await (ExpensesService as any).postExpense(payload)
+      // Best-effort: persist vendor header account when requested
+      try {
+        if (rememberAccount && vendor.trim() && headerAccountCode) {
+          const existing = await (ExpensesService as any).getVendorDefaults(vendor.trim())
+          const merged = {
+            taxEnabled: !!existing?.taxEnabled,
+            taxMode: existing?.taxMode || null,
+            taxRate: existing?.taxRate != null ? Number(existing.taxRate) : null,
+            taxAmount: existing?.taxAmount != null ? Number(existing.taxAmount) : null,
+            accountsRemember: {
+              ...(existing?.accountsRemember || {}),
+              ap: { ...(existing?.accountsRemember?.ap || {}), headerAccountCode }
+            }
+          }
+          await (ExpensesService as any).saveVendorDefaults(vendor.trim(), merged)
+        }
+      } catch {}
       const bill: Bill = {
         id: res?.expenseId || res?.transactionId || String(Date.now()),
         vendor,
@@ -1413,7 +1643,8 @@ function BillForm({ onClose, onCreated }: { onClose: () => void; onCreated: (bil
         amount: total,
         amountPaid: parseFloat(amountPaid||'0') || 0,
         balanceDue: Math.max(0, total - (parseFloat(amountPaid||'0') || 0)),
-        paymentStatusRaw: payload.paymentStatus
+        paymentStatusRaw: payload.paymentStatus,
+        relatedAssetId: (res?.customFields?.relatedAssetId || undefined)
       }
       try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Bill created successfully', type: 'success' } })) } catch {}
       onCreated(bill)
@@ -1424,17 +1655,37 @@ function BillForm({ onClose, onCreated }: { onClose: () => void; onCreated: (bil
     } finally { setSaving(false) }
   }
 
+  const assetSuggest = (() => {
+    try {
+      const text = `${vendor} ${lineItems.map(li=>li.description).join(' ')}`.toLowerCase()
+      const large = (parseFloat(subtotal||'0') || lineItemsSubtotalAp) >= 500
+      const keywords = /(macbook|laptop|computer|camera|iphone|ipad|equipment|furniture|server|printer|monitor|desk|chair)/i
+      return large || keywords.test(text)
+    } catch { return false }
+  })()
+
   return (
     <div>
+      {assetSuggest && (
+        <div className="mb-2 rounded-md border border-yellow-400/30 bg-yellow-500/10 p-3 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-yellow-200">This looks like a fixed asset purchase. Consider capitalizing it.</div>
+            <button type="button" className="px-2 py-1 rounded bg-white/10 border border-white/10 hover:bg-white/15" onClick={()=>{ try { window.dispatchEvent(new CustomEvent('asset:new', { detail: { seed: { vendorName: vendor, amount: (subtotal || lineItems.reduce((s,li)=> s+(parseFloat(li.amount||li.rate||'0')||0), 0)), date } } })) } catch {} }}>Capitalize as Asset</button>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
         <label className="flex flex-col gap-1">
           <span className="text-secondary-contrast">Vendor</span>
-          <input value={vendor} onChange={e=>setVendor(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" placeholder="Vendor name" />
+          <input value={vendor} onChange={e=>setVendor(e.target.value)} onBlur={async ()=>{ try { const v = vendor.trim(); if (v) { const d = await (ExpensesService as any).getVendorDefaults(v); const hdr = d?.accountsRemember?.ap?.headerAccountCode; if (hdr) setHeaderAccountCode(hdr); if (d && d.taxEnabled) { setTaxEnabled(true); if (d.taxMode === 'percentage') { setTaxMode('percentage'); if (typeof d.taxRate === 'number') setTaxRate(String(d.taxRate)) } else if (d.taxMode === 'amount') { setTaxMode('amount'); if (typeof d.taxAmount === 'number') setTaxAmount(String(d.taxAmount)) } } } } catch {} }} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" placeholder="Vendor name" />
         </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-secondary-contrast">Vendor Invoice No.</span>
-          <input value={vendorInvoiceNo} onChange={e=>setVendorInvoiceNo(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" placeholder="BILL-001" />
-        </label>
+        <div className="flex items-end gap-2">
+          <label className="flex-1 flex flex-col gap-1">
+            <span className="text-secondary-contrast">Vendor Invoice No.</span>
+            <input value={vendorInvoiceNo} onChange={e=>setVendorInvoiceNo(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" placeholder="BILL-001" />
+          </label>
+          <button type="button" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 hover:bg-white/15" onClick={()=>{ try { window.dispatchEvent(new CustomEvent('asset:new', { detail: { seed: { vendorName: vendor, amount: (subtotal || lineItems.reduce((s,li)=> s+(parseFloat(li.amount||li.rate||'0')||0), 0)), date } } })) } catch {} }}>Capitalize as Asset</button>
+        </div>
         <label className="flex flex-col gap-1">
           <span className="text-secondary-contrast">Date</span>
           <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" />
@@ -1483,14 +1734,61 @@ function BillForm({ onClose, onCreated }: { onClose: () => void; onCreated: (bil
           </label>
           <div className="text-xs text-secondary-contrast">Total: <span className="font-medium">${total.toFixed(2)}</span></div>
         </div>
+        {!apSplitEnabled && (
+          <div className="sm:col-span-2">
+            <CoaSelector value={headerAccountCode} onChange={(code)=> setHeaderAccountCode(code || '')} allowedTypes={['EXPENSE','COGS']} label="Expense account (header‑level)" hint="Used for entire bill when split is OFF." warningText="Manual override. Ensure this is the correct expense/COGS account." />
+            <label className="flex items-center gap-2 mt-2 text-xs">
+              <input type="checkbox" checked={rememberAccount} onChange={(e)=> setRememberAccount(e.target.checked)} />
+              <span className="text-secondary-contrast">Remember chosen accounts for this vendor</span>
+            </label>
+          </div>
+        )}
         <div className="sm:col-span-2">
           <span className="text-secondary-contrast">Line items</span>
           <div className="space-y-2 mt-1">
             {lineItems.map((li, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                <input value={li.description} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, description: e.target.value }: x))} className="col-span-6 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder={`Description ${idx+1}`} />
-                <input type="number" value={li.qty || ''} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, qty: e.target.value, amount: (parseFloat(x.rate||'0') * parseFloat(e.target.value||'1') || 0).toString() }: x))} className="col-span-2 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Qty" />
-                <input type="number" value={li.rate || ''} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, rate: e.target.value, amount: (parseFloat(e.target.value||'0') * parseFloat(x.qty||'1') || 0).toString() }: x))} className="col-span-2 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Rate" />
+                <div className="col-span-8 flex items-center gap-2">
+                  <input value={li.description} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, description: e.target.value }: x))} className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder={`Description ${idx+1}`} />
+                  <CoaSelector variant="compact" value={li.accountCode} onChange={(code)=> setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, accountCode: code }: x))} allowedTypes={['EXPENSE','COGS']} placeholder="Account (optional override)" hint="Overrides AI mapping for this line only." warningText="Manual override. Ensure this is the correct expense/COGS account." />
+                </div>
+                {/* Optional Product picker (services only for AR v1) */}
+                <div className="col-span-12 sm:col-span-6">
+                  <ProductPicker
+                    compact
+                    allowTypes={['service','inventory']}
+                    value={undefined}
+                    onChange={(p) => setLineItems(prev => prev.map((x,i)=> {
+                      if (i !== idx) return x
+                      const next: any = { ...x, productId: (p?.id||undefined), productName: (p?.name||undefined), description: x.description || (p?.name||'') }
+                      const qtyNum = parseFloat(String(x.qty||'1')) || 1
+                      // In AP, default to product.cost for inventory and product.price for service if present
+                      const isInventory = String((p as any)?.type || '').toLowerCase() === 'inventory'
+                      const candidate = isInventory ? (p as any)?.cost : (p as any)?.price
+                      const rateDefault = candidate != null ? Number(candidate) : undefined
+                      if (rateDefault != null && !isNaN(rateDefault)) {
+                        next.rate = String(rateDefault)
+                        next.amount = String(Math.max(0, +(rateDefault * qtyNum).toFixed(2)))
+                      }
+                      if (!x.accountCode) {
+                        // Prefer expense/COGS for AP, fallback to inventory account for inventory types
+                        const acct = (isInventory ? ((p as any)?.expenseAccountCode || (p as any)?.cogsAccountCode || (p as any)?.inventoryAccountCode)
+                                                  : (p as any)?.expenseAccountCode)
+                        if (acct) next.accountCode = acct
+                      }
+                      return next
+                    }))}
+                    placeholder={li.productName ? li.productName : 'Select product (optional)'}
+                  />
+                </div>
+                <input type="number" value={li.qty || ''} onChange={e=>setLineItems(prev=> prev.map((x,i)=> {
+                  if (i!==idx) return x
+                  const qtyStr = e.target.value
+                  const qtyNum = parseFloat(qtyStr||'0') || 0
+                  const rateNum = parseFloat(String(x.rate||'0')) || 0
+                  return { ...x, qty: qtyStr, amount: String(Math.max(0, +(qtyNum * rateNum).toFixed(2))) }
+                }))} className="col-span-1 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Qty" />
+                <input type="number" value={li.rate || ''} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, rate: e.target.value, amount: (parseFloat(e.target.value||'0') * parseFloat(li.qty||'1') || 0).toString() }: x))} className="col-span-1 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Rate" />
                 <input type="number" value={li.amount} onChange={e=>setLineItems(prev=> prev.map((x,i)=> i===idx? { ...x, amount: e.target.value }: x))} className="col-span-2 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none" placeholder="Amount" />
                 <div className="col-span-12 flex gap-2">
                   <button type="button" className="px-2 py-1 rounded bg-white/10 border border-white/10" onClick={()=> setLineItems(prev => [...prev, { description: '', qty: '1', rate: '', amount: '' }])}>Add</button>
@@ -1512,10 +1810,31 @@ function BillForm({ onClose, onCreated }: { onClose: () => void; onCreated: (bil
         </div>
       </div>
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
+      {preview && (
+        <ThemedGlassSurface variant="light" className="mt-3 p-3">
+          <div className="text-sm font-medium mb-1">Preview — Account mapping</div>
+          <div className="text-xs text-secondary-contrast mb-1">Document: Expense • Date used: {preview.dateUsed}</div>
+          <ul className="text-sm space-y-1">
+            {(Array.isArray(preview.entries) ? preview.entries : []).map((e: any, idx: number) => (
+              <li key={idx} className="flex items-center justify-between gap-2">
+                <span className="text-secondary-contrast">{String(e.type).toUpperCase()}</span>
+                <span className="truncate">{e.accountCode} {e.accountName ? `— ${e.accountName}` : ''}</span>
+                <span className="font-medium">${Number(e.amount || 0).toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+        </ThemedGlassSurface>
+      )}
       <div className="mt-4 flex justify-end gap-2">
         <button className="px-3 py-1.5 text-sm rounded-lg border transition backdrop-blur-glass bg-white/10 hover:bg-white/15 border-white/10 text-foreground" onClick={onClose} disabled={saving}>Close</button>
+        <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10 hover:bg-white/15 disabled:opacity-60" onClick={doPreview} disabled={previewBusy || saving || !vendor || !((parseFloat(subtotal||'0')>0) || lineItems.some(li => (parseFloat(li.amount||'0')>0)))}>Preview</button>
         <button className="px-3 py-1.5 text-sm rounded-lg bg-primary/20 text-primary border border-primary/30" onClick={submit} disabled={saving || !vendor || !((parseFloat(subtotal||'0')>0) || lineItems.some(li => (parseFloat(li.amount||'0')>0)))}>Create</button>
       </div>
+      {billDetail?.customFields?.relatedAssetId && (
+        <ThemedGlassSurface variant="light" className="mt-3 p-3">
+          <div className="text-sm">Related Asset: <button className="text-primary hover:underline" onClick={()=> { try { window.history.pushState({ view: 'assets' }, '', '/assets'); window.dispatchEvent(new PopStateEvent('popstate')) } catch {} }}>Open in Assets</button></div>
+        </ThemedGlassSurface>
+      )}
     </div>
   )
 }

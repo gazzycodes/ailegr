@@ -1,3 +1,26 @@
+## Current Status (2025-08-27)
+
+Core features
+- Multi-tenant accounting: expenses, invoices, reports (PnL/BS/TB), customers, products, assets (depreciation), recurring rules, OCR.
+- AI Chat + Voice: natural language with automatic ACTIONs; guide/act/auto behavior; help modal; WS auth.
+- 3D Universe: visual flows; navigation via chat actions (OpenUniverse/OpenView/OpenTransactions).
+
+AI Actions supported
+- createExpense, createInvoice, getFinancialSummary
+- recordInvoicePayment, recordExpensePayment, voidPayment
+- duplicateInvoice, duplicateExpense
+- openUniverse/openView/openTransactions, explainRevenue
+
+Scheduling
+- Recurring rules: optional scheduler; manual run endpoints.
+- Asset depreciation: optional 15m cron; admin run endpoint for tests.
+
+Inventory/Products
+- Products CRUD; inventory valuation endpoint; UI product picker in AR/AP lines.
+
+Testing
+- Server smoke suites: accounting, recurring, tax, robust, assets (basic/extended/100-case). All green.
+
 # 🚀 **EZE Ledger - Revolutionary Frontend**
 
 > **The most mind-boggling accounting software interface ever created**  

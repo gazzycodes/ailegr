@@ -1,0 +1,1670 @@
+{
+  "8431f899ebb9032757e779316f3e667527126f31": {
+    "docType": "EXPENSE",
+    "vendorName": "ByteVault Cloud Storage",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7000",
+    "date": "2025-06-28",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 619,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 54.16
+    },
+    "discount": null,
+    "total": 673.16,
+    "amountPaid": 673.16,
+    "balanceDue": 0,
+    "currency": "USD",
+    "headerAccountCode": "6240 Cloud Hosting",
+    "lineItems": [
+      {
+        "description": "Backup 1",
+        "quantity": 1,
+        "rate": 220,
+        "amount": 220,
+        "accountCode": "6240 Cloud Hosting"
+      },
+      {
+        "description": "Subscription 2",
+        "quantity": 1,
+        "rate": 399,
+        "amount": 399,
+        "accountCode": "6030 Software & Subscriptions"
+      }
+    ],
+    "notes": null
+  },
+  "48f6dad7af6f611f9afc74d186b7e36def24862f": {
+    "docType": "EXPENSE",
+    "vendorName": "CloudWire ISP",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7039",
+    "date": "2025-07-12",
+    "dueDate": "2025-07-28",
+    "dueDays": 30,
+    "subtotal": 1227,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 107.36
+    },
+    "discount": null,
+    "total": 1334.36,
+    "amountPaid": 0,
+    "balanceDue": 1334.36,
+    "currency": "USD",
+    "headerAccountCode": "6160 Telecom/Internet",
+    "lineItems": [
+      {
+        "description": "Subscription 1",
+        "quantity": 2,
+        "rate": 15,
+        "amount": 30,
+        "accountCode": null
+      },
+      {
+        "description": "Rental 2",
+        "quantity": 3,
+        "rate": 399,
+        "amount": 1197,
+        "accountCode": null
+      }
+    ],
+    "notes": "Vendor credit issued. Apply to future bills."
+  },
+  "c675eb90c24907ae21951210944ac1b0c4282496": {
+    "docType": "EXPENSE",
+    "vendorName": "Staple & Stone Office Supply",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7033",
+    "date": "2025-07-02",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 285,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 27.07
+    },
+    "discount": null,
+    "total": 312.07,
+    "amountPaid": 0,
+    "balanceDue": 312.07,
+    "currency": "USD",
+    "headerAccountCode": "6020",
+    "lineItems": [
+      {
+        "description": "License",
+        "quantity": 3,
+        "rate": 15,
+        "amount": 45,
+        "accountCode": "6020"
+      },
+      {
+        "description": "Subscription",
+        "quantity": 2,
+        "rate": 120,
+        "amount": 240,
+        "accountCode": "6030"
+      }
+    ],
+    "notes": "Voided bill. Do not pay."
+  },
+  "71e45997901dda48f482ec59138e94dd7e7f8447": {
+    "docType": "EXPENSE",
+    "vendorName": "North Therm HVAC Services",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7063",
+    "date": "2025-06-28",
+    "dueDate": "2025-08-01",
+    "dueDays": 30,
+    "subtotal": 261,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 22.84
+    },
+    "discount": null,
+    "total": 283.84,
+    "amountPaid": 303.84,
+    "balanceDue": 0,
+    "currency": "USD",
+    "headerAccountCode": "6999 General Expense",
+    "lineItems": [
+      {
+        "description": "Rental 1",
+        "quantity": 1,
+        "rate": 120,
+        "amount": 120,
+        "accountCode": "6999 General Expense"
+      },
+      {
+        "description": "Support 2",
+        "quantity": 2,
+        "rate": 58,
+        "amount": 116,
+        "accountCode": "6999 General Expense"
+      },
+      {
+        "description": "Support 3",
+        "quantity": 1,
+        "rate": 25,
+        "amount": 25,
+        "accountCode": "6999 General Expense"
+      }
+    ],
+    "notes": null
+  },
+  "ee55f08d87f63ecd12e965d2e05f1a450e4c5016": {
+    "docType": "EXPENSE",
+    "vendorName": "North Therm HVAC Services",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7018",
+    "date": "2025-07-10",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 470,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 41.13
+    },
+    "discount": null,
+    "total": 511.13,
+    "amountPaid": 511.13,
+    "balanceDue": 0,
+    "currency": "USD",
+    "headerAccountCode": "6999",
+    "lineItems": [
+      {
+        "description": "Support",
+        "quantity": 2,
+        "rate": 220,
+        "amount": 440,
+        "accountCode": "6999"
+      },
+      {
+        "description": "License",
+        "quantity": 2,
+        "rate": 15,
+        "amount": 30,
+        "accountCode": "6999"
+      }
+    ],
+    "notes": null
+  },
+  "62ead927ca15c4e2e7b7a67232200088b29f9407": {
+    "docType": "EXPENSE",
+    "vendorName": "North Therm HVAC Services",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7073",
+    "date": "2025-07-12",
+    "dueDate": "2025-08-01",
+    "dueDays": 30,
+    "subtotal": 240,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 21
+    },
+    "discount": null,
+    "total": 261,
+    "amountPaid": 266,
+    "balanceDue": 0,
+    "currency": "USD",
+    "headerAccountCode": "6999",
+    "lineItems": [
+      {
+        "description": "Monthly",
+        "quantity": 2,
+        "rate": 120,
+        "amount": 240,
+        "accountCode": "6999"
+      }
+    ],
+    "notes": null
+  },
+  "5f746831c3276f4b258f265e6dd26ffd775583cc": {
+    "docType": "EXPENSE",
+    "vendorName": "Staple & Stone Office Supply",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7097",
+    "date": "2025-07-02",
+    "dueDate": "2025-08-01",
+    "dueDays": 30,
+    "subtotal": 1283,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 112.26
+    },
+    "discount": null,
+    "total": 1395.26,
+    "amountPaid": 558,
+    "balanceDue": 837.26,
+    "currency": "USD",
+    "headerAccountCode": "6020",
+    "lineItems": [
+      {
+        "description": "License 1",
+        "quantity": 3,
+        "rate": 15,
+        "amount": 45,
+        "accountCode": "6020"
+      },
+      {
+        "description": "License 2",
+        "quantity": 2,
+        "rate": 399,
+        "amount": 798,
+        "accountCode": "6020"
+      },
+      {
+        "description": "Rental 3",
+        "quantity": 2,
+        "rate": 220,
+        "amount": 440,
+        "accountCode": "6020"
+      }
+    ],
+    "notes": null
+  },
+  "8b5855b2b0f2dde31cc1ab45053966656cedda89": {
+    "docType": "EXPENSE",
+    "vendorName": "North Therm HVAC Services",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7064",
+    "date": "2025-07-02",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 12.5,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 0,
+      "amount": 0
+    },
+    "discount": null,
+    "total": 12.5,
+    "amountPaid": 0,
+    "balanceDue": 12.5,
+    "currency": "USD",
+    "headerAccountCode": "6999 General Expense",
+    "lineItems": [
+      {
+        "description": "Subscription",
+        "quantity": 1,
+        "rate": 12.5,
+        "amount": 12.5,
+        "accountCode": "6030 Software & Subscriptions"
+      }
+    ],
+    "notes": "Vendor credit issued. Apply to future bills."
+  },
+  "513f3d758d4216ed1adb8afafd6e7eec111a641a": {
+    "docType": "EXPENSE",
+    "vendorName": "AquaPure Water",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7036",
+    "date": "2025-07-10",
+    "dueDate": "2025-08-09",
+    "dueDays": 30,
+    "subtotal": 540,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 47.25
+    },
+    "discount": null,
+    "total": 587.25,
+    "amountPaid": 0,
+    "balanceDue": 587.25,
+    "currency": "USD",
+    "headerAccountCode": "6030 Software & Subscriptions",
+    "lineItems": [
+      {
+        "description": "License 1",
+        "quantity": 3,
+        "rate": 120,
+        "amount": 360,
+        "accountCode": "6030 Software & Subscriptions"
+      },
+      {
+        "description": "Subscription 2",
+        "quantity": 3,
+        "rate": 60,
+        "amount": 180,
+        "accountCode": "6030 Software & Subscriptions"
+      }
+    ],
+    "notes": null
+  },
+  "583b0eee3a5de66f2999db70e09d8cf159b50cca": {
+    "docType": "EXPENSE",
+    "vendorName": "North Therm HVAC Services",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7078",
+    "date": "2025-07-02",
+    "dueDate": "2025-07-28",
+    "dueDays": 30,
+    "subtotal": 1372.5,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 120.09
+    },
+    "discount": null,
+    "total": 1492.59,
+    "amountPaid": 597,
+    "balanceDue": 895.59,
+    "currency": "USD",
+    "headerAccountCode": "6999",
+    "lineItems": [
+      {
+        "description": "Service",
+        "quantity": 1,
+        "rate": 12.5,
+        "amount": 12.5,
+        "accountCode": null
+      },
+      {
+        "description": "Subscription",
+        "quantity": 2,
+        "rate": 680,
+        "amount": 1360,
+        "accountCode": null
+      }
+    ],
+    "notes": null
+  },
+  "bc6ee46836312810a40bad6485cb81a177db9a8b": {
+    "docType": "EXPENSE",
+    "vendorName": "Staple & Stone Office Supply",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7003",
+    "date": "2025-07-10",
+    "dueDate": "2025-07-28",
+    "dueDays": 30,
+    "subtotal": 50,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 4.75
+    },
+    "discount": null,
+    "total": 54.75,
+    "amountPaid": 54.75,
+    "balanceDue": 0,
+    "currency": "USD",
+    "headerAccountCode": "6020",
+    "lineItems": [
+      {
+        "description": "Service 1",
+        "quantity": 2,
+        "rate": 25,
+        "amount": 50,
+        "accountCode": null
+      }
+    ],
+    "notes": null
+  },
+  "527c9fa33bcebd31dc8a51b313cf043d5f2094fa": {
+    "docType": "EXPENSE",
+    "vendorName": "Staple & Stone Office Supply",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7014",
+    "date": "2025-07-12",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 75,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 7.13
+    },
+    "discount": null,
+    "total": 82.13,
+    "amountPaid": 0,
+    "balanceDue": 82.13,
+    "currency": "USD",
+    "headerAccountCode": "6020",
+    "lineItems": [
+      {
+        "description": "Backup 1",
+        "quantity": 3,
+        "rate": 25,
+        "amount": 75,
+        "accountCode": "6020"
+      }
+    ],
+    "notes": "Vendor credit issued. Apply to future bills."
+  },
+  "2c30174a7f6146922f2181bd8c5a04fc4b32c816": {
+    "docType": "EXPENSE",
+    "vendorName": "ByteVault Cloud Storage",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7099",
+    "date": "2025-07-02",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 1405,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 133.47
+    },
+    "discount": null,
+    "total": 1538.47,
+    "amountPaid": 0,
+    "balanceDue": 1538.47,
+    "currency": "USD",
+    "headerAccountCode": "6240 Cloud Hosting",
+    "lineItems": [
+      {
+        "description": "Plan 1",
+        "quantity": 3,
+        "rate": 15,
+        "amount": 45,
+        "accountCode": null
+      },
+      {
+        "description": "Plan 2",
+        "quantity": 2,
+        "rate": 680,
+        "amount": 1360,
+        "accountCode": null
+      }
+    ],
+    "notes": null
+  },
+  "f5d3a57ffe4980a751c845ad728abd69ef7f79e7": {
+    "docType": "EXPENSE",
+    "vendorName": "Staple & Stone Office Supply",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7090",
+    "date": "2025-07-10",
+    "dueDate": "2025-08-09",
+    "dueDays": 30,
+    "subtotal": 1252,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 118.94
+    },
+    "discount": null,
+    "total": 1370.94,
+    "amountPaid": 1370.94,
+    "balanceDue": 0,
+    "currency": "USD",
+    "headerAccountCode": "6020",
+    "lineItems": [
+      {
+        "description": "Backup 1",
+        "quantity": 2,
+        "rate": 15,
+        "amount": 30,
+        "accountCode": "6020"
+      },
+      {
+        "description": "Subscription 2",
+        "quantity": 1,
+        "rate": 25,
+        "amount": 25,
+        "accountCode": "6030"
+      },
+      {
+        "description": "Subscription 3",
+        "quantity": 3,
+        "rate": 399,
+        "amount": 1197,
+        "accountCode": "6030"
+      }
+    ],
+    "notes": null
+  },
+  "1e7872a765230ae8194ae30d02dda784ba52654d": {
+    "docType": "EXPENSE",
+    "vendorName": "AquaPure Water",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7039",
+    "date": "2025-07-05",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 960,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 84
+    },
+    "discount": null,
+    "total": 1044,
+    "amountPaid": 0,
+    "balanceDue": 1044,
+    "currency": "USD",
+    "headerAccountCode": "6999",
+    "lineItems": [
+      {
+        "description": "License",
+        "quantity": 3,
+        "rate": 320,
+        "amount": 960,
+        "accountCode": "6999"
+      }
+    ],
+    "notes": null
+  },
+  "938cf869c33661c029881674752224c7e944418c": {
+    "docType": "EXPENSE",
+    "vendorName": "Staple & Stone Office Supply",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7069",
+    "date": "2025-07-10",
+    "dueDate": "2025-07-28",
+    "dueDays": 30,
+    "subtotal": 120,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 10.5
+    },
+    "discount": null,
+    "total": 130.5,
+    "amountPaid": 52,
+    "balanceDue": 78.5,
+    "currency": "USD",
+    "headerAccountCode": "6020",
+    "lineItems": [
+      {
+        "description": "Service",
+        "quantity": 1,
+        "rate": 120,
+        "amount": 120,
+        "accountCode": "6020"
+      }
+    ],
+    "notes": null
+  },
+  "5ba0bb9f1d56a0f2f066bf6d7d12cecb88405dc3": {
+    "docType": "EXPENSE",
+    "vendorName": "CloudWire ISP",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7042",
+    "date": "2025-06-28",
+    "dueDate": "2025-08-01",
+    "dueDays": 30,
+    "subtotal": 798,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 0,
+      "amount": 0
+    },
+    "discount": null,
+    "total": 798,
+    "amountPaid": 0,
+    "balanceDue": 798,
+    "currency": "USD",
+    "headerAccountCode": "6160 Telecom/Internet",
+    "lineItems": [
+      {
+        "description": "Monthly",
+        "quantity": 2,
+        "rate": 399,
+        "amount": 798,
+        "accountCode": "6160 Telecom/Internet"
+      }
+    ],
+    "notes": "Voided bill. Do not pay."
+  },
+  "1a10ae3d62c2a3fc33ea5e15997d15701c90545e": {
+    "docType": "EXPENSE",
+    "vendorName": "CloudWire ISP",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7050",
+    "date": "2025-07-02",
+    "dueDate": "2025-08-09",
+    "dueDays": 30,
+    "subtotal": 370,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 35.15
+    },
+    "discount": null,
+    "total": 405.15,
+    "amountPaid": 0,
+    "balanceDue": 405.15,
+    "currency": "USD",
+    "headerAccountCode": "6160 Telecom/Internet",
+    "lineItems": [
+      {
+        "description": "Plan 1",
+        "quantity": 1,
+        "rate": 320,
+        "amount": 320,
+        "accountCode": "6160 Telecom/Internet"
+      },
+      {
+        "description": "Monthly 2",
+        "quantity": 2,
+        "rate": 25,
+        "amount": 50,
+        "accountCode": "6160 Telecom/Internet"
+      }
+    ],
+    "notes": null
+  },
+  "cfc9796e9b9fbf4bb9f9c0e6e3d5cd4bb8a23235": {
+    "docType": "EXPENSE",
+    "vendorName": "CloudWire ISP",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7099",
+    "date": "2025-07-02",
+    "dueDate": "2025-08-01",
+    "dueDays": 30,
+    "subtotal": 2580,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 245.1
+    },
+    "discount": null,
+    "total": 2825.1,
+    "amountPaid": 2825.1,
+    "balanceDue": 0,
+    "currency": "USD",
+    "headerAccountCode": "6160 Telecom/Internet",
+    "lineItems": [
+      {
+        "description": "Monthly",
+        "quantity": 3,
+        "rate": 680,
+        "amount": 2040,
+        "accountCode": "6160 Telecom/Internet"
+      },
+      {
+        "description": "Support",
+        "quantity": 3,
+        "rate": 60,
+        "amount": 180,
+        "accountCode": "6040 Marketing & Advertising"
+      },
+      {
+        "description": "Subscription",
+        "quantity": 3,
+        "rate": 120,
+        "amount": 360,
+        "accountCode": "6030 Software & Subscriptions"
+      }
+    ],
+    "notes": null
+  },
+  "43fc674e16aa0b39331e5e67e5d2af900cafd9d8": {
+    "docType": "EXPENSE",
+    "vendorName": "CloudWire ISP",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7023",
+    "date": "2025-07-12",
+    "dueDate": "2025-07-28",
+    "dueDays": 30,
+    "subtotal": 411.5,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 39.09
+    },
+    "discount": null,
+    "total": 450.59,
+    "amountPaid": 0,
+    "balanceDue": 450.59,
+    "currency": "USD",
+    "headerAccountCode": "6160 Telecom/Internet",
+    "lineItems": [
+      {
+        "description": "Rental 1",
+        "quantity": 1,
+        "rate": 399,
+        "amount": 399,
+        "accountCode": "6160 Telecom/Internet"
+      },
+      {
+        "description": "Monthly 2",
+        "quantity": 1,
+        "rate": 12.5,
+        "amount": 12.5,
+        "accountCode": "6160 Telecom/Internet"
+      }
+    ],
+    "notes": null
+  },
+  "ef76b876d45a78be69d27bda890f86208f35842c": {
+    "docType": "EXPENSE",
+    "vendorName": "North Therm HVAC Services",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7076",
+    "date": "2025-07-02",
+    "dueDate": "2025-08-09",
+    "dueDays": 30,
+    "subtotal": 266,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 25.27
+    },
+    "discount": null,
+    "total": 291.27,
+    "amountPaid": 0,
+    "balanceDue": 291.27,
+    "currency": "USD",
+    "headerAccountCode": "6999",
+    "lineItems": [
+      {
+        "description": "Service 1",
+        "quantity": 2,
+        "rate": 15,
+        "amount": 30,
+        "accountCode": "6999"
+      },
+      {
+        "description": "Backup 2",
+        "quantity": 2,
+        "rate": 58,
+        "amount": 116,
+        "accountCode": "6999"
+      },
+      {
+        "description": "Subscription 3",
+        "quantity": 1,
+        "rate": 120,
+        "amount": 120,
+        "accountCode": "6999"
+      }
+    ],
+    "notes": null
+  },
+  "4002acbf435dd6557151f9e2fd96c29ff878e163": {
+    "docType": "EXPENSE",
+    "vendorName": "Staple & Stone Office Supply",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7050",
+    "date": "2025-07-02",
+    "dueDate": "2025-08-01",
+    "dueDays": 30,
+    "subtotal": 492.5,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 46.79
+    },
+    "discount": null,
+    "total": 539.29,
+    "amountPaid": 0,
+    "balanceDue": 539.29,
+    "currency": "USD",
+    "headerAccountCode": "6020",
+    "lineItems": [
+      {
+        "description": "Support 1",
+        "quantity": 1,
+        "rate": 15,
+        "amount": 15,
+        "accountCode": "6020"
+      },
+      {
+        "description": "Plan 2",
+        "quantity": 3,
+        "rate": 12.5,
+        "amount": 37.5,
+        "accountCode": "6020"
+      },
+      {
+        "description": "Support 3",
+        "quantity": 2,
+        "rate": 220,
+        "amount": 440,
+        "accountCode": "6020"
+      }
+    ],
+    "notes": "Pro forma quote — no payment due."
+  },
+  "71b79b745c3c1955238a45ed87761acd40537fab": {
+    "docType": "EXPENSE",
+    "vendorName": "CloudWire ISP",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7018",
+    "date": "2025-07-02",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 1297,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 0,
+      "amount": 0
+    },
+    "discount": null,
+    "total": 1297,
+    "amountPaid": 0,
+    "balanceDue": 1297,
+    "currency": "USD",
+    "headerAccountCode": "6160 Telecom/Internet",
+    "lineItems": [
+      {
+        "description": "Backup 1",
+        "quantity": 1,
+        "rate": 25,
+        "amount": 25,
+        "accountCode": null
+      },
+      {
+        "description": "Subscription 2",
+        "quantity": 3,
+        "rate": 25,
+        "amount": 75,
+        "accountCode": null
+      },
+      {
+        "description": "Subscription 3",
+        "quantity": 3,
+        "rate": 399,
+        "amount": 1197,
+        "accountCode": null
+      }
+    ],
+    "notes": null
+  },
+  "5ab3f60b6bfcf717e548740bfc885f2d727bdde3": {
+    "docType": "EXPENSE",
+    "vendorName": "AquaPure Water",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7009",
+    "date": "2025-06-28",
+    "dueDate": "2025-07-28",
+    "dueDays": 30,
+    "subtotal": 117.5,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 10.28
+    },
+    "discount": null,
+    "total": 127.78,
+    "amountPaid": -164.78,
+    "balanceDue": 0,
+    "currency": "USD",
+    "headerAccountCode": "6999",
+    "lineItems": [
+      {
+        "description": "Monthly 1",
+        "quantity": 2,
+        "rate": 15,
+        "amount": 30,
+        "accountCode": null
+      },
+      {
+        "description": "Monthly 2",
+        "quantity": 3,
+        "rate": 25,
+        "amount": 75,
+        "accountCode": null
+      },
+      {
+        "description": "Backup 3",
+        "quantity": 1,
+        "rate": 12.5,
+        "amount": 12.5,
+        "accountCode": null
+      }
+    ],
+    "notes": null
+  },
+  "3d51cf008ad3cdb44884499c455554bb9d5f11ce": {
+    "docType": "EXPENSE",
+    "vendorName": "Staple & Stone Office Supply",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7040",
+    "date": "2025-07-10",
+    "dueDate": "2025-08-01",
+    "dueDays": 30,
+    "subtotal": 192.5,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 0,
+      "amount": 0
+    },
+    "discount": null,
+    "total": 192.5,
+    "amountPaid": 0,
+    "balanceDue": 192.5,
+    "currency": "USD",
+    "headerAccountCode": "6020",
+    "lineItems": [
+      {
+        "description": "Support 1",
+        "quantity": 1,
+        "rate": 12.5,
+        "amount": 12.5,
+        "accountCode": null
+      },
+      {
+        "description": "Support 2",
+        "quantity": 1,
+        "rate": 60,
+        "amount": 60,
+        "accountCode": null
+      },
+      {
+        "description": "Monthly 3",
+        "quantity": 2,
+        "rate": 60,
+        "amount": 120,
+        "accountCode": null
+      }
+    ],
+    "notes": "Pro forma quote — no payment due."
+  },
+  "55dac480f7fe5c9b7b945384e03772b580e08ea3": {
+    "docType": "EXPENSE",
+    "vendorName": "AquaPure Water",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": null,
+    "date": "2025-06-28",
+    "dueDate": "2025-08-01",
+    "dueDays": 30,
+    "subtotal": 455,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 43.23
+    },
+    "discount": null,
+    "total": 498.23,
+    "amountPaid": 0,
+    "balanceDue": 498.23,
+    "currency": "USD",
+    "headerAccountCode": null,
+    "lineItems": [
+      {
+        "description": "Subscription 1",
+        "quantity": 1,
+        "rate": 15,
+        "amount": 15,
+        "accountCode": "6030 Software & Subscriptions"
+      },
+      {
+        "description": "Service 2",
+        "quantity": 2,
+        "rate": 220,
+        "amount": 440,
+        "accountCode": "6999 General Expense"
+      }
+    ],
+    "notes": "Pro forma quote — no payment due."
+  },
+  "1049c8a9d2e73f9f3b9de26e8283d6f2ecb687b4": {
+    "docType": "EXPENSE",
+    "vendorName": "CloudWire ISP",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": null,
+    "date": "2025-06-28",
+    "dueDate": "2025-08-01",
+    "dueDays": 30,
+    "subtotal": 45,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 0.095,
+      "amount": 4.28
+    },
+    "discount": null,
+    "total": 49.28,
+    "amountPaid": 0,
+    "balanceDue": 49.28,
+    "currency": "USD",
+    "headerAccountCode": "6160 Telecom/Internet",
+    "lineItems": [
+      {
+        "description": "Subscription",
+        "quantity": 3,
+        "rate": 15,
+        "amount": 45,
+        "accountCode": "6030 Software & Subscriptions"
+      }
+    ],
+    "notes": "Vendor credit issued. Apply to future bills."
+  },
+  "ed77d61f7ab2127b0ecd8dc1e72aa2a093aa35e6": {
+    "docType": "EXPENSE",
+    "vendorName": "AquaPure Water",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7006",
+    "date": "2025-07-10",
+    "dueDate": "2025-08-01",
+    "dueDays": 30,
+    "subtotal": 193,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 18.34
+    },
+    "discount": null,
+    "total": 211.34,
+    "amountPaid": 0,
+    "balanceDue": 211.34,
+    "currency": "USD",
+    "headerAccountCode": "6030 Software & Subscriptions",
+    "lineItems": [
+      {
+        "description": "Plan 1",
+        "quantity": 1,
+        "rate": 58,
+        "amount": 58,
+        "accountCode": null
+      },
+      {
+        "description": "License 2",
+        "quantity": 1,
+        "rate": 15,
+        "amount": 15,
+        "accountCode": null
+      },
+      {
+        "description": "Support 3",
+        "quantity": 1,
+        "rate": 120,
+        "amount": 120,
+        "accountCode": null
+      }
+    ],
+    "notes": "Pro forma quote — no payment due."
+  },
+  "5ec2795095be9fb294d9f5f1714bf54db636f922": {
+    "docType": "EXPENSE",
+    "vendorName": "AquaPure Water",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7045",
+    "date": "2025-07-02",
+    "dueDate": "2025-08-01",
+    "dueDays": 30,
+    "subtotal": 210,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 18.38
+    },
+    "discount": null,
+    "total": 228.38,
+    "amountPaid": 0,
+    "balanceDue": 228.38,
+    "currency": "USD",
+    "headerAccountCode": "6999",
+    "lineItems": [
+      {
+        "description": "Subscription",
+        "quantity": 3,
+        "rate": 15,
+        "amount": 45,
+        "accountCode": null
+      },
+      {
+        "description": "Monthly",
+        "quantity": 1,
+        "rate": 120,
+        "amount": 120,
+        "accountCode": null
+      },
+      {
+        "description": "Service",
+        "quantity": 3,
+        "rate": 15,
+        "amount": 45,
+        "accountCode": null
+      }
+    ],
+    "notes": "Vendor credit issued. Apply to future bills."
+  },
+  "363d9f052397eeb70930bfb0162baf29a406ebfe": {
+    "docType": "EXPENSE",
+    "vendorName": "Staple & Stone Office Supply",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7068",
+    "date": "2025-07-05",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 1294,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 122.93
+    },
+    "discount": null,
+    "total": 1416.93,
+    "amountPaid": 0,
+    "balanceDue": 1416.93,
+    "currency": "USD",
+    "headerAccountCode": "6020",
+    "lineItems": [
+      {
+        "description": "Monthly",
+        "quantity": 1,
+        "rate": 680,
+        "amount": 680,
+        "accountCode": null
+      },
+      {
+        "description": "Backup",
+        "quantity": 3,
+        "rate": 58,
+        "amount": 174,
+        "accountCode": null
+      },
+      {
+        "description": "Plan",
+        "quantity": 2,
+        "rate": 220,
+        "amount": 440,
+        "accountCode": null
+      }
+    ],
+    "notes": "Vendor credit issued. Apply to future bills."
+  },
+  "62d766b4394b2f3717c64cd7b259eb004d32e513": {
+    "docType": "EXPENSE",
+    "vendorName": "AquaPure Water",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7065",
+    "date": "2025-07-02",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 360,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 34.2
+    },
+    "discount": null,
+    "total": 394.2,
+    "amountPaid": 0,
+    "balanceDue": 394.2,
+    "currency": "USD",
+    "headerAccountCode": "6999",
+    "lineItems": [
+      {
+        "description": "Support",
+        "quantity": 3,
+        "rate": 120,
+        "amount": 360,
+        "accountCode": "6999"
+      }
+    ],
+    "notes": "Pro forma quote — no payment due."
+  },
+  "8580f326d4ddc1dbfee534f6be5f51f71e2047e4": {
+    "docType": "EXPENSE",
+    "vendorName": "AquaPure Water",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": null,
+    "date": "2025-07-10",
+    "dueDate": "2025-08-09",
+    "dueDays": 30,
+    "subtotal": 425,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 0,
+      "amount": 0
+    },
+    "discount": null,
+    "total": 425,
+    "amountPaid": 0,
+    "balanceDue": 425,
+    "currency": "USD",
+    "headerAccountCode": "6999 General Expense",
+    "lineItems": [
+      {
+        "description": "Monthly",
+        "quantity": 1,
+        "rate": 220,
+        "amount": 220,
+        "accountCode": null
+      },
+      {
+        "description": "Backup",
+        "quantity": 2,
+        "rate": 12.5,
+        "amount": 25,
+        "accountCode": null
+      },
+      {
+        "description": "Service",
+        "quantity": 3,
+        "rate": 60,
+        "amount": 180,
+        "accountCode": null
+      }
+    ],
+    "notes": null
+  },
+  "8f75e98587671daac77a1bcc0c748476047ff9c3": {
+    "docType": "EXPENSE",
+    "vendorName": "North Therm HVAC Services",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7052",
+    "date": "2025-07-12",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 75,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 6.56
+    },
+    "discount": null,
+    "total": 81.56,
+    "amountPaid": 0,
+    "balanceDue": 81.56,
+    "currency": "USD",
+    "headerAccountCode": "6999",
+    "lineItems": [
+      {
+        "description": "Backup 1",
+        "quantity": 3,
+        "rate": 25,
+        "amount": 75,
+        "accountCode": "6999"
+      }
+    ],
+    "notes": "Voided bill. Do not pay."
+  },
+  "099b35c6ebcbef45732b726f0c374a947e6fd5df": {
+    "docType": "EXPENSE",
+    "vendorName": "AquaPure Water",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7070",
+    "date": "2025-07-10",
+    "dueDate": "2025-08-09",
+    "dueDays": 30,
+    "subtotal": 1160,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 0,
+      "amount": 0
+    },
+    "discount": null,
+    "total": 1160,
+    "amountPaid": 0,
+    "balanceDue": 1160,
+    "currency": "USD",
+    "headerAccountCode": "6030",
+    "lineItems": [
+      {
+        "description": "Monthly",
+        "quantity": 3,
+        "rate": 120,
+        "amount": 360,
+        "accountCode": null
+      },
+      {
+        "description": "Subscription",
+        "quantity": 2,
+        "rate": 220,
+        "amount": 440,
+        "accountCode": null
+      },
+      {
+        "description": "Plan",
+        "quantity": 3,
+        "rate": 120,
+        "amount": 360,
+        "accountCode": null
+      }
+    ],
+    "notes": "Vendor credit issued. Apply to future bills."
+  },
+  "a7eae04c20abb8395ca7fd0d3b056bc1f2931e5b": {
+    "docType": "EXPENSE",
+    "vendorName": "Staple & Stone Office Supply",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7086",
+    "date": "2025-07-12",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 1637,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 143.24
+    },
+    "discount": null,
+    "total": 1780.24,
+    "amountPaid": 0,
+    "balanceDue": 1780.24,
+    "currency": "USD",
+    "headerAccountCode": "6020",
+    "lineItems": [
+      {
+        "description": "Service 1",
+        "quantity": 1,
+        "rate": 320,
+        "amount": 320,
+        "accountCode": null
+      },
+      {
+        "description": "License 2",
+        "quantity": 2,
+        "rate": 60,
+        "amount": 120,
+        "accountCode": null
+      },
+      {
+        "description": "License 3",
+        "quantity": 3,
+        "rate": 399,
+        "amount": 1197,
+        "accountCode": null
+      }
+    ],
+    "notes": null
+  },
+  "52d4b7c89f90cfb7b9e0740bbc0bac70b4565e14": {
+    "docType": "EXPENSE",
+    "vendorName": "North Therm HVAC Services",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7068",
+    "date": "2025-07-12",
+    "dueDate": "2025-08-09",
+    "dueDays": 30,
+    "subtotal": 186.5,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 8.75,
+      "amount": 16.32
+    },
+    "discount": null,
+    "total": 202.82,
+    "amountPaid": -226.82,
+    "balanceDue": 0,
+    "currency": "USD",
+    "headerAccountCode": "6999",
+    "lineItems": [
+      {
+        "description": "Plan 1",
+        "quantity": 1,
+        "rate": 12.5,
+        "amount": 12.5,
+        "accountCode": "6999"
+      },
+      {
+        "description": "Support 2",
+        "quantity": 3,
+        "rate": 58,
+        "amount": 174,
+        "accountCode": "6999"
+      }
+    ],
+    "notes": null
+  },
+  "debb399b2a19f0ace1ff2113e2326107f1d454b0": {
+    "docType": "EXPENSE",
+    "vendorName": "CloudWire ISP",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7071",
+    "date": "2025-06-28",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 2619,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 0,
+      "amount": 0
+    },
+    "discount": null,
+    "total": 2619,
+    "amountPaid": 0,
+    "balanceDue": 2619,
+    "currency": "USD",
+    "headerAccountCode": "6160 Telecom/Internet",
+    "lineItems": [
+      {
+        "description": "Plan 1",
+        "quantity": 1,
+        "rate": 399,
+        "amount": 399,
+        "accountCode": "6160 Telecom/Internet"
+      },
+      {
+        "description": "Support 2",
+        "quantity": 3,
+        "rate": 680,
+        "amount": 2040,
+        "accountCode": "6160 Telecom/Internet"
+      },
+      {
+        "description": "Monthly 3",
+        "quantity": 3,
+        "rate": 60,
+        "amount": 180,
+        "accountCode": "6160 Telecom/Internet"
+      }
+    ],
+    "notes": "Pro forma quote — no payment due."
+  },
+  "c455508722d144916e25a16022dc01d3f906be20": {
+    "docType": "EXPENSE",
+    "vendorName": "ByteVault Cloud Storage",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7092",
+    "date": "2025-07-05",
+    "dueDate": "2025-08-11",
+    "dueDays": 30,
+    "subtotal": 245,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 0,
+      "amount": 0
+    },
+    "discount": null,
+    "total": 245,
+    "amountPaid": 0,
+    "balanceDue": 245,
+    "currency": "USD",
+    "headerAccountCode": "6030 Software & Subscriptions",
+    "lineItems": [
+      {
+        "description": "License",
+        "quantity": 1,
+        "rate": 25,
+        "amount": 25,
+        "accountCode": "6030 Software & Subscriptions"
+      },
+      {
+        "description": "Support",
+        "quantity": 1,
+        "rate": 220,
+        "amount": 220,
+        "accountCode": "6030 Software & Subscriptions"
+      }
+    ],
+    "notes": "Vendor credit issued. Apply to future bills."
+  },
+  "0738de5efb8630b050c8ce74ea67054fee707b4f": {
+    "docType": "EXPENSE",
+    "vendorName": "ByteVault Cloud Storage",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7059",
+    "date": "2025-07-02",
+    "dueDate": "2025-07-28",
+    "dueDays": 30,
+    "subtotal": 798,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 75.81
+    },
+    "discount": null,
+    "total": 873.81,
+    "amountPaid": 873.81,
+    "balanceDue": 0,
+    "currency": "USD",
+    "headerAccountCode": "6240",
+    "lineItems": [
+      {
+        "description": "Support",
+        "quantity": 2,
+        "rate": 399,
+        "amount": 798,
+        "accountCode": "6240"
+      }
+    ],
+    "notes": null
+  },
+  "d66ecde174310a0a3b3d2ef1dc0e3f72c6b7f5d9": {
+    "docType": "EXPENSE",
+    "vendorName": "AquaPure Water",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7020",
+    "date": "2025-07-10",
+    "dueDate": "2025-08-09",
+    "dueDays": 30,
+    "subtotal": 1197,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 0,
+      "amount": 0
+    },
+    "discount": null,
+    "total": 1197,
+    "amountPaid": 0,
+    "balanceDue": 1197,
+    "currency": "USD",
+    "headerAccountCode": "6999 General Expense",
+    "lineItems": [
+      {
+        "description": "Rental",
+        "quantity": 3,
+        "rate": 399,
+        "amount": 1197,
+        "accountCode": null
+      }
+    ],
+    "notes": "Vendor credit issued. Apply to future bills."
+  },
+  "3e972bb390c681219c89cb5f26b85e6964468c61": {
+    "docType": "EXPENSE",
+    "vendorName": "AquaPure Water",
+    "customerName": null,
+    "invoiceNumber": null,
+    "vendorInvoiceNo": "7097",
+    "date": "2025-07-10",
+    "dueDate": "2025-08-01",
+    "dueDays": 30,
+    "subtotal": 760,
+    "tax": {
+      "enabled": true,
+      "type": "percentage",
+      "rate": 9.5,
+      "amount": 72.2
+    },
+    "discount": null,
+    "total": 832.2,
+    "amountPaid": 832.2,
+    "balanceDue": 0,
+    "currency": "USD",
+    "headerAccountCode": "6999",
+    "lineItems": [
+      {
+        "description": "Service 1",
+        "quantity": 2,
+        "rate": 320,
+        "amount": 640,
+        "accountCode": null
+      },
+      {
+        "description": "Subscription 2",
+        "quantity": 1,
+        "rate": 120,
+        "amount": 120,
+        "accountCode": null
+      }
+    ],
+    "notes": null
+  }
+}
