@@ -9,6 +9,7 @@ import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import { useTheme } from '../../theme/ThemeProvider'
 import { Globe, Zap, DollarSign, TrendingUp, RefreshCw } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { VoiceCommandInterface } from '../voice/VoiceCommandInterface'
 
 // Perfect scale financial data for spectacular 3D visualization
 const financialNodes = [
@@ -686,11 +687,26 @@ export function TransactionUniverse() {
   const [loadMenuOpen, setLoadMenuOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState<boolean>(() => localStorage.getItem('universe_helpOpen') === '1')
   const { currentTheme } = useTheme()
+  const [voiceOpen, setVoiceOpen] = useState(false)
 
   useEffect(() => {
     // Reduce loading time for better UX - just enough for Three.js to initialize
     const timer = setTimeout(() => setIsLoading(false), 800)
     return () => clearTimeout(timer)
+  }, [])
+
+  // Focus/selection from global events
+  useEffect(() => {
+    const onFocus = (e: any) => {
+      try {
+        const id = String(e?.detail?.nodeId || '')
+        if (!id) return
+        setSelectedNode(id)
+        // Optional: future camera centering can be added here
+      } catch {}
+    }
+    try { window.addEventListener('universe:focus', onFocus as any) } catch {}
+    return () => { try { window.removeEventListener('universe:focus', onFocus as any) } catch {} }
   }, [])
 
   // Persist help popover state
@@ -1035,6 +1051,9 @@ export function TransactionUniverse() {
                       >
                         Contrast
                       </button>
+                      <div className="ml-1">
+                        <VoiceCommandInterface isActive={voiceOpen} onToggle={setVoiceOpen} />
+                      </div>
                     </div>
                   </ThemedGlassSurface>
                 </div>

@@ -14,6 +14,11 @@ Backlog (UI)
 - Accessibility pass: ARIA, keyboard nav, focus management
 - Performance: bundle/code-splitting sweep; revisit virtualization where safe
 
+### Added (2025-08-27)
+- AI Chat pipeline with provider fallback/retries/circuit breaker (server). ChatDrawer now connects via WS and streams responses; ACTION dispatcher stub ready.
+- Voice mode scaffold present; next: pipe transcript to chat pipeline and surface live “doing now” updates.
+- COA: plan confirmed for running balance + CSV/PDF export.
+
 ### Recurring (dev-only controls)
 - Hide the following in production (gate behind build flag):
   - Simulate Next Run (dry‑run)

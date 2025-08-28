@@ -68,12 +68,6 @@ export default function LandingTopNav({ onSignIn, onGetStarted }: { onSignIn?: (
 						visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'
 					)}
 					style={{ borderRadius: radius }}
-					onMouseMove={(e) => {
-						const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-						setPointer({ x: e.clientX - r.left, y: e.clientY - r.top })
-						setPointerActive(true)
-					}}
-					onMouseLeave={() => setPointerActive(false)}
 				>
 					{/* Scroll progress (top border) */}
 					<motion.div

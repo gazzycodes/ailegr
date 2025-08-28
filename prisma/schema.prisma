@@ -292,10 +292,150 @@ model VendorSetting {
   taxMode    String?
   taxRate    Float?
   taxAmount  Float?
+  accountsRemember Json?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   @@map("vendor_settings")
   @@unique([tenantId, vendor])
+}
+
+// Products & Inventory (v1)
+model Product {
+  id                   String   @id @default(cuid())
+  tenantId             String   @default("dev")
+  sku                  String?
+  barcode              String?
+  name                 String
+  description          String?
+  type                 String   // 'service' | 'inventory'
+  unit                 String?  // e.g., 'ea'
+  price                Decimal? // selling price
+  cost                 Decimal? // default cost for inventory
+  taxCode              String?
+  incomeAccountCode    String?
+  expenseAccountCode   String?
+  cogsAccountCode      String?
+  inventoryAccountCode String?
+  preferredVendor      String?
+  active               Boolean  @default(true)
+  tags                 Json?
+  favorite             Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relations
+  lots                 InventoryLot[]
+  txns                 InventoryTxn[]
+
+  @@map("products")
+  @@unique([tenantId, name])
+}
+
+model InventoryLot {
+  id            String   @id @default(cuid())
+  tenantId      String   @default("dev")
+  productId     String
+  receivedOn    DateTime
+  qty           Decimal
+  unitCost      Decimal
+  remainingQty  Decimal
+  sourceBillId  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("inventory_lots")
+  @@index([tenantId, productId])
+}
+
+model InventoryTxn {
+  id         String   @id @default(cuid())
+  tenantId   String   @default("dev")
+  productId  String
+  type       String   // 'receive' | 'sell' | 'adjust'
+  qty        Decimal
+  unitCost   Decimal
+  journalId  String?
+  memo       String?
+  linkedDocId String?
+  createdAt  DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("inventory_txns")
+  @@index([tenantId, productId])
+}
+
+
+/// Fixed Assets: Categories, Assets, and Events
+model AssetCategory {
+  id                      String   @id @default(cuid())
+  tenantId                String   @default("dev")
+  name                    String
+  defaultUsefulLifeMonths Int      @default(36)
+  defaultMethod           String   @default("SL") // SL=Straight-line, DB=Declining-balance (future)
+  assetAccountCode        String
+  accumulatedAccountCode  String
+  expenseAccountCode      String
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  // Relations
+  assets                  Asset[]  @relation("AssetToCategory")
+
+  @@map("asset_categories")
+  @@unique([tenantId, name])
+}
+
+model Asset {
+  id                       String   @id @default(cuid())
+  tenantId                 String   @default("dev")
+  categoryId               String?
+  name                     String
+  vendorName               String?
+  acquisitionDate          DateTime
+  inServiceDate            DateTime
+  cost                     Decimal
+  residualValue            Decimal  @default(0)
+  method                   String   @default("SL")
+  usefulLifeMonths         Int
+  notes                    String?
+  status                   String   @default("active") // active | disposed | fully_depreciated
+  accumulatedDepreciation  Decimal  @default(0)
+  nextRunOn                DateTime?
+  uniqueKey                String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  // Relations
+  category  AssetCategory? @relation("AssetToCategory", fields: [categoryId], references: [id])
+  events    AssetEvent[]
+
+  @@map("assets")
+  @@index([tenantId, nextRunOn])
+  @@index([tenantId, status])
+  @@unique([tenantId, uniqueKey])
+}
+
+model AssetEvent {
+  id         String   @id @default(cuid())
+  tenantId   String   @default("dev")
+  assetId    String
+  type       String   // acquire | depreciate | dispose
+  amount     Decimal
+  runOn      DateTime
+  journalId  String?
+  memo       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@map("asset_events")
+  @@unique([tenantId, assetId, type, runOn])
+  @@index([tenantId, runOn])
 }
 

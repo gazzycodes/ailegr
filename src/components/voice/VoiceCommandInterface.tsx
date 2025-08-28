@@ -171,6 +171,9 @@ export function VoiceCommandInterface({ isActive, onToggle }: VoiceCommandInterf
 
     setRecentCommands(prev => [command, ...prev.slice(0, 4)])
 
+    // Send transcript to AI Chat pipeline via global event (non-blocking)
+    try { window.dispatchEvent(new CustomEvent('chat:send', { detail: { text: transcript } })) } catch {}
+
     // Simulate command processing
     setTimeout(() => {
       const success = Math.random() > 0.2 // 80% success rate
@@ -284,12 +287,20 @@ export function VoiceCommandInterface({ isActive, onToggle }: VoiceCommandInterf
                 <p className="text-xs text-muted-contrast">AI-powered voice interface</p>
               </div>
             </div>
-            <button
-              onClick={() => onToggle(false)}
-              className="p-1 rounded-md hover:bg-surface/50 transition-colors"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); try { window.dispatchEvent(new Event('ai:help')) } catch {} }}
+                className="px-2 py-1 text-xs rounded bg-white/10 hover:bg-white/15 border border-white/10"
+              >
+                How it works
+              </button>
+              <button
+                onClick={() => onToggle(false)}
+                className="p-1 rounded-md hover:bg-surface/50 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           {/* Voice Input */}

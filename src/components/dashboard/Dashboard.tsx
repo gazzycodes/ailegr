@@ -22,6 +22,7 @@ import ExpensesApi from '../../services/expensesService'
 import { listInvoices } from '../../services/transactionsService'
 import { FinancialDataService } from '../../services/financialDataService'
 import api from '../../services/api'
+import AssetsService from '../../services/assetsService'
 
 interface DashboardProps {
   businessHealth: number
@@ -36,6 +37,7 @@ export function Dashboard({ businessHealth }: DashboardProps) {
   const [isLoading, setIsLoading] = useState(true)
   const { currentTheme } = useTheme()
   const [recent, setRecent] = useState<RecentItem[]>([])
+  const [assetMetrics, setAssetMetrics] = useState<{ totalCost?: number; totalAccum?: number; nbv?: number; inService?: number; upcomingRuns?: number; monthlyDepreciation?: number }>({})
 
   // Simulate loading state
   useEffect(() => {
@@ -181,6 +183,14 @@ export function Dashboard({ businessHealth }: DashboardProps) {
       series: normalized
     } as any)
   }, [dashboardQuery.data, seriesQuery.data])
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try { const m = await AssetsService.getAssetMetrics(); if (mounted) setAssetMetrics(m || {}) } catch {}
+    })()
+    return () => { mounted = false }
+  }, [])
 
   // Listen for global refresh events from posting flows
   useEffect(() => {
@@ -407,6 +417,21 @@ export function Dashboard({ businessHealth }: DashboardProps) {
             </motion.button>
           </ThemedGlassSurface>
         </motion.div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+        <ThemedGlassSurface variant="light" className="p-4">
+          <div className="text-xs text-secondary-contrast">Assets NBV</div>
+          <div className="text-2xl font-semibold">${Number(assetMetrics.nbv || 0).toLocaleString()}</div>
+        </ThemedGlassSurface>
+        <ThemedGlassSurface variant="light" className="p-4">
+          <div className="text-xs text-secondary-contrast">Monthly Depreciation</div>
+          <div className="text-2xl font-semibold">${Number(assetMetrics.monthlyDepreciation || 0).toLocaleString()}</div>
+        </ThemedGlassSurface>
+        <ThemedGlassSurface variant="light" className="p-4">
+          <div className="text-xs text-secondary-contrast">In Service / Upcoming 30d</div>
+          <div className="text-2xl font-semibold">{Number(assetMetrics.inService || 0)} / {Number(assetMetrics.upcomingRuns || 0)}</div>
+        </ThemedGlassSurface>
       </div>
     </motion.div>
   )

@@ -203,7 +203,7 @@ async function run() {
   if (!approxEq(d6020, 400.00, 3.0)) throw new Error(`COA 6020 delta ${d6020.toFixed(2)} != ~400.00`)
   // Some COA mappings may route INSURANCE or overrides; allow wider tolerance for 6110
   if (!approxEq(d6110, 26.00, 1.0)) throw new Error(`COA 6110 delta ${d6110.toFixed(2)} != ~26.00`)
-  if (!approxEq(d1360, 16.00, 0.8)) throw new Error(`COA 1360 delta ${d1360.toFixed(2)} != ~16.00`)
+  if (!approxEq(d1360, 15.00, 0.8)) throw new Error(`COA 1360 delta ${d1360.toFixed(2)} != ~15.00`)
   if (!approxEq(d2010, 440.00, 1.0)) throw new Error(`COA 2010 delta ${d2010.toFixed(2)} != ~440.00`)
   if (!approxEq(d2150, 30.00, 0.6)) throw new Error(`COA 2150 delta ${d2150.toFixed(2)} != ~30.00`)
   if (!approxEq(d4020, 170.00, 1.0)) throw new Error(`COA 4020 delta ${d4020.toFixed(2)} != ~170.00`)

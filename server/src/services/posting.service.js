@@ -118,323 +118,65 @@ class PostingService {
                 // Compute subtotal from gross and tax if not provided
                 const gross = parseFloat(expenseData.amount) || 0
                 let taxAmt = 0
-                if (expenseData?.taxSettings?.enabled) {
-                  if (expenseData.taxSettings.type === 'percentage') {
-                    const rate = parseFloat(expenseData.taxSettings.rate || 0) || 0
-                    taxAmt = +(gross * rate / 100).toFixed(2)
-                  } else {
-                    taxAmt = Math.max(0, parseFloat(expenseData.taxSettings.amount || 0) || 0)
-                  }
-                }
-                const manualSubtotal = expenseData.subtotal != null ? parseFloat(expenseData.subtotal) : null
-                return (manualSubtotal != null && !isNaN(manualSubtotal)) ? +manualSubtotal.toFixed(2) : +(gross - taxAmt).toFixed(2)
-              } catch { return null } })(),
-              discountAmount: (() => { try { return expenseData?.discount?.enabled ? +(parseFloat(expenseData.discount.amount || 0).toFixed(2)) : 0 } catch { return 0 } })(),
-              taxAmount: (() => { try {
-                if (expenseData?.taxSettings?.enabled) {
-                  if (expenseData.taxSettings.type === 'percentage') {
-                    const gross = parseFloat(expenseData.amount) || 0
-                    const rate = parseFloat(expenseData.taxSettings.rate || 0) || 0
-                    return +(gross * rate / 100).toFixed(2)
-                  } else {
-                    return +(Math.max(0, parseFloat(expenseData.taxSettings.amount || 0) || 0).toFixed(2))
-                  }
-                }
-                return 0
-              } catch { return 0 } })(),
-              dueDate: expenseData?.dueDate || null,
-              dueDays: expenseData?.dueDays ?? null,
-              lineItems: Array.isArray(expenseData?.lineItems) ? expenseData.lineItems.map(li => ({ description: li.description, amount: +(parseFloat(li.amount || 0).toFixed(2)), quantity: (li.quantity!=null? Number(li.quantity): undefined), rate: (li.rate!=null? +parseFloat(String(li.rate)).toFixed(2): undefined) })) : []
+                try { taxAmt = parseFloat(expenseData?.tax?.amount||0) || 0 } catch {}
+                const sub = Math.max(0, gross - taxAmt)
+                return Number(sub.toFixed(2))
+              } catch { return parseFloat(expenseData.amount)||0 } })(),
+              tax: expenseData?.tax || null,
+              splitByLineItems: !!expenseData.splitByLineItems,
+              lineItems: Array.isArray(expenseData.lineItems) ? expenseData.lineItems : []
             }
           }
         });
-        
-        // Create Expense record linked to transaction
-        // Generate friendly bill number when not provided
-        let effectiveVendorInvoiceNo = expenseData.vendorInvoiceNo || null;
-        async function generateBillNumber(prefix) {
-          const pad = (n) => String(n).padStart(3, '0');
-          let seq = await tx.expense.count({ where: { vendorInvoiceNo: { startsWith: prefix } } }) + 1;
-          for (let i = 0; i < 10; i++) {
-            const candidate = `${prefix}${pad(seq)}`;
-            const clash = await tx.expense.findFirst({ where: { vendor: expenseData.vendorName, vendorInvoiceNo: candidate }, select: { id: true } });
-            if (!clash) return candidate;
-            seq += 1;
-          }
-          // Fallback unique-ish tail
-          return `${prefix}${String(Date.now()).slice(-6)}`;
-        }
-        if (!effectiveVendorInvoiceNo) {
-          const prefix = expenseData.recurring ? 'BILL-R' : 'BILL-';
-          try { effectiveVendorInvoiceNo = await generateBillNumber(prefix) } catch { effectiveVendorInvoiceNo = null }
-        }
-        const expense = await tx.expense.create({
-          data: {
-            transactionId: transaction.id,
-            vendor: expenseData.vendorName,
-            vendorInvoiceNo: effectiveVendorInvoiceNo,
-            categoryKey: expenseData.categoryKey, // Keep enum for compatibility
-            date: new Date(accountResolution.dateUsed),
-            amount: parseFloat(expenseData.amount),
-            description: expenseData.description || `Expense from ${expenseData.vendorName}`,
-            receiptUrl: expenseData.receiptUrl || null,
-            customFields: {
-              paymentStatus: expenseData.paymentStatus,
-              amountPaid: amountPaidForStorage,
-              balanceDue: balanceDueForStorage,
-              notes: expenseData.notes || null
-            },
-            isRecurring: !!expenseData.recurring,
-            isPending: false
-          }
-        });
 
-        // Backfill expenseId and aggregates into transaction customFields for easier queries
-        try {
-          const existingCf = transaction.customFields || {};
-          await tx.transaction.update({
-            where: { id: transaction.id },
-            data: {
-              customFields: {
-                ...existingCf,
-                expenseId: expense.id,
-                amountPaid: amountPaidForStorage,
-                initialAmountPaid: amountPaidForStorage,
-                balanceDue: balanceDueForStorage
-              }
-            }
-          });
-        } catch (e) {}
-        
-        // 🔥 ENHANCED: Check for overpaid expense scenario
-        const totalExpense = parseFloat(expenseData.amount) || 0;
-        const amountPaid = parseFloat(expenseData.amountPaid || expenseData.amount) || 0;
-        const balanceDue = parseFloat(expenseData.balanceDue || '0') || 0;
-        const overpaidAmount = amountPaid - totalExpense;
-        const isOverpaid = overpaidAmount > 0.01 || balanceDue < -0.01;
+        // Double entry using expense logic (supports tax and line items)
+        const useSplit = !!expenseData.splitByLineItems || (Array.isArray(expenseData.lineItems) && expenseData.lineItems.length > 0)
+        const entries = useSplit
+          ? await PostingService.createDoubleEntryRecordsSplit(tx, transaction.id, accounts, accountResolution, expenseData)
+          : await PostingService.createDoubleEntryRecords(tx, transaction.id, accounts, accountResolution, expenseData)
 
-        console.log(`💰 Overpaid check: Total=$${totalExpense}, Paid=$${amountPaid}, Overpaid=$${overpaidAmount}, IsOverpaid=${isOverpaid}`);
-
-        let entries;
-        
-        if (isOverpaid) {
-          // 🔥 OVERPAID: Create posting with proper tax split
-          console.log(`💎 Creating overpaid expense posting (with tax split): $${overpaidAmount.toFixed(2)} overpaid`);
-          const apAccount = await tx.account.findFirst({ where: { code: '2010' } });
-          if (!apAccount) {
-            throw new Error('Accounts Payable account (2010) not found - required for vendor overpayments');
-          }
-
-          entries = [];
-
-          // Compute tax like standard path
-          let taxAmount = 0;
-          try {
-            if (expenseData?.taxSettings?.enabled) {
-              if (expenseData.taxSettings.type === 'percentage') {
-                const rate = parseFloat(expenseData.taxSettings.rate || 0) || 0;
-                taxAmount = parseFloat((totalExpense * rate / 100).toFixed(2));
-              } else {
-                taxAmount = Math.max(0, parseFloat(expenseData.taxSettings.amount || 0) || 0);
-                if (taxAmount > totalExpense) taxAmount = totalExpense;
-              }
-              if (expenseData.taxSettings.taxExempt === true) taxAmount = 0;
-            }
-          } catch {}
-          const subtotal = Math.max(0, +(totalExpense - taxAmount).toFixed(2));
-
-          // Debit subtotal to expense account
-          if (subtotal > 0) {
-            const debitEntry = await tx.transactionEntry.create({
-              data: { transactionId: transaction.id, debitAccountId: accounts.debit.id, creditAccountId: null, amount: subtotal, description: `${accountResolution.debit.accountName} - ${expenseData.vendorName}` }
-            });
-            entries.push(debitEntry);
-          }
-
-          // Debit tax to appropriate account
-          if (taxAmount > 0) {
-            let taxAccountCode = '6110';
-            let resolvedRegime = 'US_SALES_TAX';
-            try {
-              const txHeader = await tx.transaction.findUnique({ where: { id: transaction.id }, select: { tenantId: true } })
-              const tenantId = txHeader?.tenantId || 'dev'
-              const prof = await tx.companyProfile.findFirst({ where: { tenantId }, select: { taxRegime: true, taxAccounts: true } })
-              if (prof) {
-                const overrides = (prof.taxAccounts || {})
-                resolvedRegime = String(prof.taxRegime || '').toUpperCase() || 'US_SALES_TAX'
-                if (resolvedRegime === 'VAT') taxAccountCode = (overrides.receivable || '1360')
-                else taxAccountCode = (overrides.expense || '6110')
-              }
-            } catch {}
-            let taxAccount = await tx.account.findFirst({ where: { code: taxAccountCode } });
-            if (!taxAccount) taxAccount = await tx.account.findFirst({ where: { code: '6110' } });
-            if (!taxAccount) throw new Error('Tax account not found in Chart of Accounts');
-            const taxDebit = await tx.transactionEntry.create({ data: { transactionId: transaction.id, debitAccountId: taxAccount.id, creditAccountId: null, amount: taxAmount, description: `Tax on expense - ${expenseData.vendorName}` } });
-            entries.push(taxDebit);
-          }
-
-          // Credit cash for the amount paid
-          const cashCreditEntry = await tx.transactionEntry.create({ data: { transactionId: transaction.id, debitAccountId: null, creditAccountId: accounts.credit.id, amount: amountPaid, description: `Cash paid to ${expenseData.vendorName}` } });
-          entries.push(cashCreditEntry);
-
-          // Debit Accounts Payable for the overpaid amount (vendor credit)
-          const vendorCreditEntry = await tx.transactionEntry.create({ data: { transactionId: transaction.id, debitAccountId: apAccount.id, creditAccountId: null, amount: overpaidAmount, description: `Vendor credit - ${expenseData.vendorName} overpayment of $${overpaidAmount.toFixed(2)}` } });
-          entries.push(vendorCreditEntry);
-          
-        } else if (expenseData.paymentStatus === 'partial' && expenseData.amountPaid && parseFloat(expenseData.amountPaid) > 0) {
-          // 🔥 PARTIAL PAYMENT: Create 3-line posting manually
-          const amountPaidNum = parseFloat(expenseData.amountPaid);
-          const remainingBalance = totalExpense - amountPaidNum;
-
-          console.log(`📊 Creating partial payment posting: $${amountPaidNum} paid, $${remainingBalance} remaining`);
-
-          // Get Accounts Payable and Cash accounts
-          const apAccount = await tx.account.findFirst({ where: { code: '2010' } });
-          const cashAccount = await tx.account.findFirst({ where: { code: '1010' } });
-          if (!apAccount || !cashAccount) {
-            throw new Error('Required accounts not found: Cash (1010) or Accounts Payable (2010)');
-          }
-
-          entries = [];
-
-          // Split gross into subtotal + tax like standard path
-          let taxAmount = 0;
-          try {
-            if (expenseData?.taxSettings?.enabled) {
-              if (expenseData.taxSettings.type === 'percentage') {
-                const rate = parseFloat(expenseData.taxSettings.rate || 0) || 0;
-                taxAmount = parseFloat((totalExpense * rate / 100).toFixed(2));
-              } else {
-                taxAmount = Math.max(0, parseFloat(expenseData.taxSettings.amount || 0) || 0);
-                if (taxAmount > totalExpense) taxAmount = totalExpense;
-              }
-              if (expenseData.taxSettings.taxExempt === true) taxAmount = 0;
-            }
-          } catch {}
-          const subtotal = Math.max(0, +(totalExpense - taxAmount).toFixed(2));
-
-          // Debit subtotal to expense account
-          if (subtotal > 0) {
-            const debitEntry = await tx.transactionEntry.create({ data: { transactionId: transaction.id, debitAccountId: accounts.debit.id, creditAccountId: null, amount: subtotal, description: `${accountResolution.debit.accountName} - ${expenseData.vendorName}` } });
-            entries.push(debitEntry);
-          }
-
-          // Debit tax portion
-          if (taxAmount > 0) {
-            let taxAccountCode = '6110';
-            let resolvedRegime = 'US_SALES_TAX';
-            try {
-              const txHeader = await tx.transaction.findUnique({ where: { id: transaction.id }, select: { tenantId: true } })
-              const tenantId = txHeader?.tenantId || 'dev'
-              const prof = await tx.companyProfile.findFirst({ where: { tenantId }, select: { taxRegime: true, taxAccounts: true } })
-              if (prof) {
-                const overrides = (prof.taxAccounts || {})
-                resolvedRegime = String(prof.taxRegime || '').toUpperCase() || 'US_SALES_TAX'
-                if (resolvedRegime === 'VAT') taxAccountCode = (overrides.receivable || '1360')
-                else taxAccountCode = (overrides.expense || '6110')
-              }
-            } catch {}
-            let taxAccount = await tx.account.findFirst({ where: { code: taxAccountCode } });
-            if (!taxAccount) taxAccount = await tx.account.findFirst({ where: { code: '6110' } });
-            if (!taxAccount) throw new Error('Tax account not found in Chart of Accounts');
-            const taxDebit = await tx.transactionEntry.create({ data: { transactionId: transaction.id, debitAccountId: taxAccount.id, creditAccountId: null, amount: taxAmount, description: `Tax on expense - ${expenseData.vendorName}` } });
-            entries.push(taxDebit);
-          }
-
-          // Entry 2: CREDIT cash (amount paid)
-          const cashCreditEntry = await tx.transactionEntry.create({
-            data: {
-              transactionId: transaction.id,
-              debitAccountId: null,
-              creditAccountId: cashAccount.id,
-              amount: amountPaidNum,
-              description: `Partial payment to ${expenseData.vendorName}`
-            }
-          });
-          entries.push(cashCreditEntry);
-
-          // Entry 3: CREDIT accounts payable (remaining balance)
-          const apCreditEntry = await tx.transactionEntry.create({
-            data: {
-              transactionId: transaction.id,
-              debitAccountId: null,
-              creditAccountId: apAccount.id,
-              amount: remainingBalance,
-              description: `Balance due to ${expenseData.vendorName} - partial payment made`
-            }
-          });
-          entries.push(apCreditEntry);
-
-        } else {
-          // 🔥 STANDARD: Use normal posting (with optional AP split by line items)
-          console.log(`💸 Creating standard expense posting`);
-          // Check tenant accounting setting for AP split
-          let splitAp = false
-          try {
-            const txHeader = await tx.transaction.findUnique({ where: { id: transaction.id }, select: { tenantId: true } })
-            const tenantId = txHeader?.tenantId || 'dev'
-            const prof = await tx.companyProfile.findFirst({ where: { tenantId }, select: { taxRegime: true, taxAccounts: true } })
-            // Temporary storage: allow request body to override via flag until UI setting lands
-            splitAp = !!expenseData.splitByLineItems
-            if (!splitAp) {
-              try { splitAp = !!(prof && prof.taxAccounts && (prof.taxAccounts.apSplitByLineItems === true)) } catch {}
-              try { splitAp = !!(process.env.AP_SPLIT_BY_LINES === '1') } catch {}
-            }
-          } catch {}
-
-          if (splitAp && Array.isArray(expenseData?.lineItems) && expenseData.lineItems.length > 0) {
-            entries = await this.createDoubleEntryRecordsSplit(tx, transaction.id, accounts, accountResolution, expenseData)
-          } else {
-            entries = await this.createDoubleEntryRecords(
-              tx,
-              transaction.id,
-              accounts,
-              accountResolution,
-              expenseData
-            );
-          }
-        }
-        
-        // Validate double-entry balance (critical accounting invariant)
+        // Validate
         this.validateDoubleEntryBalance(entries);
-        
-        console.log(`🎉 Transaction posted successfully: ${transaction.id}`);
-        
+
+        // Create linked Expense record for downstream payment APIs
+        let expenseRow = null
+        try {
+          expenseRow = await tx.expense.create({
+            data: {
+              transactionId: transaction.id,
+              vendor: String(expenseData.vendorName || '').trim(),
+              vendorInvoiceNo: expenseData.vendorInvoiceNo ? String(expenseData.vendorInvoiceNo) : null,
+              categoryId: null,
+              categoryKey: expenseData.categoryKey || null,
+              date: new Date(accountResolution.dateUsed),
+              amount: parseFloat(expenseData.amount),
+              description: expenseData.description || this.buildTransactionDescription(expenseData),
+              receiptUrl: expenseData.receiptUrl || null,
+              customFields: {
+                splitByLineItems: !!expenseData.splitByLineItems,
+                lineItems: Array.isArray(expenseData.lineItems) ? expenseData.lineItems : []
+              },
+              isRecurring: !!expenseData.recurring,
+              isPending: false
+            }
+          })
+        } catch (e) {
+          // Non-fatal: payment flows will fall back to transaction customFields, but smoke expects expenseId
+          try { console.warn('[expense:create] failed to create Expense row:', e?.message || e) } catch {}
+        }
+
         return {
           transactionId: transaction.id,
-          expenseId: expense.id,
-          reference: reference,
-          amount: expenseData.amount,
-          entries: entries,
-          accounts: accountResolution,
-          dateUsed: accountResolution.dateUsed,
-          policy: accountResolution.policy
+          expenseId: expenseRow?.id || null,
+          amount: parseFloat(expenseData.amount),
+          entries
         };
       });
-      
-      return {
-        ...result,
-        isExisting: false,
-        message: `Expense posted successfully: $${expenseData.amount} for ${expenseData.vendorName}`
-      };
-      
+
+      return result;
     } catch (error) {
-      console.error(`❌ PostingService.postTransaction() failed:`, error);
-      
-      // Re-throw with enhanced context for debugging
-      if (error.message.includes('Unique constraint')) {
-        throw new Error(`Duplicate transaction reference: ${reference}. Use different reference or rely on idempotency.`);
-      }
-      
-      if (error.message.includes('not found in Chart of Accounts')) {
-        throw new Error(`Missing accounts in Chart of Accounts: ${error.message}`);
-      }
-      
-      if (error.message.includes('BALANCED JOURNAL INVARIANT')) {
-        throw new Error(`CRITICAL: Double-entry bookkeeping failed - ${error.message}`);
-      }
-      
-      throw new Error(`PostingService error: ${error.message}`);
+      console.error('❌ Error in PostingService.postTransaction:', error);
+      throw error;
     }
   }
 
@@ -484,7 +226,10 @@ class PostingService {
         if (expenseData?.taxSettings?.enabled) {
           if (expenseData.taxSettings.type === 'percentage') {
             const rate = parseFloat(expenseData.taxSettings.rate || 0) || 0;
-            taxAmount = parseFloat((absAmount * rate / 100).toFixed(2));
+            // Treat input amount as gross; extract tax portion accurately
+            const divisor = 1 + (rate / 100)
+            const base = divisor > 0 ? (absAmount / divisor) : absAmount
+            taxAmount = Math.max(0, +(absAmount - base).toFixed(2))
           } else {
             taxAmount = Math.max(0, parseFloat(expenseData.taxSettings.amount || 0) || 0);
             if (taxAmount > absAmount) taxAmount = absAmount;
@@ -494,15 +239,23 @@ class PostingService {
       } catch {}
       const subtotal = Math.max(0, +(absAmount - taxAmount).toFixed(2));
 
-      // Debit subtotal to expense account
+      // Debit subtotal to expense account (header-level override supported when split is OFF)
       if (subtotal > 0) {
+        let debitAcc = accounts.debit
+        try {
+          const explicitHeader = (expenseData && typeof (expenseData.accountCode) === 'string') ? String(expenseData.accountCode).trim() : ''
+          if (explicitHeader) {
+            const acc = await prisma.account.findFirst({ where: { code: explicitHeader } })
+            if (acc) debitAcc = acc
+          }
+        } catch {}
         const debitEntry = await tx.transactionEntry.create({
           data: {
             transactionId: transactionId,
-            debitAccountId: accounts.debit.id,
+            debitAccountId: debitAcc.id,
             creditAccountId: null,
             amount: subtotal,
-            description: `${accountResolution.debit.accountName} - ${expenseData.vendorName}`
+            description: `${debitAcc.name} - ${expenseData.vendorName}`
           }
         });
         entries.push(debitEntry);
@@ -603,14 +356,40 @@ class PostingService {
       if (i === lines.length - 1) lineAmount = +(subtotal - running).toFixed(2)
       // Map line item to expense account via resolver keywords/category mapping
       let debitAccount = accounts.debit
+      let isInventoryProduct = false
+      let selectedInventoryAccount = null
+      let selectedProduct = null
       try {
-        // Use resolver to pick best matching expense account for the line
-        const { ExpenseAccountResolver } = await import('./expense-account-resolver.service.js')
-        const res = await ExpenseAccountResolver.resolveDebitAccount({ categoryKey: null, vendorName: expenseData.vendorName, description: li.description || '' })
-        if (res && res.accountCode) {
-          const acc = await prisma.account.findFirst({ where: { code: res.accountCode } })
+        // Prefer explicit override from line item
+        const explicit = (li && typeof li.accountCode === 'string') ? String(li.accountCode).trim() : ''
+        if (explicit) {
+          const acc = await prisma.account.findFirst({ where: { code: explicit } })
           if (acc) debitAccount = acc
+        } else {
+          // Use resolver to pick best matching expense account for the line
+          const { ExpenseAccountResolver } = await import('./expense-account-resolver.service.js')
+          const res = await ExpenseAccountResolver.resolveDebitAccount({ categoryKey: null, vendorName: expenseData.vendorName, description: li.description || '' })
+          if (res && res.accountCode) {
+            const acc = await prisma.account.findFirst({ where: { code: res.accountCode } })
+            if (acc) debitAccount = acc
+          }
         }
+        // Inventory product handling (AP receive): route debit to Inventory and record lot
+        try {
+          const productId = (li && (li.productId || li.productID || li.product_id)) ? String(li.productId || li.productID || li.product_id) : ''
+          if (productId) {
+            const product = await tx.product.findUnique({ where: { id: productId } })
+            if (product && String(product.type).toLowerCase() === 'inventory') {
+              isInventoryProduct = true
+              selectedProduct = product
+              const invCode = product.inventoryAccountCode || '1300'
+              const invAcc = await tx.account.findFirst({ where: { code: invCode } })
+              if (!invAcc) throw new Error(`Inventory account ${invCode} not found`)
+              debitAccount = invAcc
+              selectedInventoryAccount = invAcc
+            }
+          }
+        } catch {}
       } catch {}
       if (lineAmount > 0) {
         const debitEntry = await tx.transactionEntry.create({
@@ -618,6 +397,32 @@ class PostingService {
         })
         entries.push(debitEntry)
         running += lineAmount
+        // If inventory product, create an InventoryLot and txn (receive)
+        if (isInventoryProduct && selectedProduct && selectedInventoryAccount) {
+          try {
+            const qty = (() => { try { const qv = (li.quantity!=null? Number(li.quantity): (li.qty!=null? Number(li.qty): 1)); return (Number.isFinite(qv) && qv>0)? qv : 1 } catch { return 1 } })()
+            const unitCost = +(lineAmount / qty).toFixed(6)
+            await tx.inventoryLot.create({ data: {
+              productId: selectedProduct.id,
+              receivedOn: new Date(expenseData.date || new Date()),
+              qty,
+              unitCost,
+              remainingQty: qty,
+              sourceBillId: null
+            } })
+            await tx.inventoryTxn.create({ data: {
+              productId: selectedProduct.id,
+              type: 'receive',
+              qty,
+              unitCost,
+              journalId: transactionId,
+              memo: li.description || 'Inventory receipt (AP)'
+            } })
+          } catch (invErr) {
+            // Best-effort; do not fail the AP posting if inventory sidecar fails
+            try { console.warn('[inventory][receive] sidecar error:', invErr?.message || invErr) } catch {}
+          }
+        }
       }
     }
 
@@ -1217,6 +1022,44 @@ class PostingService {
         // Adjust last line to fix rounding drift
         if (i === invoiceData.lineItems.length - 1) lineAmount = +(targetRevenue - running).toFixed(2)
         // Prefer explicit line item accountCode suggested by AI or user; fallback to mapper
+        // For inventory products: simultaneously relieve inventory (FIFO) and record COGS
+        let didInventoryCOGS = false
+        try {
+          const productId = (lineItem && (lineItem.productId || lineItem.productID || lineItem.product_id)) ? String(lineItem.productId || lineItem.productID || lineItem.product_id) : ''
+          if (productId) {
+            const product = await tx.product.findUnique({ where: { id: productId } })
+            if (product && String(product.type).toLowerCase() === 'inventory') {
+              // Relieve inventory using FIFO lots
+              let qty = (() => { try { const q = (lineItem.quantity!=null? Number(lineItem.quantity): (lineItem.qty!=null? Number(lineItem.qty): 1)); return (Number.isFinite(q) && q>0)? q : 1 } catch { return 1 } })()
+              let remaining = qty
+              let accumulatedCOGS = 0
+              const lots = await tx.inventoryLot.findMany({ where: { productId: product.id, remainingQty: { gt: 0 } }, orderBy: { receivedOn: 'asc' } })
+              for (const lot of lots) {
+                if (remaining <= 0) break
+                const take = Math.min(Number(lot.remainingQty), remaining)
+                accumulatedCOGS += take * Number(lot.unitCost)
+                remaining -= take
+                await tx.inventoryLot.update({ where: { id: lot.id }, data: { remainingQty: Number(lot.remainingQty) - take } })
+              }
+              const invAccCode = product.inventoryAccountCode || '1300'
+              const cogsCode = product.cogsAccountCode || '5000'
+              const invAcc = await tx.account.findFirst({ where: { code: invAccCode } })
+              const cogsAcc = await tx.account.findFirst({ where: { code: cogsCode } })
+              if (!invAcc || !cogsAcc) throw new Error('Required inventory/COGS accounts missing')
+              const cogsAmount = +Number(accumulatedCOGS).toFixed(2)
+              if (cogsAmount > 0) {
+                const drCogs = await tx.transactionEntry.create({ data: { transactionId, debitAccountId: cogsAcc.id, creditAccountId: null, amount: cogsAmount, description: `COGS - ${invoiceData.customerName}${lineItem.description?` (${lineItem.description})`:''}` } })
+                const crInv = await tx.transactionEntry.create({ data: { transactionId, debitAccountId: null, creditAccountId: invAcc.id, amount: cogsAmount, description: `Inventory relief - ${invoiceData.customerName}${lineItem.description?` (${lineItem.description})`:''}` } })
+                entries.push(drCogs)
+                entries.push(crInv)
+                await tx.inventoryTxn.create({ data: { productId: product.id, type: 'sell', qty: qty, unitCost: +(cogsAmount/qty).toFixed(6), journalId: transactionId, memo: lineItem.description || 'Inventory sale (AR)' } })
+                didInventoryCOGS = true
+              }
+            }
+          }
+        } catch (invErr) {
+          try { console.warn('[inventory][cogs] sidecar error:', invErr?.message || invErr) } catch {}
+        }
         const explicitCode = String(lineItem.accountCode || '').trim()
         const revenueAccountCode = explicitCode || this.mapLineItemToRevenueAccount(lineItem);
         let revenueAccount = await this.getAccountByCode(revenueAccountCode);
@@ -1423,20 +1266,28 @@ class PostingService {
   static mapLineItemToRevenueAccount(lineItem) {
     const description = (lineItem.description || '').toLowerCase();
     const category = (lineItem.category || '').toLowerCase();
-    // Services clusters
-    if (description.includes('web development') || description.includes('website') || category.includes('development')) return '4020';
-    if (description.includes('design') || description.includes('ui/ux') || category.includes('design')) return '4020';
-    if (description.includes('consulting') || description.includes('consultation') || category.includes('consulting')) return '4020';
-    // Marketing
-    if (description.includes('seo') || description.includes('marketing') || category.includes('marketing')) return '4030';
-    // Support & maintenance
-    if (description.includes('support') || description.includes('maintenance') || description.includes('helpdesk')) return '4040';
-    // Subscriptions / SaaS
-    if (description.includes('subscription') || description.includes('saas') || category.includes('subscription')) return '4050';
-    // Licensing
-    if (description.includes('license') || description.includes('licence') || category.includes('license')) return '4060';
-    // Training
-    if (description.includes('training') || description.includes('workshop') || description.includes('course') || category.includes('training')) return '4070';
+    // Core services
+    if (/(web\s*development|website|site\s*build|frontend|backend|full\s*stack)/i.test(description) || category.includes('development')) return '4020';
+    if (/(design|ui\/ux|ux|ui|branding|prototype|wireframe)/i.test(description) || category.includes('design')) return '4020';
+    if (/(consulting|consultation|advisory|advice|assessment|audit)/i.test(description) || category.includes('consulting')) return '4020';
+    // Marketing & growth → 4030
+    if (/(seo|sem|marketing|campaign|ads?|ppc|lead gen|growth|influencer|social|content\s*marketing|newsletter|email\s*marketing)/i.test(description) || category.includes('marketing')) return '4030';
+    // Support & maintenance → 4040
+    if (/(support|maintenance|help\s*desk|sre|on\-?call|warranty)/i.test(description)) return '4040';
+    // Physical product/device sales → 4010
+    if (/(iphone|ipad|macbook|imac|laptop|desktop|workstation|pc\b|gpu|graphics\s*card|rtx|gtx|nvidia|amd|intel|printer|monitor|keyboard|mouse|tablet|device|hardware)/i.test(description)) return '4010';
+    // Subscriptions / SaaS / Hosting → 4050
+    if (/(subscription|saas|license\s*subscription|monthly\s*plan|annual\s*plan|hosting|cloud|vps|server|cdn|domain|dns)/i.test(description) || category.includes('subscription')) return '4050';
+    // Licensing (perpetual or term) → 4060
+    if (/(license|licence|perpetual\s*license|seat\s*license)/i.test(description) || category.includes('license')) return '4060';
+    // Training & certification → 4070
+    if (/(training|workshop|course|bootcamp|certification|certified)/i.test(description) || category.includes('training')) return '4070';
+    // Analytics / data services → 4020 default unless specified; treat as services
+    if (/(analytics|bi|data\s*pipeline|etl|dashboard)/i.test(description)) return '4020';
+    // Security services → services
+    if (/(pentest|penetration\s*test|security\s*review|vapt|soc\s*2\s*readiness)/i.test(description)) return '4020';
+    // HR/Payroll services → services
+    if (/(payroll\s*services|hr\s*services|recruiting\s*services)/i.test(description)) return '4020';
     return '4020';
   }
 
@@ -1626,6 +1477,56 @@ class PostingService {
     };
     
     return { isValid: true, errors: [], normalizedData };
+  }
+
+  /**
+   * Post asset depreciation: DR Depreciation Expense (default 6120) CR Accumulated Depreciation (default 1590)
+   * Uses idempotent Transaction.reference provided by caller (e.g., asset:{assetId}:YYYY-MM)
+   */
+  static async postAssetDepreciation(data) {
+    const amount = Math.max(0, Number(data?.amount || 0))
+    if (amount === 0) return { ok: true, transactionId: null }
+
+    const reference = String(data?.reference || '').trim()
+    if (!reference) throw new Error('reference required for asset depreciation')
+
+    // Idempotency check
+    const existing = await prisma.transaction.findFirst({ where: { reference } })
+    if (existing) {
+      return { ok: true, transactionId: existing.id, idempotent: true }
+    }
+
+    const expenseCode = String(data?.expenseAccountCode || '6120')
+    const accumCode = String(data?.accumulatedAccountCode || '1590')
+    const accounts = await this.getAccountsByCode([expenseCode, accumCode])
+
+    const result = await prisma.$transaction(async (tx) => {
+      const transaction = await tx.transaction.create({
+        data: {
+          date: data?.date ? new Date(data.date) : new Date(),
+          description: data?.description || 'Asset Depreciation',
+          reference,
+          amount,
+          customFields: {
+            type: 'asset_depreciation',
+            assetId: data?.assetId || null,
+            source: 'PostingService',
+          }
+        }
+      })
+
+      const entries = []
+      const dr = await tx.transactionEntry.create({ data: { transactionId: transaction.id, debitAccountId: accounts.debit?.id, creditAccountId: null, amount, description: 'Depreciation Expense' } })
+      entries.push(dr)
+      const cr = await tx.transactionEntry.create({ data: { transactionId: transaction.id, debitAccountId: null, creditAccountId: accounts.credit?.id, amount, description: 'Accumulated Depreciation' } })
+      entries.push(cr)
+
+      this.validateDoubleEntryBalance(entries)
+
+      return { ok: true, transactionId: transaction.id }
+    })
+
+    return result
   }
 }
 

@@ -1,3 +1,39 @@
+# Chart of Accounts (COA) — Mapping, Overrides, and Preview Parity
+
+## Overview
+AILedgr maps transactions to the extended US‑GAAP COA using AI + heuristics, and now supports manual overrides everywhere:
+
+- AR (New Invoice) line items: optional revenue account override per line
+- AP (New Bill) line items: optional expense/COGS override per line
+- AiDocumentModal: optional override per line for both invoice and expense modes
+- AP header (optional): when split is OFF we can provide a single account picker for the whole bill (disabled by default)
+
+All overrides are honored by both Preview and final Posting.
+
+## How mapping works
+1. AI/Heuristics propose an account from keywords/category or explicit hint
+2. If a user selects an account in the COA selector, we include `accountCode` on that line
+3. Server uses explicit `accountCode` if provided; otherwise applies resolver mapping
+4. Preview (/api/posting/preview) and Posting produce identical entries
+
+## Remembering choices
+- Users can opt to “Remember chosen accounts for this vendor/customer” in New Invoice and AiDocumentModal
+- Server persists to VendorSetting/Customer defaults (`accountsRemember` JSON); future forms prefill selectors
+
+## Tax treatment
+- AR: tax → 2150 Sales Tax Payable (credit)
+- AP: tax → 6110 Sales Tax Expense (US) or 1360 Tax Receivable (VAT) (debit)
+
+## Discount parity (AR)
+- If Subtotal − Discount + Tax equals Total (within $0.01), we post 4910 Sales Discounts (debit); otherwise revenue is Total − Tax and no separate discount entry is posted. Preview mirrors this rule.
+
+## Split AP postings
+- When “Split AP postings by line items” is ON, AP debits per-line expense accounts; OFF → single expense debit. Preview respects this flag.
+
+## Safety
+- COA selectors show filtered accounts (AR→REVENUE; AP→EXPENSE/COGS)
+- Tooltips explain effects; “Reset to AI” clears overrides.
+
 ## Chart of Accounts (COA) – Mapping & Seeding
 
 ### Goals

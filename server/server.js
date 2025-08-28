@@ -8,6 +8,7 @@ import multer from 'multer'
 import fs from 'fs'
 import path from 'path'
 import axios from 'axios'
+import AIProvider from './src/services/ai-provider.service.js'
 import { PostingService } from './src/services/posting.service.js'
 import crypto from 'crypto'
 import { ExpenseAccountResolver } from './src/services/expense-account-resolver.service.js'
@@ -15,6 +16,8 @@ import { AICategoryService } from './src/services/ai-category.service.js'
 import { aiLimiter } from './src/services/ai-rate-limiter.js'
 import usGaapCoa from './data/us_gaap_coa.json' with { type: 'json' }
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
+import AssetService from './src/services/asset.service.js'
+// Products APIs
 
 // Load env (development/local)
 try {
@@ -115,7 +118,9 @@ wss.on('connection', (ws) => {
         return
       }
       if (data.type === 'chat') {
-        const context = { ...(data.context || {}), tenantId: wsClients.get(ws)?.tenantId }
+        const stateNow = wsClients.get(ws) || { authed: false }
+        if (!stateNow.authed) { ws.send(JSON.stringify({ type: 'error', message: 'auth required' })); return }
+        const context = { ...(data.context || {}), tenantId: stateNow.tenantId, userId: stateNow.userId }
         const aiResponse = await processAIChat(data.message, context)
         ws.send(JSON.stringify({ type: 'chat_response', message: aiResponse.content, action: aiResponse.action }))
       }
@@ -235,25 +240,11 @@ app.put('/api/company-profile', async (req, res) => {
 async function processAIChat(message, context = {}) {
   try {
     const dashboardData = await ReportingService.getDashboard()
-    const financialData = dashboardData.metrics
-    if (!financialData) {
-      return { content: 'I need some financial data first. Try adding a few transactions then ask me again!', action: null }
-    }
-
-    const systemPrompt = `You are an AI accounting assistant for EZE Ledger. Be concise, friendly, and precise.\n\nCURRENT FINANCIAL DATA:\n- Total Revenue: $${financialData.totalRevenue.toLocaleString()}\n- Total Expenses: $${financialData.totalExpenses.toLocaleString()}\n- Net Profit: $${financialData.netProfit.toLocaleString()}\n- Total Assets: $${financialData.totalAssets.toLocaleString()}\n- Total Liabilities: $${financialData.totalLiabilities.toLocaleString()}\n- Total Equity: $${financialData.totalEquity.toLocaleString()}\n- Transaction Count: ${financialData.transactionCount}\n\nIf the user asks to create a transaction, include an ACTION at the end on a single line in this exact format:\nACTION: actionName(parameters)\n\nAvailable actions:\n- createExpense(vendor, amount, category, date, description)\n- createInvoice(customer, amount, description, dueDate)\n- getFinancialSummary()`
-
-    const fullText = `${systemPrompt}\n\nContext: ${JSON.stringify(context)}\nUser message: ${message}`
-    if (!process.env.GEMINI_API_KEY) {
-      return { content: `Summary: Revenue $${financialData.totalRevenue.toLocaleString()}, Expenses $${financialData.totalExpenses.toLocaleString()}, Net Profit $${financialData.netProfit.toLocaleString()}.`, action: null }
-    }
     const quota = aiLimiter.checkAndConsume(1)
     if (!quota.allowed) {
       return { content: `AI usage limit reached. Try again in ${quota.retryAfterSeconds}s.`, action: null }
     }
-    const base = process.env.GEMINI_ENDPOINT || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
-    const url = `${base}?key=${process.env.GEMINI_API_KEY}`
-    const { data } = await axios.post(url, { contents: [{ parts: [{ text: fullText }] }] }, { headers: { 'Content-Type': 'application/json' } })
-    const content = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated'
+    const content = await AIProvider.generateAIResponse(message, context, { dashboardData })
     const actionMatch = content.match(/ACTION: (\w+)\((.*)\)/)
     let action = null
     let cleanContent = content
@@ -392,6 +383,46 @@ app.get('/api/reports/chart-of-accounts', async (req, res) => {
   } catch (error) {
     console.error('Chart of Accounts error:', error)
     res.status(500).json({ error: 'Failed to fetch chart of accounts', details: error.message })
+  }
+})
+
+// Inventory valuation (FIFO-based) – summarizes quantity on hand and value per product
+app.get('/api/reports/inventory-valuation', async (req, res) => {
+  try {
+    const tenantId = req.tenantId || 'dev'
+    // Fetch active inventory products
+    const products = await prisma.product.findMany({ where: { tenantId, active: true, type: 'inventory' } })
+    if (!products.length) return res.json({ asOf: new Date().toISOString(), rows: [], totals: { quantity: 0, value: 0 } })
+    const ids = products.map(p => p.id)
+    const lots = await prisma.inventoryLot.findMany({ where: { tenantId, productId: { in: ids } }, orderBy: { receivedOn: 'asc' } })
+    const byProduct = new Map()
+    for (const lot of lots) {
+      const key = lot.productId
+      const prev = byProduct.get(key) || { qty: 0, value: 0, lots: [] }
+      const rem = Number(lot.remainingQty || lot.qty || 0)
+      const unitCost = Number(lot.unitCost || 0)
+      const addQty = Math.max(0, rem)
+      prev.qty += addQty
+      prev.value += +(addQty * unitCost)
+      prev.lots.push({ id: lot.id, receivedOn: lot.receivedOn, remainingQty: rem, unitCost })
+      byProduct.set(key, prev)
+    }
+    const rows = products.map((p) => {
+      const agg = byProduct.get(p.id) || { qty: 0, value: 0, lots: [] }
+      return {
+        productId: p.id,
+        name: p.name,
+        sku: p.sku || null,
+        quantityOnHand: +(+agg.qty).toFixed(6),
+        unitCost: (() => { try { const totalUnits = agg.qty || 0; return totalUnits > 0 ? +(agg.value/totalUnits).toFixed(6) : null } catch { return null } })(),
+        value: +(+agg.value).toFixed(2)
+      }
+    }).sort((a, b) => a.name.localeCompare(b.name))
+    const totals = rows.reduce((s, r) => ({ quantity: s.quantity + (r.quantityOnHand || 0), value: s.value + (r.value || 0) }), { quantity: 0, value: 0 })
+    res.json({ asOf: new Date().toISOString(), rows, totals })
+  } catch (error) {
+    console.error('Inventory valuation error:', error)
+    res.status(500).json({ error: 'Failed to compute inventory valuation', details: error.message })
   }
 })
 
@@ -1183,8 +1214,20 @@ app.post('/api/posting/preview', async (req, res) => {
           taxAmount = +parseFloat(String(taxAmount)).toFixed(2)
         }
       } catch {}
-      // CREDIT revenue net of tax (and discount if provided)
-      let revenueCreditAmount = Math.max(0, +(totalInvoice - taxAmount - discountAmount).toFixed(2))
+
+      // Mirror PostingService logic for discount consistency
+      let revenueCreditAmount = 0
+      let postDiscount = false
+      if (typeof req.body.subtotal === 'number' && parseFloat(req.body.subtotal) > 0) {
+        const subNum = parseFloat(req.body.subtotal)
+        const computedFinal = subNum - discountAmount + taxAmount
+        const isConsistent = Math.abs(computedFinal - totalInvoice) <= 0.01
+        revenueCreditAmount = isConsistent ? subNum : Math.max(0, totalInvoice - taxAmount)
+        postDiscount = isConsistent && discountAmount > 0
+      } else {
+        revenueCreditAmount = Math.max(0, totalInvoice - taxAmount)
+        postDiscount = false
+      }
       // If lineItems provided, map them proportionally to revenue accounts for preview
       const hasLines = Array.isArray(req.body.lineItems) && req.body.lineItems.length > 0
       if (hasLines) {
@@ -1198,8 +1241,16 @@ app.post('/api/posting/preview', async (req, res) => {
             const raw = parseFloat(li.amount || 0) || 0
             let lineAmt = +(raw * scale).toFixed(2)
             if (i === req.body.lineItems.length - 1) lineAmt = +(target - running).toFixed(2)
+            // Respect explicit accountCode from AI/user if provided; fallback to mapper
+            let acc = null
+            const explicit = (li && typeof li.accountCode === 'string') ? li.accountCode.trim() : ''
+            if (explicit) {
+              acc = await PostingService.getAccountByCode(explicit)
+            }
+            if (!acc) {
             const revCode = PostingService.mapLineItemToRevenueAccount(li)
-            const acc = await PostingService.getAccountByCode(revCode)
+              acc = await PostingService.getAccountByCode(revCode)
+            }
             entries.push({ type: 'credit', accountCode: acc?.code || accounts.revenue.code, accountName: acc?.name || accounts.revenue.name, amount: lineAmt, description: `${li.description || 'Line Item'} - ${req.body.customerName || 'Customer'}` })
             running += lineAmt
           }
@@ -1210,7 +1261,7 @@ app.post('/api/posting/preview', async (req, res) => {
       } else {
         entries.push({ type: 'credit', accountCode: accounts.revenue.code, accountName: accounts.revenue.name, amount: revenueCreditAmount, description: `Revenue from ${req.body.customerName || 'Customer'}` })
       }
-      if (discountAmount > 0) {
+      if (postDiscount) {
         entries.push({ type: 'debit', accountCode: (accounts.salesDiscounts?.code || '4910'), accountName: (accounts.salesDiscounts?.name || 'Sales Discounts'), amount: discountAmount, description: 'Sales Discount' })
       }
       if (taxAmount > 0) {
@@ -1275,15 +1326,67 @@ app.post('/api/posting/preview', async (req, res) => {
     } catch {}
 
     const entries = []
-    // Compute subtotal/tax split for preview
+    // Compute subtotal/tax split for preview (supports percentage or amount)
     let taxAmount = 0
     let subtotal = amount
-    if (req.body.taxSettings && (req.body.taxSettings.enabled === true) && typeof req.body.taxSettings.amount === 'number' && req.body.taxSettings.amount > 0) {
-      taxAmount = parseFloat(req.body.taxSettings.amount)
+    try {
+      if (req.body.taxSettings && (req.body.taxSettings.enabled === true)) {
+        const mode = String(req.body.taxSettings.type || 'amount').toLowerCase()
+        if (mode === 'percentage') {
+          const rate = Math.max(0, parseFloat(req.body.taxSettings.rate || 0) || 0)
+          const discountAmt = (req.body.discount && req.body.discount.enabled) ? Math.max(0, parseFloat(req.body.discount.amount || 0) || 0) : 0
+          const base = (typeof req.body.subtotal === 'number') ? parseFloat(req.body.subtotal) : Math.max(0, amount - discountAmt)
+          taxAmount = parseFloat(((base * rate) / 100).toFixed(2))
+        } else if (typeof req.body.taxSettings.amount === 'number') {
+          taxAmount = Math.max(0, parseFloat(req.body.taxSettings.amount || 0) || 0)
+        }
+        if (taxAmount > amount) taxAmount = amount
+        taxAmount = +parseFloat(String(taxAmount)).toFixed(2)
       subtotal = Math.max(0, +(amount - taxAmount).toFixed(2))
     }
-      // Debit expense subtotal
+    } catch {}
+
+    // Debit expense lines (respect split flag when line items provided)
+    const splitByLines = !!req.body.splitByLineItems && Array.isArray(req.body.lineItems) && req.body.lineItems.length > 0
+    if (splitByLines) {
+      try {
+        const originalSum = req.body.lineItems.reduce((s, li) => s + (parseFloat(li.amount || 0) || 0), 0)
+        const target = subtotal
+        const scale = originalSum > 0 ? (target / originalSum) : 1
+        let running = 0
+        for (let i = 0; i < req.body.lineItems.length; i++) {
+          const li = req.body.lineItems[i]
+          const raw = parseFloat(li.amount || 0) || 0
+          let lineAmt = +(raw * scale).toFixed(2)
+          if (i === req.body.lineItems.length - 1) lineAmt = +(target - running).toFixed(2)
+          const lineRes = await ExpenseAccountResolver.resolveExpenseAccounts({
+            vendorName: req.body.vendorName || '',
+            amount: lineAmt,
+            date: req.body.date || new Date().toISOString().slice(0, 10),
+            categoryKey: req.body.categoryKey || req.body.category || null,
+            paymentStatus: req.body.paymentStatus || 'unpaid',
+            description: String(li.description || '')
+          })
+          entries.push({ type: 'debit', accountCode: lineRes.debit.accountCode, accountName: lineRes.debit.accountName, amount: lineAmt, description: li.description || 'Line' })
+          running += lineAmt
+        }
+      } catch {
       entries.push({ type: 'debit', accountCode: resolution.debit.accountCode, accountName: resolution.debit.accountName, amount: subtotal })
+      }
+    } else {
+      // Header-level override for AP (when split is OFF)
+      if (req.body.accountCode && typeof req.body.accountCode === 'string' && req.body.accountCode.trim()) {
+        try {
+          const acc = await prisma.account.findFirst({ where: { code: String(req.body.accountCode).trim() } })
+          if (acc) entries.push({ type: 'debit', accountCode: acc.code, accountName: acc.name, amount: subtotal })
+          else entries.push({ type: 'debit', accountCode: resolution.debit.accountCode, accountName: resolution.debit.accountName, amount: subtotal })
+        } catch {
+          entries.push({ type: 'debit', accountCode: resolution.debit.accountCode, accountName: resolution.debit.accountName, amount: subtotal })
+        }
+      } else {
+        entries.push({ type: 'debit', accountCode: resolution.debit.accountCode, accountName: resolution.debit.accountName, amount: subtotal })
+      }
+    }
     // Debit tax to expense/receivable based on regime (US: 6110, VAT: 1360)
     if (taxAmount > 0) {
       let taxCode = '6110'
@@ -1353,6 +1456,34 @@ app.post('/api/expenses', async (req, res) => {
       }
     } catch {}
     const result = await PostingService.postTransaction(validation.normalizedData)
+    // Ensure Expense row exists and return its id for payment APIs
+    let ensuredExpenseId = null
+    try {
+      ensuredExpenseId = result?.expenseId || null
+      if (!ensuredExpenseId && result?.transactionId) {
+        let existing = await prisma.expense.findUnique({ where: { transactionId: result.transactionId } })
+        if (!existing) {
+          existing = await prisma.expense.create({ data: {
+            transactionId: result.transactionId,
+            vendor: String(validation.normalizedData.vendorName || '').trim(),
+            vendorInvoiceNo: validation.normalizedData.vendorInvoiceNo || null,
+            categoryId: null,
+            categoryKey: validation.normalizedData.categoryKey || null,
+            date: new Date(validation.normalizedData.date),
+            amount: parseFloat(validation.normalizedData.amount),
+            description: validation.normalizedData.description || `Expense from ${validation.normalizedData.vendorName}`,
+            receiptUrl: validation.normalizedData.receiptUrl || null,
+            customFields: {
+              splitByLineItems: !!validation.normalizedData.splitByLineItems,
+              lineItems: Array.isArray(validation.normalizedData.lineItems) ? validation.normalizedData.lineItems : []
+            },
+            isRecurring: !!validation.normalizedData.recurring,
+            isPending: false
+          } })
+        }
+        ensuredExpenseId = existing?.id || null
+      }
+    } catch (e) { try { console.warn('[ensureExpenseId] fallback failed:', e?.message || e) } catch {} }
     // Save vendor defaults for tax settings (best-effort)
     try {
       const vn = String(validation.normalizedData.vendorName || '').trim()
@@ -1370,7 +1501,7 @@ app.post('/api/expenses', async (req, res) => {
         })
       }
     } catch {}
-    return res.status(result.isExisting ? 200 : 201).json({ ...result, success: true })
+    return res.status(result.isExisting ? 200 : 201).json({ ...result, expenseId: ensuredExpenseId || result?.expenseId || null, success: true })
   } catch (e) {
     console.error('post expense error:', e)
     if (String(e.message).includes('Duplicate transaction reference')) {
@@ -1393,7 +1524,7 @@ app.get('/api/vendors/:vendor/defaults', async (req, res) => {
     if (!vendor) return res.json({})
     const def = await prisma.vendorSetting.findUnique({ where: { tenantId_vendor: { tenantId: req.tenantId || 'dev', vendor } } })
     if (!def) return res.json({})
-    return res.json({ taxEnabled: def.taxEnabled, taxMode: def.taxMode, taxRate: def.taxRate, taxAmount: def.taxAmount })
+    return res.json({ taxEnabled: def.taxEnabled, taxMode: def.taxMode, taxRate: def.taxRate, taxAmount: def.taxAmount, accountsRemember: def.accountsRemember || null })
   } catch (e) {
     res.json({})
   }
@@ -1408,7 +1539,8 @@ app.put('/api/vendors/:vendor/defaults', async (req, res) => {
       taxEnabled: !!body.taxEnabled,
       taxMode: body.taxMode || null,
       taxRate: body.taxRate != null ? Number(body.taxRate) : null,
-      taxAmount: body.taxAmount != null ? Number(body.taxAmount) : null
+      taxAmount: body.taxAmount != null ? Number(body.taxAmount) : null,
+      accountsRemember: body.accountsRemember || null
     }
     await prisma.vendorSetting.upsert({
       where: { tenantId_vendor: { tenantId: req.tenantId || 'dev', vendor } },
@@ -1428,7 +1560,7 @@ app.get('/api/customers/:customer/defaults', async (req, res) => {
     if (!customer) return res.json({})
     const def = await prisma.vendorSetting.findUnique({ where: { tenantId_vendor: { tenantId: req.tenantId || 'dev', vendor: customer } } })
     if (!def) return res.json({})
-    return res.json({ taxEnabled: def.taxEnabled, taxMode: def.taxMode, taxRate: def.taxRate, taxAmount: def.taxAmount })
+    return res.json({ taxEnabled: def.taxEnabled, taxMode: def.taxMode, taxRate: def.taxRate, taxAmount: def.taxAmount, accountsRemember: def.accountsRemember || null })
   } catch (e) { res.json({}) }
 })
 
@@ -1441,7 +1573,8 @@ app.put('/api/customers/:customer/defaults', async (req, res) => {
       taxEnabled: !!body.taxEnabled,
       taxMode: body.taxMode || null,
       taxRate: body.taxRate != null ? Number(body.taxRate) : null,
-      taxAmount: body.taxAmount != null ? Number(body.taxAmount) : null
+      taxAmount: body.taxAmount != null ? Number(body.taxAmount) : null,
+      accountsRemember: body.accountsRemember || null
     }
     await prisma.vendorSetting.upsert({
       where: { tenantId_vendor: { tenantId: req.tenantId || 'dev', vendor: customer } },
@@ -2720,7 +2853,8 @@ app.post('/api/admin/post-expense', async (req, res) => {
     if (String(e.message).includes('BALANCED JOURNAL INVARIANT')) {
       return res.status(500).json({ code: 'ACCOUNTING_ERROR', message: e.message })
     }
-    res.status(500).json({ code: 'POSTING_ENGINE_ERROR', message: 'Unexpected error in posting engine', details: String(e) })
+    // Friendlier fallback
+    return res.status(422).json({ code: 'VALIDATION_FAILED', message: 'Please check the form and fix highlighted fields.' })
   }
 })
 
@@ -2751,7 +2885,8 @@ app.post('/api/admin/post-invoice', async (req, res) => {
     if (String(e.message).includes('Invoice entries not balanced') || String(e.message).includes('BALANCED JOURNAL INVARIANT')) {
       return res.status(500).json({ code: 'ACCOUNTING_ERROR', message: e.message })
     }
-    res.status(500).json({ code: 'INVOICE_POSTING_ERROR', message: 'Unexpected error in invoice posting engine', details: String(e) })
+    // Friendlier fallback
+    return res.status(422).json({ code: 'VALIDATION_FAILED', message: 'Please check the form and fix highlighted fields.' })
   }
 })
 
@@ -3076,6 +3211,7 @@ server.listen(PORT, async () => {
     // Enable with AILEGR_RECURRING_CRON=true and optionally control cadence via AILEGR_RECURRING_INTERVAL_MINUTES (default 15).
     try {
       const enable = String(process.env.AILEGR_RECURRING_CRON || 'true').toLowerCase() === 'true'
+      const enableAssetCron = String(process.env.AILEGR_ASSET_CRON || 'true').toLowerCase() === 'true'
       const jobKey = String(process.env.AILEGR_JOB_KEY || '')
       const intervalMinutes = Math.max(1, parseInt(String(process.env.AILEGR_RECURRING_INTERVAL_MINUTES || '15')) || 15)
       if (enable) {
@@ -3109,6 +3245,18 @@ server.listen(PORT, async () => {
         const intervalMs = intervalMinutes * 60 * 1000
         setInterval(guardedRun, intervalMs)
         console.log(`Recurring scheduler enabled: every ${intervalMinutes}m (per-tenant)`) 
+      }
+    } catch {}
+
+    // Lightweight asset depreciation scheduler (optional)
+    try {
+      if (enableAssetCron) {
+        const run = async () => {
+          try { await fetch(`http://localhost:${PORT}/api/assets/run-depreciation`, { method: 'POST' }) } catch {}
+        }
+        setInterval(run, 15 * 60 * 1000)
+        setTimeout(run, 2000)
+        console.log('Asset depreciation scheduler enabled: every 15m')
       }
     } catch {}
   } catch {}
@@ -3232,6 +3380,203 @@ app.delete('/api/members/:userId', requireRole('OWNER'), async (req, res) => {
     await prisma.membership.delete({ where: { id: m.id } })
     res.json({ ok: true })
   } catch (e) { res.status(500).json({ error: 'Failed to remove member' }) }
+})
+
+app.post('/api/assets', async (req, res) => {
+  try {
+    const body = req.body || {}
+    if (!body.cost || !body.inServiceDate) return res.status(400).json({ error: 'cost and inServiceDate required' })
+    const expenseRef = body.expenseId ? await prisma.expense.findFirst({ where: { id: body.expenseId } }) : null
+    const asset = await AssetService.createAssetFromExpense(expenseRef, {
+      categoryId: body.categoryId || null,
+      name: body.name,
+      vendorName: body.vendorName,
+      acquisitionDate: body.acquisitionDate,
+      inServiceDate: body.inServiceDate,
+      cost: body.cost,
+      residualValue: body.residualValue,
+      method: body.method || 'SL',
+      usefulLifeMonths: body.usefulLifeMonths || 36,
+      uniqueKey: body.uniqueKey || null
+    })
+    res.json({ ok: true, asset })
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to create asset', message: e?.message || String(e) })
+  }
+})
+
+app.get('/api/assets', async (req, res) => {
+  try {
+    const { vendor } = req.query || {}
+    const where = {}
+    if (vendor && String(vendor).trim()) where.vendorName = String(vendor).trim()
+    const list = await prisma.asset.findMany({ where, orderBy: { createdAt: 'desc' } })
+    res.json({ assets: list })
+  } catch (e) { res.status(500).json({ error: 'Failed to list assets' }) }
+})
+
+// Asset Metrics summary for dashboard
+app.get('/api/assets/metrics', async (req, res) => {
+  try {
+    const assets = await prisma.asset.findMany({})
+    let totalCost = 0, totalAccum = 0, inService = 0, upcoming = 0, monthlyDep = 0
+    const now = new Date()
+    for (const a of assets) {
+      totalCost += Number(a.cost || 0)
+      totalAccum += Number(a.accumulatedDepreciation || 0)
+      if (String(a.status) === 'active') inService += 1
+      if (a.nextRunOn && new Date(a.nextRunOn).getTime() <= (now.getTime() + 30*24*3600*1000)) upcoming += 1
+      const life = Math.max(1, parseInt(String(a.usefulLifeMonths || 0), 10) || 0)
+      const residual = Math.max(0, Number(a.residualValue || 0))
+      const base = Math.max(0, Number(a.cost || 0) - Math.min(residual, Number(a.cost || 0)))
+      monthlyDep += (life > 0 ? base / life : 0)
+    }
+    const nbv = Math.max(0, totalCost - totalAccum)
+    res.json({ totalCost, totalAccum, nbv, inService, upcomingRuns: upcoming, monthlyDepreciation: Number(monthlyDep.toFixed(2)) })
+  } catch (e) { res.status(500).json({ error: 'Failed to compute metrics' }) }
+})
+
+// Products CRUD (minimal)
+app.get('/api/products', async (req, res) => {
+  try {
+    const { search, type, active } = req.query || {}
+    const where = {}
+    if (search && String(search).trim()) {
+      const s = String(search).trim()
+      where.OR = [
+        { name: { contains: s, mode: 'insensitive' } },
+        { sku: { contains: s, mode: 'insensitive' } },
+        { barcode: { contains: s, mode: 'insensitive' } }
+      ]
+    }
+    if (type) where.type = String(type)
+    if (active != null) where.active = String(active).toLowerCase() !== 'false'
+    const list = await prisma.product.findMany({ where, orderBy: { createdAt: 'desc' } })
+    res.json({ products: list })
+  } catch (e) { res.status(500).json({ error: 'Failed to list products' }) }
+})
+
+app.post('/api/products', async (req, res) => {
+  try {
+    const b = req.body || {}
+    if (!b.name || !b.type) return res.status(400).json({ error: 'name and type required' })
+    const row = await prisma.product.create({ data: {
+      name: String(b.name),
+      type: String(b.type),
+      sku: b.sku || null,
+      barcode: b.barcode || null,
+      unit: b.unit || null,
+      price: b.price != null ? Number(b.price) : null,
+      cost: b.cost != null ? Number(b.cost) : null,
+      taxCode: b.taxCode || null,
+      incomeAccountCode: b.incomeAccountCode || null,
+      expenseAccountCode: b.expenseAccountCode || null,
+      cogsAccountCode: b.cogsAccountCode || null,
+      inventoryAccountCode: b.inventoryAccountCode || null,
+      preferredVendor: b.preferredVendor || null,
+      tags: b.tags || null,
+      favorite: !!b.favorite
+    } })
+    res.status(201).json({ product: row })
+  } catch (e) { res.status(500).json({ error: 'Failed to create product' }) }
+})
+
+app.put('/api/products/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id)
+    const b = req.body || {}
+    const row = await prisma.product.update({ where: { id }, data: {
+      name: b.name != null ? String(b.name) : undefined,
+      type: b.type != null ? String(b.type) : undefined,
+      sku: b.sku != null ? b.sku : undefined,
+      barcode: b.barcode != null ? b.barcode : undefined,
+      unit: b.unit != null ? b.unit : undefined,
+      price: b.price != null ? Number(b.price) : undefined,
+      cost: b.cost != null ? Number(b.cost) : undefined,
+      taxCode: b.taxCode != null ? b.taxCode : undefined,
+      incomeAccountCode: b.incomeAccountCode != null ? b.incomeAccountCode : undefined,
+      expenseAccountCode: b.expenseAccountCode != null ? b.expenseAccountCode : undefined,
+      cogsAccountCode: b.cogsAccountCode != null ? b.cogsAccountCode : undefined,
+      inventoryAccountCode: b.inventoryAccountCode != null ? b.inventoryAccountCode : undefined,
+      preferredVendor: b.preferredVendor != null ? b.preferredVendor : undefined,
+      active: b.active != null ? !!b.active : undefined,
+      favorite: b.favorite != null ? !!b.favorite : undefined,
+      tags: b.tags != null ? b.tags : undefined
+    } })
+    res.json({ product: row })
+  } catch (e) { res.status(500).json({ error: 'Failed to update product' }) }
+})
+
+// Asset Categories (tenant-scoped)
+app.get('/api/asset-categories', async (req, res) => {
+  try {
+    const list = await prisma.assetCategory.findMany({ orderBy: { createdAt: 'asc' } })
+    res.json({ categories: list })
+  } catch (e) { res.status(500).json({ error: 'Failed to list asset categories' }) }
+})
+
+app.post('/api/asset-categories', async (req, res) => {
+  try {
+    const { name, defaultUsefulLifeMonths = 36, defaultMethod = 'SL', assetAccountCode = '1500', accumulatedAccountCode = '1590', expenseAccountCode = '6120' } = req.body || {}
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'name required' })
+    const row = await prisma.assetCategory.create({ data: { name: String(name).trim(), defaultUsefulLifeMonths: Math.max(1, parseInt(defaultUsefulLifeMonths, 10) || 36), defaultMethod: defaultMethod || 'SL', assetAccountCode, accumulatedAccountCode, expenseAccountCode } })
+    res.status(201).json({ category: row })
+  } catch (e) { res.status(500).json({ error: 'Failed to create asset category' }) }
+})
+
+app.post('/api/assets/run-depreciation', async (req, res) => {
+  try {
+    const { limit } = req.body || {}
+    const results = await AssetService.runDueDepreciation(Math.max(1, parseInt(String(limit || 50), 10)))
+    res.json({ ok: true, count: results.length, results })
+  } catch (e) { res.status(500).json({ error: 'Failed to run depreciation', message: e?.message || String(e) }) }
+})
+
+// Link an expense to an asset (stores relatedAssetId on expense.customFields)
+app.post('/api/expenses/:id/link-asset', async (req, res) => {
+  try {
+    const expenseId = String(req.params.id)
+    const { assetId } = req.body || {}
+    if (!assetId) return res.status(400).json({ error: 'assetId required' })
+    const asset = await prisma.asset.findUnique({ where: { id: assetId } })
+    if (!asset) return res.status(404).json({ error: 'Asset not found' })
+    const exp = await prisma.expense.findUnique({ where: { id: expenseId } })
+    if (!exp) return res.status(404).json({ error: 'Expense not found' })
+    const cf = (exp.customFields && typeof exp.customFields === 'object') ? exp.customFields : {}
+    cf.relatedAssetId = assetId
+    const updated = await prisma.expense.update({ where: { id: expenseId }, data: { customFields: cf } })
+    res.json({ ok: true, expenseId: updated.id, relatedAssetId: assetId })
+  } catch (e) { res.status(500).json({ error: 'Failed to link asset' }) }
+})
+
+app.post('/api/assets/:id/dispose', async (req, res) => {
+  try {
+    const id = String(req.params.id)
+    const a = await prisma.asset.findUnique({ where: { id } })
+    if (!a) return res.status(404).json({ error: 'Asset not found' })
+    await prisma.asset.update({ where: { id }, data: { status: 'disposed', nextRunOn: null } })
+    await prisma.assetEvent.create({ data: { assetId: id, type: 'dispose', amount: 0, runOn: new Date(), memo: 'Disposed (no gain/loss flow v1)' } })
+    res.json({ ok: true })
+  } catch (e) { res.status(500).json({ error: 'Failed to dispose asset' }) }
+})
+
+app.post('/api/admin/assets/run-depreciation', async (req, res) => {
+  try {
+    const jobKey = (req.headers['x-job-key'] || req.headers['X-Job-Key'] || '').toString()
+    if (!jobKey || jobKey !== String(process.env.AILEGR_JOB_KEY || '')) return res.status(401).json({ error: 'Unauthorized' })
+    const results = await AssetService.runDueDepreciation(Math.max(1, parseInt(String((req.body||{}).limit || 50), 10)))
+    res.json({ ok: true, count: results.length })
+  } catch (e) { res.status(500).json({ error: 'Failed to run assets depreciation' }) }
+})
+
+app.get('/api/assets/:id/events', async (req, res) => {
+  try {
+    const id = String(req.params.id)
+    const a = await prisma.asset.findUnique({ where: { id } })
+    if (!a) return res.status(404).json({ error: 'Asset not found' })
+    const events = await prisma.assetEvent.findMany({ where: { assetId: id }, orderBy: { runOn: 'asc' } })
+    res.json({ events })
+  } catch (e) { res.status(500).json({ error: 'Failed to load events' }) }
 })
 
 

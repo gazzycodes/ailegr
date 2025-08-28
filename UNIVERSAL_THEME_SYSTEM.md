@@ -1,3 +1,5 @@
+- Chat/Voice help and tutorial modal use theme tokens; ensure contrast on light/dark.
+- New chat mode selector (Auto/Guide/Act) uses small select with tokenized borders/background.
 # 🎨 **Universal Dynamic Theme System**
 
 > **Zero hardcoded values, infinite themes, maximum performance**  

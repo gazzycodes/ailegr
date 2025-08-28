@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import { ModalPortal } from '../layout/ModalPortal'
-import ExpensesService from '../../services/expensesService'
+import ExpensesService, { getVendorDefaults } from '../../services/expensesService'
 
 interface ExpenseOcrModalProps {
 	open: boolean
@@ -138,7 +138,7 @@ export default function ExpenseOcrModal({ open, onClose }: ExpenseOcrModalProps)
 							</div>
 							<label className="flex flex-col gap-1">
 								<span className="text-secondary-contrast">Vendor</span>
-								<input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={vendor} onChange={(e) => setVendor(e.target.value)} onBlur={async ()=>{ try { if (vendor.trim()) { const d = await ExpensesService.getVendorDefaults(vendor.trim()); if (d && d.taxEnabled) { setTaxEnabled(true); if (d.taxMode === 'percentage') { setTaxMode('percentage'); if (typeof d.taxRate === 'number') setTaxRate(String(d.taxRate)) } else if (d.taxMode === 'amount') { setTaxMode('amount'); if (typeof d.taxAmount === 'number') setTaxAmount(String(d.taxAmount)) } } } } catch {} }} placeholder="Adobe, Uber..." />
+								<input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={vendor} onChange={(e) => setVendor(e.target.value)} onBlur={async ()=>{ try { if (vendor.trim()) { const d = await getVendorDefaults(vendor.trim()); if (d && d.taxEnabled) { setTaxEnabled(true); if (d.taxMode === 'percentage') { setTaxMode('percentage'); if (typeof d.taxRate === 'number') setTaxRate(String(d.taxRate)) } else if (d.taxMode === 'amount') { setTaxMode('amount'); if (typeof d.taxAmount === 'number') setTaxAmount(String(d.taxAmount)) } } } } catch {} }} placeholder="Adobe, Uber..." />
 							</label>
 							<label className="flex flex-col gap-1">
 								<span className="text-secondary-contrast">Vendor Invoice No. (optional)</span>

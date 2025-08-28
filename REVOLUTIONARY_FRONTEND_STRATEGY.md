@@ -1,3 +1,10 @@
+- AI Guide vs Act
+  - Auto: decide to act or guide based on clarity.
+  - Guide: numbered steps; no ACTION line; great for onboarding.
+  - Act: emit a single ACTION line; minimal clarifications.
+- Navigation integration
+  - Chat actions can trigger `navigate:view` and `transactions:filter` events.
+  - Voice feeds the same pipeline; help modal shared.
 # 🚀 **EZE Ledger: Revolutionary Frontend Strategy**
 
 > **The Most Beautiful Accounting Software Ever Created**  

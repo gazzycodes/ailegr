@@ -25,18 +25,20 @@ class ExpenseAccountResolver {
   };
 
   static KEYWORD_MAPPINGS = {
-    SOFTWARE: ['software','adobe','microsoft','google','cloud','saas','hosting','domain','server','api','slack','zoom','dropbox','notion','github','gitlab','figma'],
-    TELECOMMUNICATIONS: ['phone','internet','wifi','mobile','cellular','data','plan','verizon','att','t-mobile','comcast','spectrum','xfinity','fiber','telephone','isp','broadband','static ip','cloudwire'],
-    BANK_FEES: ['bank','fee','charge','wire','transfer','overdraft','maintenance','atm','merchant','paypal','stripe'],
-    UTILITIES: ['utility','utilities','electric','power','water','sewer','garbage','waste','heating','cooling','energy','pg&e','pge','coned','aqua','aquapure','water delivery','bottled water','dispenser','cooler','jug','jugs','gallon','culligan','sparklett','sparkletts','arrowhead','primo','nestle'],
-    OFFICE_SUPPLIES: ['office','supplies','stationery','paper','printer','ink','toner','desk','chair','equipment','furniture','staples','depot','costco'],
+    SOFTWARE: ['software','adobe','microsoft','google','cloud','saas','hosting','domain','server','api','slack','zoom','dropbox','notion','github','gitlab','figma','jira','confluence','atlassian','aws','azure','gcp','digitalocean','ovh','cloudflare','vercel','netlify','render','heroku','openvpn','vpn','bitbucket','datadog','new relic','sentry','logrocket','stripe','paddle','paystack'],
+    TELECOMMUNICATIONS: ['phone','internet','wifi','wi-fi','mobile','cellular','data','plan','verizon','att','t-mobile','comcast','spectrum','xfinity','fiber','telephone','isp','broadband','static ip','cloudwire','router','modem'],
+    BANK_FEES: ['bank','fee','charge','wire','transfer','overdraft','maintenance','atm','merchant','paypal','stripe','square','braintree'],
+    UTILITIES: ['utility','utilities','electric','power','water','sewer','garbage','waste','heating','cooling','energy','pg&e','pge','coned','aqua','aquapure','water delivery','bottled water','dispenser','cooler','jug','jugs','gallon','culligan','sparklett','sparkletts','arrowhead','primo','nestle','trash','recycling','gas','propane'],
+    OFFICE_SUPPLIES: ['office','supplies','stationery','paper','printer','ink','toner','desk','chair','equipment','furniture','staples','depot','costco','pens','notebooks','folders','labels','whiteboard','monitor','keyboard','mouse','laptop','computer','pc','desktop','workstation','imac','mac','macbook','iphone','ipad','tablet','smartphone','phone','charger','cable','adapter'],
     PROFESSIONAL_SERVICES: ['legal','attorney','lawyer','consulting','consultant','accountant','accounting','audit','tax','bookkeeping','financial','advisor'],
-    INSURANCE: ['insurance','liability','coverage','policy','premium','health','dental','vision','workers','compensation','auto','vehicle','property','business'],
-    TRAINING: ['training','education','course','workshop','seminar','certification','conference','learning','udemy','coursera','pluralsight'],
-    RENT: ['rent','lease','office','space','coworking','workspace','property'],
-    TRAVEL: ['travel','flight','hotel','airfare','airline','airport','uber','lyft','taxi','rental','car','gas','fuel','parking','toll','mileage','airbnb','delta','united','american'],
-    MARKETING: ['marketing','advertising','ads','promotion','facebook','linkedin','twitter','instagram','youtube','social','media','campaign','seo','ppc'],
-    MEALS: ['meal','food','restaurant','lunch','dinner','breakfast','coffee','catering','starbucks','doordash','grubhub','ubereats','entertainment','chipotle','mcdonalds','kfc']
+    INSURANCE: ['insurance','liability','coverage','policy','premium','health','dental','vision','workers','compensation','auto','vehicle','property','business','cyber','bond'],
+    TRAINING: ['training','education','course','workshop','seminar','certification','conference','learning','udemy','coursera','pluralsight','bootcamp'],
+    RENT: ['rent','lease','office','space','coworking','workspace','property','wework','deskpass'],
+    TRAVEL: ['travel','flight','hotel','airfare','airline','airport','uber','lyft','taxi','rental','car','gas','fuel','parking','toll','mileage','airbnb','delta','united','american','visa','passport'],
+    MARKETING: ['marketing','advertising','ads','promotion','facebook','linkedin','twitter','instagram','youtube','social','media','campaign','seo','ppc','newsletter','mailchimp','klaviyo','google ads','meta ads','bing ads','hubspot','crm','event sponsorship','trade show'],
+    MEALS: ['meal','food','restaurant','lunch','dinner','breakfast','coffee','catering','starbucks','doordash','grubhub','ubereats','entertainment','chipotle','mcdonalds','kfc','team lunch','client lunch','snacks','beverages','tea'],
+    COGS: ['raw material','inventory','component','parts','manufacturing','freight','shipping','warehouse','fulfillment','packaging','label','printer','sticker'],
+    GENERAL_EXPENSE: ['general','misc','miscellaneous','other','supplies','admin','office admin','reimbursement']
   };
 
   static PAYMENT_ACCOUNT_MAPPING = {
@@ -84,7 +86,7 @@ class ExpenseAccountResolver {
     // Prefer obvious utility water delivery patterns before AI/keywords
     try {
       const text = `${vendorName} ${description}`.toLowerCase()
-      if (/(\baquapure\b|\bwater\b|bottled water|dispenser|cooler|jug|jugs|gallon|culligan|sparklett|sparkletts|arrowhead|primo)/i.test(text)) {
+      if (/(aquapure\b|\bwater\b|bottled water|dispenser|cooler|jug|jugs|gallon|culligan|sparklett|sparkletts|arrowhead|primo)/i.test(text)) {
         const acc = await this.getAccountByCode(this.CATEGORY_ACCOUNT_MAPPING.UTILITIES)
         if (acc) return { accountCode: acc.code, accountName: acc.name, source: 'HEURISTIC_UTILITIES' }
       }

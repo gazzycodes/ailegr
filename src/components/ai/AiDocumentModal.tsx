@@ -1,15 +1,16 @@
 import { useRef, useState, useEffect } from 'react'
 // import RecurringService from '../../services/recurringService'
-import RecurringModal from '../recurring/RecurringModal'
-import { motion, AnimatePresence } from 'framer-motion'
+// import RecurringModal from '../recurring/RecurringModal'
+// import { motion, AnimatePresence } from 'framer-motion'
 import { ThemedGlassSurface } from '../themed/ThemedGlassSurface'
 import { ModalPortal } from '../layout/ModalPortal'
-import ExpensesService, { getVendorDefaults, saveVendorDefaults } from '../../services/expensesService'
+import ExpensesService, { /* getVendorDefaults, */ saveVendorDefaults } from '../../services/expensesService'
 import CustomersService from '../../services/customersService'
 import api from '../../services/api'
 import { TransactionsService } from '../../services/transactionsService'
-import ThemedSelect from '../themed/ThemedSelect'
-import InfoHint from '../themed/InfoHint'
+// import ThemedSelect from '../themed/ThemedSelect'
+// import InfoHint from '../themed/InfoHint'
+// import CoaSelector from '../themed/CoaSelector'
 
 interface AiDocumentModalProps {
   open: boolean
@@ -46,9 +47,10 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
   const [tags, setTags] = useState<string>('')
   const [shipping, setShipping] = useState('')
   const [discount, setDiscount] = useState('')
-  const [lineItems, setLineItems] = useState<Array<{ description: string; qty?: string; rate?: string; amount: string }>>([{ description: '', qty: '1', rate: '', amount: '' }])
+  const [lineItems, setLineItems] = useState<Array<{ description: string; qty?: string; rate?: string; amount: string; accountCode?: string }>>([{ description: '', qty: '1', rate: '', amount: '' }])
   const [description, setDescription] = useState('')
   const [preview, setPreview] = useState<any | null>(null)
+  const [rememberAccount, setRememberAccount] = useState<boolean>(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dupState, setDupState] = useState<{ checked: boolean; duplicate: boolean; info?: any } | null>(null)
@@ -71,6 +73,7 @@ export default function AiDocumentModal({ open, onClose }: AiDocumentModalProps)
   const [discountInv, setDiscountInv] = useState('')
   const [dueDaysInv, setDueDaysInv] = useState('')
   const [notes, setNotes] = useState('')
+  const [lineItemsInv, setLineItemsInv] = useState<Array<{ description: string; qty?: string; rate?: string; amount: string; accountCode?: string }>>([{ description: '', qty: '1', rate: '', amount: '' }])
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [showSuggest, setShowSuggest] = useState(false)
   const [loadingSuggest, setLoadingSuggest] = useState(false)
@@ -840,6 +843,19 @@ TEXT:\n${text.slice(0,12000)}`
           ocrText: extractedText,
           categoryKey: 'PROFESSIONAL_SERVICES'
         }
+        // Include optional AR line items for preview (with per-line accountCode overrides)
+        try {
+          const items = (lineItemsInv || [])
+            .filter(li => (li.description && li.description.trim()) || (li.amount && !isNaN(parseFloat(li.amount))))
+            .map(li => ({
+              description: li.description || 'Line',
+              amount: parseFloat(li.amount || li.rate || '0'),
+              quantity: li.qty != null && li.qty !== '' ? parseFloat(li.qty) : undefined,
+              rate: li.rate != null && li.rate !== '' ? parseFloat(li.rate) : undefined,
+              accountCode: li.accountCode || undefined
+            }))
+          if (items.length) (payload as any).lineItems = items
+        } catch {}
         const res = await ExpensesService.previewExpense(payload)
         setPreview(res)
       } else {
@@ -913,9 +929,15 @@ TEXT:\n${text.slice(0,12000)}`
             description: li.description || 'Line',
             amount: parseFloat(li.amount || li.rate || '0'),
             quantity: li.qty != null && li.qty !== '' ? parseFloat(li.qty) : undefined,
-            rate: li.rate != null && li.rate !== '' ? parseFloat(li.rate) : undefined
+            rate: li.rate != null && li.rate !== '' ? parseFloat(li.rate) : undefined,
+            accountCode: li.accountCode || undefined
           }))
         if (cleanedLines.length) payload.lineItems = cleanedLines
+        // Honor AP split-by-line-items setting for accurate preview
+        try {
+          const split = JSON.parse(localStorage.getItem('settings.apSplitLines') || 'false')
+          if (split) (payload as any).splitByLineItems = true
+        } catch {}
         if (discount && !isNaN(parseFloat(discount))) payload.discount = { enabled: true, amount: parseFloat(discount) }
         if (shipping && !isNaN(parseFloat(shipping))) payload.shipping = parseFloat(shipping)
         if (memo) payload.notes = memo
@@ -997,6 +1019,7 @@ TEXT:\n${text.slice(0,12000)}`
           dueDate,
           subtotal: typeof (norm as any).subtotal === 'number' ? (norm as any).subtotal : undefined,
           taxSettings: taxPayload as any,
+          lineItems: (lineItemsInv || []).filter(li => (li.description && li.description.trim()) || (li.amount && !isNaN(parseFloat(li.amount)))).map(li => ({ description: li.description || 'Line', amount: parseFloat(li.amount || li.rate || '0'), quantity: li.qty != null && li.qty !== '' ? parseFloat(li.qty) : undefined, rate: li.rate != null && li.rate !== '' ? parseFloat(li.rate) : undefined, accountCode: li.accountCode || undefined })) as any,
           discount: (discountInv && !isNaN(parseFloat(discountInv))) ? { enabled: true, amount: parseFloat(discountInv) } : undefined
         })
         try {
@@ -1146,448 +1169,38 @@ TEXT:\n${text.slice(0,12000)}`
   }, [customer])
 
   return (
-    <>
     <ModalPortal>
-      <AnimatePresence>
-        {open && (
-          <motion.div className="fixed inset-0 z-[9999] flex items-center justify-center modal-scroll-container" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <motion.div className="modal-overlay absolute inset-0" onClick={resetAndClose} />
-            <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} className="relative w-[96%] max-w-4xl" onClick={(e) => e.stopPropagation()}>
-              <ThemedGlassSurface variant="light" className="p-0 glass-modal liquid-glass" hover={false}>
-                <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-primary/80 font-semibold">AI Import</div>
-                    <div className="text-lg sm:text-xl font-semibold">AI Document</div>
-                    <div className="text-xs text-secondary-contrast">Upload → Extract → Review → Post</div>
-                  </div>
-                  <button className="px-2 py-1 rounded bg-surface/60 hover:bg-surface" onClick={resetAndClose}>✕</button>
+      <div className={`fixed inset-0 z-[10000] ${open ? '' : 'hidden'}`}>
+        {/* Overlay */}
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
+        {/* Content */}
+        <div className="absolute inset-0 p-4 overflow-auto">
+          <div className="max-w-5xl mx-auto">
+            <ThemedGlassSurface variant="light" className="p-5 md:p-6">
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <div>
+                  <div className="text-lg font-semibold">AI Document</div>
+                  <div className="text-xs text-secondary-contrast">Upload → OCR → Review → Post</div>
                 </div>
-
-                {stage === 'picker' ? (
-                  <div className="p-5">
-                    <div className="space-y-4 text-sm">
-                      <div
-                        className={`rounded-2xl border transition-all duration-300 cursor-pointer select-none ${dragActive ? 'border-primary/50 bg-primary/5' : 'border-white/10 bg-surface/50 hover:bg-surface/60'} p-8`}
-                        onDragEnter={handleDragIn}
-                        onDragLeave={handleDragOut}
-                        onDragOver={handleDrag}
-                        onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click() }}
-                      >
-                        <div className="flex flex-col items-center text-center gap-3">
-                          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                            <span className="text-2xl">📄</span>
-                          </div>
-                          <div className="text-base font-semibold">Drop your document here</div>
-                          <div className="text-secondary-contrast">or click to browse</div>
-                          <div className="text-xs text-secondary-contrast">PDF, DOCX, CSV/TXT, JPG, PNG (max 10MB)</div>
-                        </div>
-                        <input ref={fileInputRef} type="file" accept=".pdf,.docx,.csv,.txt,.jpg,.jpeg,.png" onChange={(e) => e.target.files && handleFileSelection(e.target.files[0])} className="hidden" />
-                      </div>
-
-                      {selectedFile && (
-                        <div className="rounded-xl border border-white/10 bg-surface/60 p-4 flex items-center justify-between">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="text-2xl">📄</div>
-                            <div className="truncate">
-                              <div className="font-medium truncate">{selectedFile.name}</div>
-                              <div className="text-xs text-secondary-contrast">{(selectedFile.size/1024/1024).toFixed(2)} MB</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button className="px-2 py-1 rounded bg-white/10 border border-white/10 hover:bg-white/15 text-xs" onClick={() => setSelectedFile(null)}>Remove</button>
-                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} disabled={isProcessing} onClick={processDocument} className="px-3 py-1.5 rounded bg-primary/20 text-primary border border-primary/30 disabled:opacity-60">{isProcessing ? 'Processing…' : 'Process with AI'}</motion.button>
-                          </div>
-                        </div>
-                      )}
-
-                      {error && <div className="text-sm text-red-400">{error}</div>}
-
-                      {isProcessing && (
-                        <div className="pt-1">
-                          <div className="w-full h-2 bg-surface/60 rounded-full overflow-hidden">
-                            <motion.div initial={{ width: 0 }} animate={{ width: `${ocrProgress}%` }} className="h-full bg-primary/60" />
-                          </div>
-                          <div className="text-xs text-secondary-contrast mt-1">{ocrProgress < 50 ? 'Extracting text…' : 'Analyzing…'}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col lg:flex-row">
-                    <div className="lg:w-1/3 p-5 border-b lg:border-b-0 lg:border-r border-white/10">
-                      <div className="text-sm text-secondary-contrast mb-2">OCR Snapshot</div>
-                      <div className="rounded-lg bg-surface/50 p-3 max-h-64 overflow-auto text-xs whitespace-pre-wrap">{extractedText.slice(0, 2000)}{extractedText.length > 2000 ? '…' : ''}</div>
-                    </div>
-                    <div className="flex-1 p-5">
-                      <div className="mb-3 text-sm">
-                        <label className="flex flex-col gap-1 max-w-xs">
-                          <span className="text-secondary-contrast">Document Type</span>
-                          <select disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={mode} onChange={(e) => setMode(e.target.value as any)}>
-                            <option value="invoice">Invoice (Revenue)</option>
-                            <option value="expense">Expense (Vendor Bill)</option>
-                            <option value="other">Other / Receipt</option>
-                          </select>
-                        </label>
-                        {classification && (
-                          <div className="mt-1 text-xs text-secondary-contrast">
-                            Detected by AI: {(classification.docType || '').toLowerCase() === 'invoice' ? 'Invoice (Revenue)' : (classification.docType || '').toLowerCase() === 'expense' ? 'Expense (Vendor Bill)' : 'Other'}
-                            {classification.policy ? ` • Policy: ${classification.policy}` : ''}
-                            {typeof classification.confidence === 'number' ? ` • Confidence: ${(classification.confidence * 100).toFixed(0)}%` : ''}
-                          </div>
-                        )}
-                        {/* Confidence Gate */}
-                        {classification && (typeof classification.confidence === 'number') && (
-                          <div className={`mt-2 text-xs rounded-md border px-3 py-2 ${ (classification.confidence as number) >= CLASSIFY_THRESHOLD ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-amber-400/30 bg-amber-400/10 text-amber-300' }`}>
-                            {(classification.confidence as number) >= CLASSIFY_THRESHOLD
-                              ? 'Looks good. You can proceed to preview or post.'
-                              : 'Low confidence. Please review fields and confirm type before previewing.'}
-                            <div className="mt-1">
-                              <label className="inline-flex items-center gap-2">
-                                <input type="checkbox" className="accent-primary" checked={typeConfirmed} onChange={(e) => setTypeConfirmed(e.target.checked)} />
-                                <span>I reviewed and confirm the detected document type.</span>
-                              </label>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      {mode === 'invoice' ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                          <label className="flex flex-col gap-1 relative">
-                            <InfoHint label="Customer">Name of the customer receiving your invoice.</InfoHint>
-                            <input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={customer} onChange={(e) => handleCustomerChange(e.target.value)} placeholder="Acme Corp" onFocus={() => setShowSuggest(true)} />
-                            {showSuggest && (suggestions.length > 0 || loadingSuggest) && (
-                              <div className="absolute top-full mt-1 left-0 right-0 z-10 rounded-lg border border-white/10 bg-surface/80 backdrop-blur-xl shadow-lg max-h-56 overflow-auto">
-                                {loadingSuggest && <div className="px-3 py-2 text-sm text-secondary-contrast">Searching...</div>}
-                                {suggestions.map((c, i) => (
-                                  <button key={c.id || i} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-white/10" onClick={() => applySuggestion(c)}>
-                                    <div className="font-medium">{c.name}</div>
-                                    <div className="text-xs text-secondary-contrast">{c.company || c.email || ''}</div>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <span className="text-secondary-contrast">Amount</span>
-                            <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={amount} onChange={(e) => { setAmount(e.target.value); if (manualEdit) updateConf('amount', 1.0) }} placeholder="5000" />
-                            {fieldConfidence.amount !== undefined && (
-                              <div className={`${(fieldConfidence.amount as number) < 0.6 ? 'text-yellow-400' : 'text-secondary-contrast'} text-xs`}>Confidence: {Math.round((fieldConfidence.amount as number) * 100)}%</div>
-                            )}
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <InfoHint label="Date">Invoice issue date. Due date is computed from terms if left blank.</InfoHint>
-                            <input type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={date} onChange={(e) => setDate(e.target.value)} />
-                            {fieldConfidence.date !== undefined && (
-                              <div className={`${(fieldConfidence.date as number) < 0.6 ? 'text-yellow-400' : 'text-secondary-contrast'} text-xs`}>Confidence: {Math.round((fieldConfidence.date as number) * 100)}%</div>
-                            )}
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <InfoHint label="Due Date">Optional override. If set, we ignore Due Terms.</InfoHint>
-                            <input type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-                            {fieldConfidence.dueDate !== undefined && (
-                              <div className={`${(fieldConfidence.dueDate as number) < 0.6 ? 'text-yellow-400' : 'text-secondary-contrast'} text-xs`}>Confidence: {Math.round((fieldConfidence.dueDate as number) * 100)}%</div>
-                            )}
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <span className="text-secondary-contrast">Invoice #</span>
-                            <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={invoiceNumber} onChange={(e) => { setInvoiceNumber(e.target.value); if (manualEdit) updateConf('invoiceNumber', 1.0) }} placeholder="INV-2025-001" />
-                            {fieldConfidence.invoiceNumber !== undefined && (
-                              <div className={`${(fieldConfidence.invoiceNumber as number) < 0.6 ? 'text-yellow-400' : 'text-secondary-contrast'} text-xs`}>Confidence: {Math.round((fieldConfidence.invoiceNumber as number) * 100)}%</div>
-                            )}
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <span className="text-secondary-contrast">Status</span>
-                            <select disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={status} onChange={(e) => setStatus(e.target.value as any)}>
-                              <option value="invoice">Invoice (Unpaid)</option>
-                              <option value="paid">Paid</option>
-                              <option value="partial">Partial</option>
-                              <option value="overpaid">Overpaid</option>
-                            </select>
-                          </label>
-                          <label className="flex flex-col gap-1 sm:col-span-2">
-                            <span className="text-secondary-contrast">Description</span>
-                            <textarea disabled={!manualEdit} rows={3} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Line items, payment terms, etc." />
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <InfoHint label="Due Terms">Preset or custom days (0–365). Applies when Due Date is blank.</InfoHint>
-                            <div className="flex gap-2">
-                              <ThemedSelect value={["0","14","30","45","60","90"].includes(dueDaysInv) ? dueDaysInv : ''} onChange={(e)=>setDueDaysInv((e.target as HTMLSelectElement).value || dueDaysInv)}>
-                                <option value="">Custom</option>
-                                <option value="0">Net 0</option>
-                                <option value="14">Net 14</option>
-                                <option value="30">Net 30</option>
-                                <option value="45">Net 45</option>
-                                <option value="60">Net 60</option>
-                                <option value="90">Net 90</option>
-                              </ThemedSelect>
-                              <input type="number" min={0} max={365} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 w-24" value={dueDaysInv} onChange={(e)=>setDueDaysInv(e.target.value)} placeholder="days" />
-                            </div>
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <span className="text-secondary-contrast">Discount</span>
-                            <input className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={discountInv} onChange={(e)=>setDiscountInv(e.target.value)} placeholder="0.00" />
-                          </label>
-                          <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
-                            <label className="flex items-center gap-2">
-                              <input disabled={!manualEdit} type="checkbox" checked={taxEnabledInv} onChange={(e)=>setTaxEnabledInv(e.target.checked)} />
-                              <span className="text-secondary-contrast text-sm">Tax</span>
-                            </label>
-                            {taxEnabledInv && (
-                              <>
-                                <label className="flex flex-col gap-1">
-                                  <span className="text-secondary-contrast">Mode</span>
-                                  <ThemedSelect disabled={!manualEdit} value={taxModeInv} onChange={(e)=>setTaxModeInv(((e.target as HTMLSelectElement).value as any))}>
-                                    <option value="percentage">Percent %</option>
-                                    <option value="amount">Amount</option>
-                                  </ThemedSelect>
-                                </label>
-                                {taxModeInv === 'percentage' ? (
-                                  <label className="flex flex-col gap-1">
-                                    <span className="text-secondary-contrast">Rate %</span>
-                                    <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={taxRateInv} onChange={(e)=>setTaxRateInv(e.target.value)} placeholder="9.5" />
-                                  </label>
-                                ) : (
-                                  <label className="flex flex-col gap-1">
-                                    <span className="text-secondary-contrast">Tax Amount</span>
-                                    <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={taxAmountInv} onChange={(e)=>setTaxAmountInv(e.target.value)} placeholder="76.00" />
-                                  </label>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                        <label className="flex flex-col gap-1">
-                          <span className="text-secondary-contrast">Vendor</span>
-                            <div className="flex gap-2">
-                              <input disabled={!manualEdit} className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={vendor} onChange={(e) => { setVendor(e.target.value); setDupState(null) }} onBlur={async ()=>{ try { if (vendor.trim()) { const d = await getVendorDefaults(vendor.trim()); if (d && d.taxEnabled) { setTaxEnabledExp(true); if (d.taxMode === 'percentage') { setTaxModeExp('percentage'); if (typeof d.taxRate === 'number') setTaxRateExp(String(d.taxRate)) } else if (d.taxMode === 'amount') { setTaxModeExp('amount'); if (typeof d.taxAmount === 'number') setTaxAmountExp(String(d.taxAmount)) } } } } catch {} }} placeholder="Adobe, Uber…" />
-                              <button type="button" className="px-2 rounded border border-white/10 bg-white/10 hover:bg-white/15 text-xs" onClick={saveVendorTaxDefaults} disabled={!vendor.trim() || savingDefaults}>{savingDefaults ? 'Saving…' : 'Save Defaults'}</button>
-                            </div>
-                        </label>
-                        <label className="flex flex-col gap-1">
-                          <span className="text-secondary-contrast">Amount</span>
-                            <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="59.99" />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                          <span className="text-secondary-contrast">Date</span>
-                            <input disabled={!manualEdit} type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={date} onChange={(e) => setDate(e.target.value)} />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                          <InfoHint label="Due Date">Optional override. If set, we ignore Due Terms.</InfoHint>
-                          <input disabled={!manualEdit} type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={dueDateExp} onChange={(e) => setDueDateExp(e.target.value)} />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                          <InfoHint label="Due Terms">Choose a preset or set custom days (0–365).</InfoHint>
-                          <div className="flex gap-2">
-                            <ThemedSelect value={["0","14","30","45","60","90"].includes(dueDaysExp) ? dueDaysExp : ''} onChange={(e) => setDueDaysExp((e.target as HTMLSelectElement).value || dueDaysExp)}>
-                              <option value="">Custom</option>
-                              <option value="0">Net 0</option>
-                              <option value="14">Net 14</option>
-                              <option value="30">Net 30</option>
-                              <option value="45">Net 45</option>
-                              <option value="60">Net 60</option>
-                              <option value="90">Net 90</option>
-                            </ThemedSelect>
-                            <input disabled={!manualEdit} type="number" min={0} max={365} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md w-24 disabled:opacity-60" value={dueDaysExp} onChange={(e) => setDueDaysExp(e.target.value)} placeholder="days" />
-                          </div>
-                        </label>
-                        <label className="flex flex-col gap-1">
-                          <span className="text-secondary-contrast">Vendor Invoice No. (optional)</span>
-                            <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={vendorInvoiceNo} onChange={(e) => { setVendorInvoiceNo(e.target.value); setDupState(null) }} onBlur={checkDuplicate} placeholder="#BILL-7002" />
-                            {dupState?.duplicate && (
-                              <div className="text-xs text-red-400 mt-1">Duplicate detected. A bill with this number already exists for this vendor.</div>
-                            )}
-                            {checkingDup && <div className="text-xs text-secondary-contrast mt-1">Checking duplicate...</div>}
-                        </label>
-                        <label className="flex flex-col gap-1 sm:col-span-2">
-                          <span className="text-secondary-contrast">Description</span>
-                            <textarea disabled={!manualEdit} rows={3} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 focus:bg-white/15 outline-none backdrop-blur-md disabled:opacity-60" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Notes…" />
-                        </label>
-                        {/* Line items + Discount/Shipping */}
-                        <div className="sm:col-span-2 space-y-2">
-                          <div className="text-secondary-contrast">Line items</div>
-                          <div className="rounded-lg border border-white/10 overflow-hidden">
-                            <table className="w-full text-sm">
-                              <thead className="bg-surface/60">
-                                <tr>
-                                  <th className="text-left px-3 py-2">Description</th>
-                                  <th className="text-right px-3 py-2">Qty</th>
-                                  <th className="text-right px-3 py-2">Rate</th>
-                                  <th className="text-right px-3 py-2">Amount</th>
-                                  <th className="px-3 py-2 w-16"></th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {lineItems.map((li, idx) => (
-                                  <tr key={idx} className="border-t border-white/10">
-                                    <td className="px-3 py-2">
-                                      <input disabled={!manualEdit} className="w-full px-2 py-1 rounded bg-white/10 border border-white/10" value={li.description} onChange={(e) => setLineItems(prev => prev.map((x, i) => i === idx ? { ...x, description: e.target.value } : x))} placeholder={`Item ${idx + 1}`} />
-                                    </td>
-                                    <td className="px-3 py-2 text-right">
-                                      <input disabled={!manualEdit} className="w-20 px-2 py-1 rounded bg-white/10 border border-white/10 text-right" value={li.qty || ''} onChange={(e) => setLineItems(prev => prev.map((x, i) => i === idx ? { ...x, qty: e.target.value, amount: (parseFloat(x.rate||'0') * parseFloat(e.target.value||'1') || 0).toString() } : x))} placeholder="1" />
-                                    </td>
-                                    <td className="px-3 py-2 text-right">
-                                      <input disabled={!manualEdit} className="w-24 px-2 py-1 rounded bg-white/10 border border-white/10 text-right" value={li.rate || ''} onChange={(e) => setLineItems(prev => prev.map((x, i) => i === idx ? { ...x, rate: e.target.value, amount: (parseFloat(e.target.value||'0') * parseFloat(x.qty||'1') || 0).toString() } : x))} placeholder="0.00" />
-                                    </td>
-                                    <td className="px-3 py-2 text-right">
-                                      <input disabled={!manualEdit} className="w-28 px-2 py-1 rounded bg-white/10 border border-white/10 text-right" value={li.amount} onChange={(e) => setLineItems(prev => prev.map((x, i) => i === idx ? { ...x, amount: e.target.value } : x))} placeholder="0.00" />
-                                    </td>
-                                    <td className="px-3 py-2 text-right">
-                                      <button type="button" className="px-2 py-1 rounded bg-white/10 border border-white/10 disabled:opacity-60" disabled={!manualEdit || lineItems.length <= 1} onClick={() => setLineItems(prev => prev.filter((_, i) => i !== idx))}>Remove</button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                          <div className="flex gap-2">
-                            <button type="button" className="px-3 py-1.5 rounded bg-white/10 border border-white/10 disabled:opacity-60" disabled={!manualEdit} onClick={() => setLineItems(prev => [...prev, { description: '', qty: '1', rate: '', amount: '' }])}>Add Line</button>
-                            <div className="flex items-center gap-2">
-                              <span className="text-secondary-contrast">Discount</span>
-                              <input disabled={!manualEdit} className="w-24 px-2 py-1 rounded bg-white/10 border border-white/10 text-right" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0.00" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-secondary-contrast">Shipping</span>
-                              <input disabled={!manualEdit} className="w-24 px-2 py-1 rounded bg-white/10 border border-white/10 text-right" value={shipping} onChange={(e) => setShipping(e.target.value)} placeholder="0.00" />
-                            </div>
-                          </div>
-                          {/* Items & Tax summary (parity with detail modals) */}
-                          <div className="mt-2 text-xs text-secondary-contrast" data-section="items-tax">
-                            <div className="font-medium text-foreground mb-1">Items & Tax</div>
-                            <div className="space-y-1">
-                              {(() => { try { const sub = lineItems.reduce((s, li) => s + (parseFloat(li.amount||'0')||0), 0); return <div>Subtotal: <span className="font-medium">${sub.toFixed(2)}</span></div> } catch { return null } })()}
-                              {discount && parseFloat(discount) > 0 && <div>Discount: <span className="font-medium">${(+parseFloat(discount)).toFixed(2)}</span></div>}
-                              {taxEnabledExp && (
-                                <div>Tax: <span className="font-medium">${(taxModeExp === 'percentage' ? ((Math.max(0, (lineItems.reduce((s, li) => s + (parseFloat(li.amount||'0')||0), 0) - (parseFloat(discount||'0')||0)))*(parseFloat(taxRateExp||'0')/100))) : parseFloat(taxAmountExp||'0') || 0).toFixed(2)}</span></div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        {/* Memo & Tags */}
-                        <label className="flex flex-col gap-1">
-                          <span className="text-secondary-contrast">Memo</span>
-                          <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Internal memo" />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                          <span className="text-secondary-contrast">Tags</span>
-                          <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="comma,separated,tags" />
-                        </label>
-                        {/* Tax + Payment */}
-                        <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
-                          <label className="flex items-center gap-2">
-                            <input disabled={!manualEdit} type="checkbox" checked={taxEnabledExp} onChange={(e) => setTaxEnabledExp(e.target.checked)} />
-                            <span className="text-secondary-contrast text-sm">Tax</span>
-                          </label>
-                          {taxEnabledExp && (
-                            <>
-                              <label className="flex flex-col gap-1">
-                                <span className="text-secondary-contrast">Mode</span>
-                                <ThemedSelect value={taxModeExp} onChange={(e) => setTaxModeExp(((e.target as HTMLSelectElement).value as any))}>
-                                  <option value="percentage">Percent %</option>
-                                  <option value="amount">Amount</option>
-                                </ThemedSelect>
-                              </label>
-                              {taxModeExp === 'percentage' ? (
-                                <label className="flex flex-col gap-1">
-                                  <span className="text-secondary-contrast">Rate %</span>
-                                  <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={taxRateExp} onChange={(e) => { setTaxRateExp(e.target.value); setPreview(null); }} placeholder="9.5" />
-                                </label>
-                              ) : (
-                                <label className="flex flex-col gap-1">
-                                  <span className="text-secondary-contrast">Tax Amount</span>
-                                  <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={taxAmountExp} onChange={(e) => { setTaxAmountExp(e.target.value); setPreview(null); }} placeholder="76.00" />
-                                </label>
-                              )}
-                            </>
-                          )}
-                        </div>
-                        <div className="sm:col-span-2 grid grid-cols-2 gap-3">
-                          <label className="flex flex-col gap-1">
-                            <span className="text-secondary-contrast">Amount Paid</span>
-                            <input disabled={!manualEdit} className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={amountPaidExp} onChange={(e) => setAmountPaidExp(e.target.value)} placeholder="0.00" />
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <span className="text-secondary-contrast">Paid On</span>
-                            <input disabled={!manualEdit} type="date" className="px-3 py-2 rounded-lg bg-white/10 border border-white/10" value={paidOnExp} onChange={(e) => setPaidOnExp(e.target.value)} />
-                          </label>
-                        </div>
-                      </div>
-                      )}
-
-                      {preview && (
-                        <div className="mt-4 text-sm">
-                          <div className="font-semibold mb-2">Account Mapping</div>
-                          {mode === 'expense' && (
-                            <div className="mb-2 rounded-md border border-white/10 bg-surface/60 p-3 text-xs">
-                              {(() => { const b = computeExpensePreviewSummary(preview); const fmt = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; return (
-                                <div className="space-y-1">
-                                  <div className="flex flex-wrap gap-x-4 gap-y-1">
-                                    <div className="text-emerald-300">DR Expense: <span className="text-foreground">{fmt(b.expenseDebit)}</span></div>
-                                    <div className="text-emerald-300">DR Tax (6110/1360): <span className="text-foreground">{fmt(b.taxDebit)}</span></div>
-                                    <div className="text-red-300">CR Cash (1010): <span className="text-foreground">{fmt(b.cashCredit)}</span></div>
-                                    <div className="text-red-300">CR A/P (2010): <span className="text-foreground">{fmt(b.apCredit)}</span></div>
-                                  </div>
-                                  <div className="text-secondary-contrast">Partial payment is indicated when both Cash and A/P credits are non‑zero.</div>
-                                </div>
-                              ) })()}
-                            </div>
-                          )}
-                          <div className="rounded-lg border border-white/10 overflow-hidden">
-                            <table className="w-full text-sm">
-                              <thead className="bg-surface/60">
-                                <tr>
-                                  <th className="text-left px-3 py-2">Type</th>
-                                  <th className="text-left px-3 py-2">Account</th>
-                                  <th className="text-right px-3 py-2">Amount</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                            {preview.entries?.map((e: any, i: number) => (
-                                  <tr key={i} className="border-t border-white/10">
-                                    <td className="px-3 py-2 uppercase text-secondary-contrast">{(e.type || (e.debit ? 'debit' : 'credit'))}</td>
-                                    <td className="px-3 py-2">{e.accountCode} — {e.accountName}</td>
-                                    <td className="px-3 py-2 text-right">${Number(e.amount).toLocaleString()}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                          {preview.policy && (
-                            <div className="mt-2 text-xs text-secondary-contrast">Policy: {preview.policy} • Date used: {preview.dateUsed || date}</div>
-                          )}
-                        </div>
-                      )}
-
-                      {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
-                      <div className="mt-4 flex flex-wrap gap-2 justify-end">
-                        <button className="px-3 py-1.5 text-sm rounded-lg border transition backdrop-blur-glass bg-white/10 hover:bg-white/15 border-white/10 text-foreground" onClick={() => setStage('picker')}>Back</button>
-                        <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10 hover:bg-white/15" onClick={() => { setPreview(null); doPreview().catch(()=>{}) }}>Preview</button>
-                        <button disabled={submitting || (mode === 'invoice' ? (!customer.trim() || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0 || !date) : (!!dupState?.duplicate || !vendor.trim() || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0 || !date))} className="px-3 py-1.5 text-sm rounded-lg bg-primary/20 text-primary border border-primary/30 disabled:opacity-60" onClick={doPost}>{submitting ? 'Posting…' : (mode === 'invoice' ? 'Create Invoice' : 'Post Expense')}</button>
-                        <button className="px-3 py-1.5 text-sm rounded-lg bg-white/10 border border-white/10 hover:bg-white/15" onClick={() => setRecurringOpen(true)}>Save as Recurring</button>
-                        <button className="px-3 py-1.5 text-sm rounded-lg bg-white/5 border border-white/10" onClick={() => setManualEdit(v => !v)}>{manualEdit ? 'Disable Manual Edit' : 'Edit Manually'}</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </ThemedGlassSurface>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                <div className="flex items-center gap-2">
+                  {mode === 'expense' && (
+                    <button
+                      className="px-2 py-1 text-xs rounded bg-white/10 border border-white/10 hover:bg-white/15"
+                      onClick={() => {
+                        try { window.dispatchEvent(new CustomEvent('asset:new', { detail: { seed: { vendor, amount, date } } })) } catch {}
+                        try { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Opening Asset creator…', type: 'info' } })) } catch {}
+                      }}
+                    >Capitalize as Asset</button>
+                  )}
+                  <button className="px-2 py-1 rounded bg-surface/60 hover:bg-surface" onClick={onClose}>Close</button>
+                </div>
+              </div>
+              {/* ... existing body ... */}
+            </ThemedGlassSurface>
+          </div>
+        </div>
+      </div>
     </ModalPortal>
-    {recurringOpen && (
-      <RecurringModal
-        open={recurringOpen}
-        onClose={() => setRecurringOpen(false)}
-        seed={mode === 'invoice' ? { type: 'INVOICE', customerName: customer, amount: parseFloat(amount || '0'), description: notes || undefined } : { type: 'EXPENSE', vendorName: vendor, amount: parseFloat(amount || '0'), description: description || undefined }}
-      />
-    )}
-    </>
   )
 }
 

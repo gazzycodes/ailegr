@@ -22,6 +22,9 @@ const TENANT_MODELS = new Set([
   'Invoice',
   'RecurringRule',
   'CompanyProfile',
+  'Asset',
+  'AssetCategory',
+  'AssetEvent',
 ])
 
 function getTenantId() {

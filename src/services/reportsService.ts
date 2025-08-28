@@ -25,6 +25,10 @@ export const ReportsService = {
     const { data } = await api.get(`/api/accounts/${encodeURIComponent(accountCode)}/transactions`, { params: { limit } })
     return data
   },
+  async getInventoryValuation() {
+    const { data } = await api.get('/api/reports/inventory-valuation')
+    return data
+  },
   async updateAccount(code: string, payload: { name?: string; type?: 'ASSET'|'LIABILITY'|'EQUITY'|'REVENUE'|'EXPENSE' }) {
     const { data } = await api.put(`/api/accounts/${encodeURIComponent(code)}`, payload)
     return data

@@ -1,0 +1,30 @@
+{
+  "ts": "2025-08-27T00:42:27.739Z",
+  "base": "http://localhost:4000",
+  "cases": [
+    {
+      "name": "SL 1200/12 first month",
+      "ok": true,
+      "amount": "100"
+    },
+    {
+      "name": "Idempotency same month",
+      "ok": true,
+      "depCount": 1
+    },
+    {
+      "name": "Monthly catch-up over multiple runs",
+      "ok": true,
+      "depCount": 1
+    },
+    {
+      "name": "Residual clamp (no dep)",
+      "ok": true
+    },
+    {
+      "name": "Disposal stops depreciation",
+      "ok": true
+    }
+  ],
+  "error": "Request failed with status code 500"
+}
